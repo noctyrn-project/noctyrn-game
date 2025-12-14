@@ -7,7 +7,10 @@ pub struct AccumulatedInput {
     // The player's movement input (WASD), relative to the world (rotated by camera).
     pub movement: Vec3,
     pub jump: bool,
+    pub sprint: bool,
+    pub crouch: bool,
     pub fire: bool,
+    pub aim: bool,
 }
 
 /// Handle keyboard input and accumulate it in the `AccumulatedInput` component.
@@ -48,6 +51,12 @@ pub fn accumulate_input(
 
     player.movement = wish_dir;
     player.jump = keyboard_input.pressed(KeyCode::Space);
+    player.aim = mouse_input.pressed(MouseButton::Right);
+    
+    // Only sprint if moving forward and not aiming
+    player.sprint = keyboard_input.pressed(KeyCode::ShiftLeft) && movement.y > 0.0 && !player.aim;
+    
+    player.crouch = keyboard_input.pressed(KeyCode::ControlLeft) || keyboard_input.pressed(KeyCode::KeyC);
     player.fire = mouse_input.pressed(MouseButton::Left);
 }
 

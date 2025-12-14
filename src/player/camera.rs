@@ -1,6 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 use bevy::{input::mouse::AccumulatedMouseMotion, prelude::*};
 use super::input::AccumulatedInput;
+use super::movement::CrouchHeight;
 
 #[derive(Debug, Component, Deref, DerefMut)]
 pub struct CameraSensitivity(Vec2);
@@ -37,9 +38,16 @@ pub fn rotate_camera(
 
 // Sync the camera's position with the player's interpolated position
 pub fn translate_camera(
+    time: Res<Time>,
     mut camera: Single<&mut Transform, With<Camera>>,
-    player: Single<&Transform, (With<AccumulatedInput>, Without<Camera>)>,
+    player: Single<(&Transform, &mut CrouchHeight), (With<AccumulatedInput>, Without<Camera>)>,
 ) {
+    let (player_transform, mut crouch_height) = player.into_inner();
+    
+    // Smoothly interpolate crouch height
+    let dt = time.delta_secs();
+    crouch_height.current = crouch_height.current.lerp(crouch_height.target, dt * 10.0);
+
     // Add eye height offset
-    camera.translation = player.translation + Vec3::Y * 1.5;
+    camera.translation = player_transform.translation + Vec3::Y * crouch_height.current;
 }

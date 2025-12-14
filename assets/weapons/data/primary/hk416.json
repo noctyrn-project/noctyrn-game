@@ -4,9 +4,14 @@
   "damage": 25.0,
   "reload_speed": 2.5,
   "magazine_size": 30,
+  "max_ammo": 120,
+  "ammo_type": "5.56 NATO",
+  "recoil_factor": 0.5,
+  "fire_modes": ["Auto", "Semi"],
   "model_path": "weapons/models/primary/hk416.glb#Scene0",
   "position_offset": [0.3, -0.2, -0.7],
-  "rotation_offset": [0.02, 1.57, 0.0],
+  "rotation_offset": [0.00, 1.57, 0.0],
+  "aim_offset": [-0.3, 0.06, 0.2],
   "scale": 0.2,
   "muzzle_flash_offset": [4.1, 0.0, 0.0]
 }

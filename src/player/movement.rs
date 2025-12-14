@@ -13,6 +13,21 @@ pub struct PhysicalTranslation(pub Vec3);
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 pub struct PreviousPhysicalTranslation(pub Vec3);
 
+#[derive(Debug, Component, Clone, Copy, PartialEq)]
+pub struct CrouchHeight {
+    pub current: f32,
+    pub target: f32,
+}
+
+impl Default for CrouchHeight {
+    fn default() -> Self {
+        Self {
+            current: 1.5,
+            target: 1.5,
+        }
+    }
+}
+
 /// Advance the physics simulation by one fixed timestep.
 pub fn advance_physics(
     fixed_time: Res<Time<Fixed>>,
@@ -20,21 +35,40 @@ pub fn advance_physics(
         &mut PhysicalTranslation,
         &mut PreviousPhysicalTranslation,
         &mut Velocity,
+        &mut CrouchHeight,
         &AccumulatedInput,
     )>,
 ) {
     const GRAVITY: f32 = 15.0;
     const JUMP_SPEED: f32 = 6.0;
-    const MAX_SPEED: f32 = 8.0;
+    const WALK_SPEED: f32 = 8.0;
+    const SPRINT_SPEED: f32 = 12.0;
+    const CROUCH_SPEED: f32 = 4.0;
     const ACCELERATION: f32 = 50.0;
     const FRICTION: f32 = 8.0;
 
-    for (mut current_physical_translation, mut previous_physical_translation, mut velocity, input) in
+    for (mut current_physical_translation, mut previous_physical_translation, mut velocity, mut crouch_height, input) in
         query.iter_mut()
     {
         previous_physical_translation.0 = current_physical_translation.0;
 
         let dt = fixed_time.delta_secs();
+
+        // Crouch Logic
+        if input.crouch {
+            crouch_height.target = 0.8;
+        } else {
+            crouch_height.target = 1.5;
+        }
+
+        // Determine Max Speed
+        let max_speed = if input.crouch {
+            CROUCH_SPEED
+        } else if input.sprint {
+            SPRINT_SPEED
+        } else {
+            WALK_SPEED
+        };
 
         // Ground check
         let is_on_ground = current_physical_translation.y <= 0.0;
@@ -57,7 +91,7 @@ pub fn advance_physics(
         let wish_dir = input.movement;
         
         if wish_dir.length_squared() > 0.0 {
-            let wish_speed = MAX_SPEED;
+            let wish_speed = max_speed;
             
             // Project current velocity onto wish direction
             let current_speed_in_wish_dir = velocity.dot(wish_dir);
@@ -74,7 +108,7 @@ pub fn advance_physics(
         velocity.y -= GRAVITY * dt;
 
         // Apply Jump
-        if is_on_ground && input.jump {
+        if is_on_ground && input.jump && !input.crouch {
              velocity.y = JUMP_SPEED;
         }
 

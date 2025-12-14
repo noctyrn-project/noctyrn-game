@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::CursorOptions;
 use crate::weapons::{WeaponSlot, spawn_weapon_visual, WeaponRegistry};
 
 mod movement;
@@ -7,21 +8,35 @@ mod camera;
 mod inventory;
 pub mod shooting;
 
-use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation, advance_physics, interpolate_rendered_transform};
+use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation, CrouchHeight, advance_physics, interpolate_rendered_transform};
 use input::{AccumulatedInput, accumulate_input, clear_input};
 use camera::{CameraSensitivity, rotate_camera, translate_camera};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching};
-use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, AmmoStatus, AmmoUi};
+use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi};
 
 pub struct Player;
+
+#[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
+pub enum GameState {
+    #[default]
+    Playing,
+    Menu,
+}
 
 impl Plugin for Player {
     fn build(&self, app: &mut App) {
         app.init_resource::<DidFixedTimestepRunThisFrame>();
-        app.add_systems(Startup, (spawn_text, spawn_player, spawn_crosshair, spawn_ammo_ui));
+        app.init_state::<GameState>();
+        
+        app.add_systems(Startup, (spawn_player, spawn_crosshair, spawn_ammo_ui));
+        app.add_systems(OnEnter(GameState::Menu), spawn_menu);
+        app.add_systems(OnExit(GameState::Menu), despawn_menu);
+        app.add_systems(Update, (toggle_pause, grab_cursor));
+
         app.add_systems(PreUpdate, clear_fixed_timestep_flag);
         app.add_systems(FixedPreUpdate, set_fixed_time_step_flag);
-        app.add_systems(FixedUpdate, advance_physics);
+        app.add_systems(FixedUpdate, advance_physics.run_if(in_state(GameState::Playing)));
+        
         app.add_systems(Update, (
             handle_weapon_switching, 
             fire_weapon, 
@@ -30,9 +45,11 @@ impl Plugin for Player {
             handle_muzzle_flash,
             handle_melee_swing,
             handle_grenade_throw,
+            handle_weapon_sway,
             update_ammo_ui,
             reload_weapon
-        ));
+        ).run_if(in_state(GameState::Playing)));
+
         app.add_systems(
             RunFixedMainLoop,
             (
@@ -41,7 +58,8 @@ impl Plugin for Player {
                     accumulate_input,
                 )
                     .chain()
-                    .in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop),
+                    .in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop)
+                    .run_if(in_state(GameState::Playing)),
                 (
                     clear_input.run_if(did_fixed_timestep_run_this_frame),
                     interpolate_rendered_transform,
@@ -104,6 +122,7 @@ fn spawn_player(
         Velocity::default(),
         PhysicalTranslation(initial_pos),
         PreviousPhysicalTranslation(initial_pos),
+        CrouchHeight::default(),
         Inventory::default(),
         AmmoStatus::default(),
     ));
@@ -145,23 +164,87 @@ fn spawn_crosshair(mut commands: Commands) {
         BackgroundColor(Color::WHITE),
     ));
 }
-fn spawn_text(mut commands: Commands) {
+
+#[derive(Component)]
+struct MenuUi;
+
+fn spawn_menu(mut commands: Commands) {
     let font = TextFont {
-        font_size: 25.0,
+        font_size: 30.0,
         ..default()
     };
+    
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
-            bottom: px(12),
-            left: px(12),
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
             flex_direction: FlexDirection::Column,
             ..default()
         },
-        children![
-            (Text::new("Move: WASD | Jump: Space"), font.clone()),
-            (Text::new("Look: Mouse | Fire: Left Click"), font.clone()),
-            (Text::new("Switch Weapon: 1-4"), font)
-        ],
-    ));
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+        MenuUi,
+    )).with_children(|parent| {
+        parent.spawn((
+            Text::new("PAUSED"),
+            TextFont {
+                font_size: 60.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Node {
+                margin: UiRect::bottom(Val::Px(40.0)),
+                ..default()
+            },
+        ));
+        
+        parent.spawn((Text::new("Controls:"), font.clone()));
+        parent.spawn((Text::new("WASD - Move"), font.clone()));
+        parent.spawn((Text::new("Space - Jump"), font.clone()));
+        parent.spawn((Text::new("Shift - Sprint"), font.clone()));
+        parent.spawn((Text::new("Ctrl/C - Crouch"), font.clone()));
+        parent.spawn((Text::new("Left Click - Fire"), font.clone()));
+        parent.spawn((Text::new("1-4 - Switch Weapon"), font.clone()));
+        parent.spawn((Text::new("R - Reload"), font.clone()));
+        parent.spawn((Text::new("ESC - Resume"), font.clone()));
+    });
+}
+
+fn despawn_menu(mut commands: Commands, query: Query<Entity, With<MenuUi>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn toggle_pause(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    state: Res<State<GameState>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        match state.get() {
+            GameState::Playing => next_state.set(GameState::Menu),
+            GameState::Menu => next_state.set(GameState::Playing),
+        }
+    }
+}
+
+fn grab_cursor(
+    mut cursors: Query<&mut CursorOptions>,
+    state: Res<State<GameState>>,
+) {
+    if let Ok(mut cursor) = cursors.single_mut() {
+        match state.get() {
+            GameState::Playing => {
+                cursor.visible = false;
+                cursor.grab_mode = bevy::window::CursorGrabMode::Locked;
+            }
+            GameState::Menu => {
+                cursor.visible = true;
+                cursor.grab_mode = bevy::window::CursorGrabMode::None;
+            }
+        }
+    }
 }

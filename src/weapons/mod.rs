@@ -19,6 +19,17 @@ pub struct WeaponRecoil {
     pub current_rotation: Vec3,
     pub target_offset: Vec3,
     pub target_rotation: Vec3,
+    pub sway_offset: Vec3,
+    pub sway_rotation: Vec3,
+    pub sway_phase: f32,
+    pub aim_offset: Vec3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+pub enum FireMode {
+    Auto,
+    Semi,
+    Burst(u32),
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -28,9 +39,15 @@ pub struct WeaponConfig {
     pub damage: f32,
     pub reload_speed: f32,
     pub magazine_size: u32,
+    pub max_ammo: u32,
+    pub ammo_type: String,
+    pub recoil_factor: f32,
+    pub fire_modes: Vec<FireMode>,
     pub model_path: String,
     pub position_offset: [f32; 3],
     pub rotation_offset: [f32; 3],
+    #[serde(default)]
+    pub aim_offset: Option<[f32; 3]>,
     pub scale: f32,
     #[serde(default)]
     pub muzzle_flash_offset: Option<[f32; 3]>,

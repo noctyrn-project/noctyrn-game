@@ -4,9 +4,14 @@
   "damage": 15.0,
   "reload_speed": 1.5,
   "magazine_size": 17,
+  "max_ammo": 51,
+  "ammo_type": "9mm",
+  "recoil_factor": 0.8,
+  "fire_modes": ["Semi"],
   "model_path": "weapons/models/secondary/g17.glb#Scene0",
   "position_offset": [0.25, -0.15, -0.5],
   "rotation_offset": [0.0, 1.57, 0.0],
+  "aim_offset": [-0.25, 0.08, 0.1],
   "scale": 0.1,
   "muzzle_flash_offset": [2.0, 1.15, -0.6]
 }

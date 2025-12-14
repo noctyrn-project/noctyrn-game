@@ -1,7 +1,10 @@
 use bevy::prelude::*;
+use bevy::input::mouse::AccumulatedMouseMotion;
 use super::inventory::{Inventory, WeaponModel};
-use crate::weapons::{WeaponSlot, WeaponRecoil, BaseWeaponTransform};
+use super::movement::Velocity;
+use crate::weapons::{WeaponSlot, WeaponRecoil, BaseWeaponTransform, FireMode};
 use std::collections::HashMap;
+use rand::Rng;
 
 #[derive(Component)]
 pub struct Projectile {
@@ -20,7 +23,10 @@ pub struct Target;
 #[derive(Component, Default)]
 pub struct AmmoStatus {
     pub current_ammo: HashMap<WeaponSlot, u32>,
+    pub reserve_ammo: HashMap<WeaponSlot, u32>,
+    pub current_fire_mode: HashMap<WeaponSlot, usize>, // Index into config.fire_modes
     pub reloading: Option<(WeaponSlot, Timer)>,
+    pub burst_count: u32, // Shots remaining in current burst
 }
 
 #[derive(Component)]
@@ -67,14 +73,111 @@ pub fn handle_weapon_recoil(
         recoil.target_offset = recoil.target_offset.lerp(Vec3::ZERO, dt * 10.0);
         recoil.target_rotation = recoil.target_rotation.lerp(Vec3::ZERO, dt * 10.0);
         
-        // Apply to transform
-        transform.translation = base.0.translation + recoil.current_offset;
-        transform.rotation = base.0.rotation * Quat::from_euler(
+        // Apply to transform (Recoil + Sway + Aim)
+        transform.translation = base.0.translation + recoil.current_offset + recoil.sway_offset + recoil.aim_offset;
+        
+        let recoil_rot = Quat::from_euler(
             EulerRot::XYZ, 
             recoil.current_rotation.x, 
             recoil.current_rotation.y, 
             recoil.current_rotation.z
         );
+        
+        let sway_rot = Quat::from_euler(
+            EulerRot::XYZ, 
+            recoil.sway_rotation.x, 
+            recoil.sway_rotation.y, 
+            recoil.sway_rotation.z
+        );
+
+        transform.rotation = base.0.rotation * recoil_rot * sway_rot;
+    }
+}
+
+pub fn handle_weapon_sway(
+    time: Res<Time>,
+    accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    mut query: Query<&mut WeaponRecoil, With<WeaponModel>>,
+    player_velocity: Single<&Velocity>,
+    inventory_query: Query<&Inventory>,
+    weapon_registry: Res<crate::weapons::WeaponRegistry>,
+) {
+    let velocity = player_velocity.into_inner();
+    let speed = Vec3::new(velocity.x, 0.0, velocity.z).length();
+    let dt = time.delta_secs();
+    
+    // 1. Movement Sway (Bobbing)
+    // Clamp speed for frequency calculation to avoid super fast jitter
+    let freq_speed = speed.min(8.0); 
+    let (sway_amount, sway_speed) = if speed > 0.1 { 
+        (0.01, freq_speed * 0.5) // Reduced amount and speed multiplier
+    } else { 
+        (0.002, 1.0) // Idle
+    };
+    
+    // 2. Look Sway (Lag)
+    let mouse_delta = accumulated_mouse_motion.delta;
+    let target_lag_x = -mouse_delta.x * 0.002; // Adjust sensitivity
+    let target_lag_y = mouse_delta.y * 0.002;
+
+    // 3. Sprint Pose
+    let is_sprinting = keyboard_input.pressed(KeyCode::ShiftLeft);
+    // Only sprint if moving forward (positive Z in local space, but here we check velocity relative to camera forward roughly)
+    // Actually, we can just check if speed is high enough, assuming the input logic handles direction.
+    // But the user said "if the sprint key is held while the player is moving backwards... the gun will still play the sprinting animation".
+    // So we need to check if we are actually sprinting.
+    // The input system sets `sprint` only if moving forward. But here we use raw input.
+    // Let's use the velocity dot product with camera forward if possible, or just trust the speed + input if we had the input struct.
+    // Since we don't have the input struct here easily without querying, let's rely on the fact that we updated input.rs to only set sprint true if moving forward.
+    // Wait, we are reading raw keyboard input here. We should probably read the AccumulatedInput component if we want to respect the logic in input.rs.
+    // But we removed it. Let's re-add it or duplicate the logic.
+    
+    // Duplicate logic: Check if W is pressed.
+    let moving_forward = keyboard_input.pressed(KeyCode::KeyW);
+    
+    let (sprint_pos, sprint_rot) = if is_sprinting && moving_forward && speed > 0.1 {
+        (Vec3::new(0.1, -0.1, -0.1), Vec3::new(-0.4, 0.8, 0.0)) // Example sprint pose
+    } else {
+        (Vec3::ZERO, Vec3::ZERO)
+    };
+
+    // 4. Aiming
+    let is_aiming = mouse_input.pressed(MouseButton::Right) && !is_sprinting;
+    let inventory = inventory_query.iter().next(); // Use iter().next() for safety if single() is weird
+    
+    let mut target_aim_offset = Vec3::ZERO;
+    if let Some(inv) = inventory {
+        if let Some(config) = weapon_registry.configs.get(&inv.active_slot) {
+            if is_aiming {
+                if let Some(offset) = config.aim_offset {
+                    target_aim_offset = Vec3::from(offset);
+                }
+            }
+        }
+    }
+
+    for mut recoil in query.iter_mut() {
+        // Update Phase
+        recoil.sway_phase += dt * sway_speed;
+        
+        let bob_x = recoil.sway_phase.sin() * sway_amount;
+        let bob_y = (recoil.sway_phase * 2.0).cos().abs() * sway_amount;
+
+        // Target Sway (Bobbing + Sprint)
+        // Disable sway if aiming
+        let sway_mult = if is_aiming { 0.1 } else { 1.0 };
+        
+        let target_sway_pos = (Vec3::new(bob_x, bob_y, 0.0) + sprint_pos) * sway_mult;
+        
+        // Target Rotation (Lag + Sprint)
+        let target_sway_rot = (Vec3::new(target_lag_y, target_lag_x, 0.0) + sprint_rot) * sway_mult;
+        
+        // Smoothly interpolate
+        recoil.sway_offset = recoil.sway_offset.lerp(target_sway_pos, dt * 10.0);
+        recoil.sway_rotation = recoil.sway_rotation.lerp(target_sway_rot, dt * 5.0);
+        recoil.aim_offset = recoil.aim_offset.lerp(target_aim_offset, dt * 15.0);
     }
 }
 
@@ -93,6 +196,11 @@ pub fn fire_weapon(
 ) {
     let (inventory, mut ammo_status) = if let Ok(res) = inventory_query.single_mut() { res } else { return };
     
+    // Prevent firing while sprinting
+    if keyboard_input.pressed(KeyCode::ShiftLeft) {
+        return;
+    }
+    
     // Handle Reloading
     let mut finished_reloading = false;
     if let Some((_, timer)) = &mut ammo_status.reloading {
@@ -105,7 +213,14 @@ pub fn fire_weapon(
     if finished_reloading {
         if let Some((slot, _)) = ammo_status.reloading.take() {
             if let Some(config) = weapon_registry.configs.get(&slot) {
-                ammo_status.current_ammo.insert(slot, config.magazine_size);
+                let current = *ammo_status.current_ammo.get(&slot).unwrap_or(&0);
+                let reserve = *ammo_status.reserve_ammo.get(&slot).unwrap_or(&config.max_ammo); // Default to max if not set
+                
+                let needed = config.magazine_size.saturating_sub(current);
+                let available = reserve.min(needed);
+                
+                ammo_status.current_ammo.insert(slot, current + available);
+                ammo_status.reserve_ammo.insert(slot, reserve - available);
             }
         }
     }
@@ -117,20 +232,36 @@ pub fn fire_weapon(
     // Manual Reload
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
-            if config.reload_speed > 0.0 {
+            let current = *ammo_status.current_ammo.get(&inventory.active_slot).unwrap_or(&0);
+            let reserve = *ammo_status.reserve_ammo.get(&inventory.active_slot).unwrap_or(&config.max_ammo);
+            
+            if current < config.magazine_size && reserve > 0 && config.reload_speed > 0.0 {
                 ammo_status.reloading = Some((inventory.active_slot, Timer::from_seconds(config.reload_speed, TimerMode::Once)));
                 return;
             }
         }
     }
 
-    let (fire_rate, speed, color, size, muzzle_offset) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
-        (config.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, config.muzzle_flash_offset)
+    // Switch Fire Mode
+    if keyboard_input.just_pressed(KeyCode::KeyV) {
+        if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+            if !config.fire_modes.is_empty() {
+                let current_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
+                let next_idx = (current_idx + 1) % config.fire_modes.len();
+                ammo_status.current_fire_mode.insert(inventory.active_slot, next_idx);
+            }
+        }
+    }
+
+    let (fire_rate, speed, color, size, muzzle_offset, recoil_factor, fire_mode) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+        let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
+        let mode = config.fire_modes.get(mode_idx).copied().unwrap_or(FireMode::Auto);
+        (config.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, config.muzzle_flash_offset, config.recoil_factor, mode)
     } else {
         match inventory.active_slot {
-            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None),
-            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None),
-            _ => (0.2, 30.0, Color::WHITE, 0.1, None),
+            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, FireMode::Semi),
+            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None, 0.0, FireMode::Semi),
+            _ => (0.2, 30.0, Color::WHITE, 0.1, None, 0.1, FireMode::Auto),
         }
     };
 
@@ -139,7 +270,33 @@ pub fn fire_weapon(
         return;
     }
 
-    if mouse_input.pressed(MouseButton::Left) {
+    let mut should_fire = false;
+    
+    // Burst Logic
+    if ammo_status.burst_count > 0 {
+        should_fire = true;
+    } else {
+        match fire_mode {
+            FireMode::Auto => {
+                if mouse_input.pressed(MouseButton::Left) {
+                    should_fire = true;
+                }
+            },
+            FireMode::Semi => {
+                if mouse_input.just_pressed(MouseButton::Left) {
+                    should_fire = true;
+                }
+            },
+            FireMode::Burst(count) => {
+                if mouse_input.just_pressed(MouseButton::Left) {
+                    ammo_status.burst_count = count;
+                    should_fire = true;
+                }
+            }
+        }
+    }
+
+    if should_fire {
         // Check Ammo for guns
         if matches!(inventory.active_slot, WeaponSlot::Primary | WeaponSlot::Secondary) {
             let current = *ammo_status.current_ammo.entry(inventory.active_slot).or_insert_with(|| {
@@ -149,12 +306,20 @@ pub fn fire_weapon(
             if current == 0 {
                 // Auto reload if empty
                 if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
-                    ammo_status.reloading = Some((inventory.active_slot, Timer::from_seconds(config.reload_speed, TimerMode::Once)));
+                    let reserve = *ammo_status.reserve_ammo.get(&inventory.active_slot).unwrap_or(&config.max_ammo);
+                    if reserve > 0 {
+                        ammo_status.reloading = Some((inventory.active_slot, Timer::from_seconds(config.reload_speed, TimerMode::Once)));
+                    }
                 }
+                ammo_status.burst_count = 0; // Cancel burst
                 return;
             }
             
             ammo_status.current_ammo.insert(inventory.active_slot, current - 1);
+        }
+        
+        if ammo_status.burst_count > 0 {
+            ammo_status.burst_count -= 1;
         }
 
         *last_fire = time.elapsed_secs();
@@ -191,7 +356,7 @@ pub fn fire_weapon(
                 ));
                 
                 // Animate hand/weapon throw
-                if let Some((weapon_entity, mut recoil, _)) = weapon_query.iter_mut().next() {
+                if let Some((_weapon_entity, mut recoil, _)) = weapon_query.iter_mut().next() {
                      recoil.target_rotation += Vec3::new(-1.0, 0.0, 0.0); // Throw motion
                 }
             },
@@ -217,8 +382,14 @@ pub fn fire_weapon(
 
                 // Apply Weapon Recoil & Muzzle Flash
                 if let Some((weapon_entity, mut recoil, _)) = weapon_query.iter_mut().next() {
-                    recoil.target_offset += Vec3::new(0.0, 0.0, 0.1); 
-                    recoil.target_rotation += Vec3::new(0.1, 0.0, 0.0);
+                    let mut rng = rand::rng();
+                    let rand_x = rng.random_range(-0.05..0.05) * recoil_factor;
+                    let rand_y = rng.random_range(0.05..0.1) * recoil_factor;
+                    let rand_rot_x = rng.random_range(0.05..0.15) * recoil_factor;
+                    let rand_rot_y = rng.random_range(-0.05..0.05) * recoil_factor;
+
+                    recoil.target_offset += Vec3::new(rand_x, rand_y, 0.1); 
+                    recoil.target_rotation += Vec3::new(rand_rot_x, rand_rot_y, 0.0);
 
                     if let Some(offset) = muzzle_offset {
                         commands.entity(weapon_entity).with_children(|parent| {
@@ -254,7 +425,7 @@ pub fn handle_melee_swing(
         
         // Simple swing animation: Rotate out and back
         let rotation = if t < 0.5 {
-            Quat::IDENTITY.slerp(swing.target_rotation, t * 2.0)
+            swing.start_rotation.slerp(swing.target_rotation, t * 2.0)
         } else {
             swing.target_rotation.slerp(Quat::IDENTITY, (t - 0.5) * 2.0)
         };
@@ -308,8 +479,21 @@ pub fn update_ammo_ui(
         **text = format!("Reloading... {:.1}s", timer.remaining_secs());
     } else if matches!(inventory.active_slot, WeaponSlot::Primary | WeaponSlot::Secondary) {
         let current = ammo_status.current_ammo.get(&inventory.active_slot).copied().unwrap_or(0);
-        let max = weapon_registry.configs.get(&inventory.active_slot).map(|c| c.magazine_size).unwrap_or(0);
-        **text = format!("Ammo: {} / {}", current, max);
+        let reserve = ammo_status.reserve_ammo.get(&inventory.active_slot).copied().unwrap_or(0);
+        
+        if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+            let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
+            let mode = config.fire_modes.get(mode_idx).copied().unwrap_or(FireMode::Auto);
+            let mode_str = match mode {
+                FireMode::Auto => "AUTO",
+                FireMode::Semi => "SEMI",
+                FireMode::Burst(_) => "BURST",
+            };
+            
+            **text = format!("{} | {}\n{} | {}", current, reserve, config.ammo_type, mode_str);
+        } else {
+             **text = format!("{} | {}", current, reserve);
+        }
     } else {
         **text = "Ammo: --".to_string();
     }

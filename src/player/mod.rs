@@ -12,8 +12,8 @@ mod inventory;
 pub mod shooting;
 
 use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation, CrouchHeight, advance_physics, interpolate_rendered_transform};
-use input::{AccumulatedInput, accumulate_input, clear_input, Keybinds, load_keybinds};
-use camera::{CameraSensitivity, rotate_camera, translate_camera};
+use input::{AccumulatedInput, accumulate_input, clear_input, Keybinds, load_keybinds, save_keybinds};
+use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching};
 use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi};
 
@@ -55,7 +55,8 @@ impl Plugin for Player {
             shooting::handle_explosion_particles,
             handle_weapon_sway,
             update_ammo_ui,
-            reload_weapon
+            reload_weapon,
+            draw_hitboxes
         ).run_if(in_state(GameState::Playing)));
 
         app.add_systems(
@@ -72,11 +73,14 @@ impl Plugin for Player {
                     clear_input.run_if(did_fixed_timestep_run_this_frame),
                     interpolate_rendered_transform,
                     translate_camera,
+                    free_cam_movement,
                 )
                     .chain()
                     .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
             ),
         );
+
+        app.add_systems(Update, draw_hitboxes);
     }
 }
 
@@ -636,6 +640,7 @@ fn keybind_remapping_system(
         if let Some(key) = keyboard_input.get_just_pressed().next() {
             if *key != KeyCode::Escape {
                 keybinds.set(&action, *key);
+                save_keybinds(&keybinds);
             }
             remapping_state.active_action = None;
         }
@@ -661,6 +666,28 @@ fn keybind_remapping_system(
                 let key = keybinds.get(&button.action);
                 text.0 = format!("{:?}", key);
             }
+        }
+    }
+}
+
+fn draw_hitboxes(
+    mut gizmos: Gizmos,
+    query: Query<(&GlobalTransform, Option<&crate::gameplay::Turret>), With<crate::gameplay::Enemy>>,
+    debug_settings: Res<DebugSettings>,
+) {
+    if !debug_settings.show_hitboxes {
+        return;
+    }
+
+    for (transform, turret) in query.iter() {
+        let pos = transform.translation();
+        let color = Color::srgb(1.0, 0.0, 0.0);
+        
+        if turret.is_some() {
+             gizmos.cuboid(Transform::from_translation(pos).with_scale(Vec3::splat(1.0)), color);
+        } else {
+             // Character (Approximate hitbox)
+             gizmos.cuboid(Transform::from_translation(pos + Vec3::new(0.0, 1.0, 0.0)).with_scale(Vec3::new(0.5, 2.0, 0.5)), color);
         }
     }
 }

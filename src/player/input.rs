@@ -158,3 +158,14 @@ impl Keybinds {
         }
     }
 }
+
+pub fn save_keybinds(keybinds: &Keybinds) {
+    let path = "keybinds.json";
+    if let Ok(content) = serde_json::to_string_pretty(keybinds) {
+        if let Err(e) = fs::write(path, content) {
+            warn!("Failed to save keybinds.json: {}", e);
+        }
+    } else {
+        warn!("Failed to serialize keybinds.");
+    }
+}

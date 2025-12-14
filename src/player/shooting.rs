@@ -333,12 +333,16 @@ pub fn fire_weapon(
     }
     
     // Grenade Throw Logic (Release G)
-    if inventory.active_slot == WeaponSlot::Equipment && keyboard_input.just_released(keybinds.grenade) {
-        should_fire = true;
-    }
-
-    // Melee Logic (Hold vs Tap)
-    if inventory.active_slot == WeaponSlot::Melee {
+    if inventory.active_slot == WeaponSlot::Equipment {
+        if keyboard_input.just_released(keybinds.grenade) {
+            should_fire = true;
+        }
+    } else if inventory.active_slot == WeaponSlot::Melee {
+        // Melee Logic (Hold vs Tap)
+        let attack_speed = weapon_registry.configs.get(&WeaponSlot::Melee)
+            .map(|c| c.attributes.attack_speed)
+            .unwrap_or(0.5);
+            
         if mouse_input.pressed(MouseButton::Left) {
             *melee_hold_timer += time.delta_secs();
             if *melee_hold_timer > 0.2 {
@@ -421,9 +425,13 @@ pub fn fire_weapon(
         match inventory.active_slot {
             WeaponSlot::Melee => {
                 // Melee Swing Logic
+                let attack_speed = weapon_registry.configs.get(&WeaponSlot::Melee)
+                    .map(|c| c.attributes.attack_speed)
+                    .unwrap_or(0.5);
+
                 if let Some((weapon_entity, _, _)) = weapon_query.iter().next() {
                     commands.entity(weapon_entity).insert(MeleeSwing {
-                        timer: Timer::from_seconds(0.2, TimerMode::Once),
+                        timer: Timer::from_seconds(attack_speed, TimerMode::Once),
                     });
                 }
                 // Damage Logic

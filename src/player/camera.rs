@@ -2,6 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 use bevy::{input::mouse::AccumulatedMouseMotion, prelude::*};
 use super::input::AccumulatedInput;
 use super::movement::CrouchHeight;
+use super::DebugSettings;
 
 #[derive(Debug, Component, Deref, DerefMut)]
 pub struct CameraSensitivity(Vec2);
@@ -41,7 +42,12 @@ pub fn translate_camera(
     time: Res<Time>,
     mut camera: Single<&mut Transform, With<Camera>>,
     player: Single<(&Transform, &mut CrouchHeight), (With<AccumulatedInput>, Without<Camera>)>,
+    debug_settings: Res<DebugSettings>,
 ) {
+    if debug_settings.free_cam {
+        return;
+    }
+
     let (player_transform, mut crouch_height) = player.into_inner();
     
     // Smoothly interpolate crouch height
@@ -50,4 +56,46 @@ pub fn translate_camera(
 
     // Add eye height offset
     camera.translation = player_transform.translation + Vec3::Y * crouch_height.current;
+}
+
+pub fn free_cam_movement(
+    time: Res<Time>,
+    mut camera: Single<&mut Transform, With<Camera>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    debug_settings: Res<DebugSettings>,
+) {
+    if !debug_settings.free_cam {
+        return;
+    }
+
+    let mut transform = camera.into_inner();
+    let mut velocity = Vec3::ZERO;
+    let speed = 10.0;
+
+    let forward = transform.forward();
+    let right = transform.right();
+    let up = transform.up();
+
+    if keyboard_input.pressed(KeyCode::KeyW) {
+        velocity += forward.as_vec3();
+    }
+    if keyboard_input.pressed(KeyCode::KeyS) {
+        velocity -= forward.as_vec3();
+    }
+    if keyboard_input.pressed(KeyCode::KeyA) {
+        velocity -= right.as_vec3();
+    }
+    if keyboard_input.pressed(KeyCode::KeyD) {
+        velocity += right.as_vec3();
+    }
+    if keyboard_input.pressed(KeyCode::Space) {
+        velocity += Vec3::Y;
+    }
+    if keyboard_input.pressed(KeyCode::ControlLeft) {
+        velocity -= Vec3::Y;
+    }
+
+    if velocity != Vec3::ZERO {
+        transform.translation += velocity.normalize_or_zero() * speed * time.delta_secs();
+    }
 }

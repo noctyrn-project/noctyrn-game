@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use super::input::AccumulatedInput;
+use crate::gameplay::Health;
 
 /// A vector representing the player's velocity in the physics simulation.
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
@@ -37,6 +38,7 @@ pub fn advance_physics(
         &mut Velocity,
         &mut CrouchHeight,
         &AccumulatedInput,
+        Option<&Health>,
     )>,
 ) {
     const GRAVITY: f32 = 15.0;
@@ -47,9 +49,15 @@ pub fn advance_physics(
     const ACCELERATION: f32 = 50.0;
     const FRICTION: f32 = 8.0;
 
-    for (mut current_physical_translation, mut previous_physical_translation, mut velocity, mut crouch_height, input) in
+    for (mut current_physical_translation, mut previous_physical_translation, mut velocity, mut crouch_height, input, health) in
         query.iter_mut()
     {
+        if let Some(h) = health {
+            if h.current <= 0.0 {
+                continue;
+            }
+        }
+
         previous_physical_translation.0 = current_physical_translation.0;
 
         let dt = fixed_time.delta_secs();

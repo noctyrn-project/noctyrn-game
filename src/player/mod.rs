@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::window::CursorOptions;
 use crate::weapons::{WeaponSlot, spawn_weapon_visual, WeaponRegistry};
+use crate::gameplay::{Health, PlayerBody};
 
 mod movement;
 mod input;
@@ -45,6 +46,7 @@ impl Plugin for Player {
             handle_muzzle_flash,
             handle_melee_swing,
             handle_grenade_throw,
+            shooting::handle_explosion_particles,
             handle_weapon_sway,
             update_ammo_ui,
             reload_weapon
@@ -125,6 +127,8 @@ fn spawn_player(
         CrouchHeight::default(),
         Inventory::default(),
         AmmoStatus::default(),
+        Health { current: 100.0, max: 100.0 },
+        PlayerBody,
     ));
 }
 

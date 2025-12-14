@@ -23,6 +23,8 @@ pub struct WeaponRecoil {
     pub sway_rotation: Vec3,
     pub sway_phase: f32,
     pub aim_offset: Vec3,
+    pub switch_offset: Vec3,
+    pub switch_rotation: Vec3,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

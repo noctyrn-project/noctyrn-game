@@ -3,6 +3,7 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use super::inventory::{Inventory, WeaponModel};
 use super::movement::Velocity;
 use crate::weapons::{WeaponSlot, WeaponRecoil, BaseWeaponTransform, FireMode};
+use crate::gameplay::{Health, PlayerBody, Enemy};
 use std::collections::HashMap;
 use rand::Rng;
 
@@ -10,6 +11,8 @@ use rand::Rng;
 pub struct Projectile {
     pub velocity: Vec3,
     pub timer: Timer,
+    pub damage: f32,
+    pub from_player: bool,
 }
 
 #[derive(Component)]
@@ -45,6 +48,15 @@ pub struct Grenade {
     pub timer: Timer,
 }
 
+#[derive(Component)]
+pub struct ExplosionParticle {
+    pub velocity: Vec3,
+    pub timer: Timer,
+    pub max_time: f32,
+    pub start_scale: f32,
+    pub end_scale: f32,
+}
+
 pub fn handle_muzzle_flash(
     mut commands: Commands,
     time: Res<Time>,
@@ -73,8 +85,8 @@ pub fn handle_weapon_recoil(
         recoil.target_offset = recoil.target_offset.lerp(Vec3::ZERO, dt * 10.0);
         recoil.target_rotation = recoil.target_rotation.lerp(Vec3::ZERO, dt * 10.0);
         
-        // Apply to transform (Recoil + Sway + Aim)
-        transform.translation = base.0.translation + recoil.current_offset + recoil.sway_offset + recoil.aim_offset;
+        // Apply to transform (Recoil + Sway + Aim + Switch)
+        transform.translation = base.0.translation + recoil.current_offset + recoil.sway_offset + recoil.aim_offset + recoil.switch_offset;
         
         let recoil_rot = Quat::from_euler(
             EulerRot::XYZ, 
@@ -90,7 +102,14 @@ pub fn handle_weapon_recoil(
             recoil.sway_rotation.z
         );
 
-        transform.rotation = base.0.rotation * recoil_rot * sway_rot;
+        let switch_rot = Quat::from_euler(
+            EulerRot::XYZ, 
+            recoil.switch_rotation.x, 
+            recoil.switch_rotation.y, 
+            recoil.switch_rotation.z
+        );
+
+        transform.rotation = base.0.rotation * recoil_rot * sway_rot * switch_rot;
     }
 }
 
@@ -103,6 +122,7 @@ pub fn handle_weapon_sway(
     player_velocity: Single<&Velocity>,
     inventory_query: Query<&Inventory>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
+    camera_query: Query<&GlobalTransform, With<Camera>>,
 ) {
     let velocity = player_velocity.into_inner();
     let speed = Vec3::new(velocity.x, 0.0, velocity.z).length();
@@ -112,7 +132,7 @@ pub fn handle_weapon_sway(
     // Clamp speed for frequency calculation to avoid super fast jitter
     let freq_speed = speed.min(8.0); 
     let (sway_amount, sway_speed) = if speed > 0.1 { 
-        (0.01, freq_speed * 0.5) // Reduced amount and speed multiplier
+        (0.01, freq_speed * 0.5)
     } else { 
         (0.002, 1.0) // Idle
     };
@@ -124,17 +144,6 @@ pub fn handle_weapon_sway(
 
     // 3. Sprint Pose
     let is_sprinting = keyboard_input.pressed(KeyCode::ShiftLeft);
-    // Only sprint if moving forward (positive Z in local space, but here we check velocity relative to camera forward roughly)
-    // Actually, we can just check if speed is high enough, assuming the input logic handles direction.
-    // But the user said "if the sprint key is held while the player is moving backwards... the gun will still play the sprinting animation".
-    // So we need to check if we are actually sprinting.
-    // The input system sets `sprint` only if moving forward. But here we use raw input.
-    // Let's use the velocity dot product with camera forward if possible, or just trust the speed + input if we had the input struct.
-    // Since we don't have the input struct here easily without querying, let's rely on the fact that we updated input.rs to only set sprint true if moving forward.
-    // Wait, we are reading raw keyboard input here. We should probably read the AccumulatedInput component if we want to respect the logic in input.rs.
-    // But we removed it. Let's re-add it or duplicate the logic.
-    
-    // Duplicate logic: Check if W is pressed.
     let moving_forward = keyboard_input.pressed(KeyCode::KeyW);
     
     let (sprint_pos, sprint_rot) = if is_sprinting && moving_forward && speed > 0.1 {
@@ -143,7 +152,18 @@ pub fn handle_weapon_sway(
         (Vec3::ZERO, Vec3::ZERO)
     };
 
-    // 4. Aiming
+    // 4. Strafe Sway
+    let mut strafe_sway = Vec3::ZERO;
+    if let Ok(camera_transform) = camera_query.single() {
+        let right = camera_transform.compute_transform().right();
+        let local_vel_x = velocity.dot(*right); // Positive = Right, Negative = Left
+        // If moving right, gun lags left (negative X)
+        strafe_sway.z = -local_vel_x * 0.002; // Reduced from 0.005
+        // Add a bit of roll for strafing
+        strafe_sway.x = -local_vel_x * 0.005; // Reduced from 0.01
+    }
+
+    // 5. Aiming
     let is_aiming = mouse_input.pressed(MouseButton::Right) && !is_sprinting;
     let inventory = inventory_query.iter().next(); // Use iter().next() for safety if single() is weird
     
@@ -163,16 +183,16 @@ pub fn handle_weapon_sway(
         recoil.sway_phase += dt * sway_speed;
         
         let bob_x = recoil.sway_phase.sin() * sway_amount;
-        let bob_y = (recoil.sway_phase * 2.0).cos().abs() * sway_amount;
+        let bob_y = (recoil.sway_phase * 2.0).cos().abs() * sway_amount * 2.0; // More vertical bob
 
-        // Target Sway (Bobbing + Sprint)
+        // Target Sway (Bobbing + Sprint + Strafe)
         // Disable sway if aiming
         let sway_mult = if is_aiming { 0.1 } else { 1.0 };
         
-        let target_sway_pos = (Vec3::new(bob_x, bob_y, 0.0) + sprint_pos) * sway_mult;
+        let target_sway_pos = (Vec3::new(bob_x, bob_y, 0.0) + sprint_pos + Vec3::new(strafe_sway.x, 0.0, 0.0)) * sway_mult;
         
-        // Target Rotation (Lag + Sprint)
-        let target_sway_rot = (Vec3::new(target_lag_y, target_lag_x, 0.0) + sprint_rot) * sway_mult;
+        // Target Rotation (Lag + Sprint + Strafe Roll)
+        let target_sway_rot = (Vec3::new(target_lag_y, target_lag_x, strafe_sway.z) + sprint_rot) * sway_mult;
         
         // Smoothly interpolate
         recoil.sway_offset = recoil.sway_offset.lerp(target_sway_pos, dt * 10.0);
@@ -193,6 +213,7 @@ pub fn fire_weapon(
     time: Res<Time>,
     mut last_fire: Local<f32>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
+    asset_server: Res<AssetServer>,
 ) {
     let (inventory, mut ammo_status) = if let Ok(res) = inventory_query.single_mut() { res } else { return };
     
@@ -257,7 +278,7 @@ pub fn fire_weapon(
         }
     }
 
-    let (fire_rate, speed, color, size, muzzle_offset, recoil_factor, fire_mode) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+    let (fire_rate, speed, color, size, muzzle_offset, recoil_factor, fire_mode, damage) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
         let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
         let mode_str = config.attributes.fire_modes.get(mode_idx).map(|s| s.as_str()).unwrap_or("Auto");
         let mode = match mode_str {
@@ -268,13 +289,14 @@ pub fn fire_weapon(
         };
         
         let muzzle = config.attachments.barrel.as_ref().and_then(|b| b.meta.as_ref()).and_then(|m| m.muzzle_flash_offset);
+        let dmg = config.attachments.ammo.as_ref().map(|a| a.damage).unwrap_or(10.0);
         
-        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, mode)
+        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, mode, dmg)
     } else {
         match inventory.active_slot {
-            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, FireMode::Semi),
-            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None, 0.0, FireMode::Semi),
-            _ => (0.2, 30.0, Color::WHITE, 0.1, None, 0.1, FireMode::Auto),
+            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, FireMode::Semi, 50.0),
+            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None, 0.0, FireMode::Semi, 100.0),
+            _ => (0.2, 30.0, Color::WHITE, 0.1, None, 0.1, FireMode::Auto, 10.0),
         }
     };
 
@@ -353,19 +375,16 @@ pub fn fire_weapon(
                     commands.entity(weapon_entity).insert(MeleeSwing {
                         timer: Timer::from_seconds(0.2, TimerMode::Once),
                         start_rotation: Quat::IDENTITY, // Will be set in system
-                        target_rotation: Quat::from_rotation_x(-1.0) * Quat::from_rotation_y(1.0),
+                        // Swipe across screen: Rotate Y (yaw) significantly, and some X (pitch)
+                        target_rotation: Quat::from_rotation_y(1.5) * Quat::from_rotation_x(-0.5),
                     });
                 }
             },
             WeaponSlot::Equipment => {
                 // Grenade Throw Logic
                 commands.spawn((
-                    Mesh3d(meshes.add(Sphere::new(0.2))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgb(0.1, 0.5, 0.1),
-                        ..default()
-                    })),
-                    Transform::from_translation(spawn_pos),
+                    SceneRoot(asset_server.load("weapons/models/equipment/rgd-5.glb#Scene0")),
+                    Transform::from_translation(spawn_pos).with_scale(Vec3::splat(0.2)),
                     Grenade {
                         velocity: forward * 15.0 + Vec3::Y * 5.0, // Arc throw
                         timer: Timer::from_seconds(3.0, TimerMode::Once),
@@ -379,6 +398,22 @@ pub fn fire_weapon(
             },
             _ => {
                 // Gun Logic
+                let mut rng = rand::rng();
+                
+                // Bullet Spread
+                let spread_angle = 0.02; // Adjust as needed
+                let spread_rot = Quat::from_rotation_z(rng.random_range(0.0..std::f32::consts::TAU)) 
+                               * Quat::from_rotation_x(rng.random_range(0.0..spread_angle));
+                let spread_forward = transform.rotation * spread_rot * Vec3::NEG_Z; // Assuming -Z is forward in local space, but we used global forward before.
+                // Actually, 'forward' variable is already global forward.
+                // Let's apply spread to the global forward.
+                // We need a basis.
+                let right = transform.right();
+                let up = transform.up();
+                let r1 = rng.random_range(-spread_angle..spread_angle);
+                let r2 = rng.random_range(-spread_angle..spread_angle);
+                let final_velocity = (forward.as_vec3() + right.as_vec3() * r1 + up.as_vec3() * r2).normalize() * speed;
+
                 commands.spawn((
                     Mesh3d(meshes.add(Sphere::new(size))),
                     MeshMaterial3d(materials.add(StandardMaterial {
@@ -388,8 +423,10 @@ pub fn fire_weapon(
                     })),
                     Transform::from_translation(spawn_pos),
                     Projectile {
-                        velocity: forward * speed,
+                        velocity: final_velocity,
                         timer: Timer::from_seconds(3.0, TimerMode::Once),
+                        damage,
+                        from_player: true,
                     },
                 ));
 
@@ -460,6 +497,9 @@ pub fn handle_grenade_throw(
     mut commands: Commands,
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Grenade)>,
+    mut health_query: Query<(Entity, &Transform, &mut Health), (With<Health>, Without<Grenade>)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (entity, mut transform, mut grenade) in query.iter_mut() {
         grenade.timer.tick(time.delta());
@@ -469,17 +509,103 @@ pub fn handle_grenade_throw(
         transform.translation += grenade.velocity * time.delta_secs();
         
         // Floor collision
-        if transform.translation.y < 0.0 {
-            transform.translation.y = 0.0;
+        if transform.translation.y < 0.2 {
+            transform.translation.y = 0.2;
             grenade.velocity.y *= -0.5; // Bounce
             grenade.velocity.x *= 0.8; // Friction
             grenade.velocity.z *= 0.8;
         }
 
         if grenade.timer.is_finished() {
-            // Explosion (placeholder)
+            // Explosion
             commands.entity(entity).despawn();
-            println!("BOOM!"); 
+            
+            // Smoke Particles
+            let mut rng = rand::rng();
+            for _ in 0..20 {
+                let dir = Vec3::new(
+                    rng.random_range(-1.0..1.0),
+                    rng.random_range(-1.0..1.0),
+                    rng.random_range(-1.0..1.0),
+                ).normalize_or_zero();
+                
+                let speed = rng.random_range(2.0..8.0);
+                let life = rng.random_range(1.0..2.5);
+                let scale = rng.random_range(0.5..1.5);
+
+                commands.spawn((
+                    Mesh3d(meshes.add(Sphere::new(1.0))), // Low poly sphere or IcoSphere
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgba(1.0, 1.0, 0.8, 0.8), // Start White-Yellow
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation(transform.translation).with_scale(Vec3::splat(0.1)),
+                    ExplosionParticle {
+                        velocity: dir * speed,
+                        timer: Timer::from_seconds(life, TimerMode::Once),
+                        max_time: life,
+                        start_scale: 0.1,
+                        end_scale: scale,
+                    },
+                ));
+            }
+
+            // Damage
+            let explosion_radius = 5.0;
+            let max_damage = 100.0;
+
+            for (_target_entity, target_transform, mut health) in health_query.iter_mut() {
+                let distance = transform.translation.distance(target_transform.translation);
+                if distance < explosion_radius {
+                    let damage = max_damage * (1.0 - distance / explosion_radius);
+                    health.current -= damage;
+                }
+            }
+        }
+    }
+}
+
+pub fn handle_explosion_particles(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut ExplosionParticle, &mut MeshMaterial3d<StandardMaterial>)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for (entity, mut transform, mut particle, handle) in query.iter_mut() {
+        particle.timer.tick(time.delta());
+        if particle.timer.is_finished() {
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        let t = particle.timer.fraction(); // 0.0 to 1.0
+        
+        // Movement
+        transform.translation += particle.velocity * time.delta_secs();
+        particle.velocity *= 0.95; // Drag
+
+        // Scale
+        let scale = particle.start_scale + (particle.end_scale - particle.start_scale) * t.sqrt();
+        transform.scale = Vec3::splat(scale);
+
+        // Color Fade: White-Yellow -> Orange-Red -> Gray-Black
+        if let Some(material) = materials.get_mut(&handle.0) {
+            let color = if t < 0.2 {
+                // White-Yellow to Orange
+                let sub_t = t / 0.2;
+                Color::srgba(1.0, 1.0, 0.8, 0.8).mix(&Color::srgba(1.0, 0.5, 0.0, 0.7), sub_t)
+            } else if t < 0.6 {
+                // Orange to Gray
+                let sub_t = (t - 0.2) / 0.4;
+                Color::srgba(1.0, 0.5, 0.0, 0.7).mix(&Color::srgba(0.2, 0.2, 0.2, 0.5), sub_t)
+            } else {
+                // Gray to Transparent
+                let sub_t = (t - 0.6) / 0.4;
+                Color::srgba(0.2, 0.2, 0.2, 0.5).mix(&Color::srgba(0.0, 0.0, 0.0, 0.0), sub_t)
+            };
+            material.base_color = color;
         }
     }
 }
@@ -518,7 +644,7 @@ pub fn move_projectiles(
     mut commands: Commands,
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Projectile)>,
-    targets: Query<(Entity, &Transform), (With<Target>, Without<Projectile>)>,
+    mut health_query: Query<(Entity, &Transform, &mut Health, Option<&PlayerBody>, Option<&Enemy>), Without<Projectile>>,
 ) {
     for (entity, mut transform, mut projectile) in query.iter_mut() {
         projectile.timer.tick(time.delta());
@@ -531,10 +657,14 @@ pub fn move_projectiles(
         transform.translation += delta;
 
         // Simple collision check (distance based)
-        for (target_entity, target_transform) in targets.iter() {
+        for (_target_entity, target_transform, mut health, is_player, is_enemy) in health_query.iter_mut() {
+            // Friendly fire check
+            if projectile.from_player && is_player.is_some() { continue; }
+            if !projectile.from_player && is_enemy.is_some() { continue; }
+
             if transform.translation.distance(target_transform.translation) < 1.5 {
                 // Hit!
-                commands.entity(target_entity).despawn(); // Destroy target
+                health.current -= projectile.damage;
                 commands.entity(entity).despawn(); // Destroy projectile
                 break;
             }

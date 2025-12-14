@@ -19,6 +19,7 @@ impl Plugin for GameplayPlugin {
             spectate_camera,
             respawn_player,
             billboard_system,
+            handle_regeneration,
         ).run_if(in_state(GameState::Playing)));
     }
 }
@@ -32,14 +33,59 @@ pub struct SpectatorTarget;
 #[derive(Component)]
 pub struct Billboard;
 
+#[derive(Component)]
+pub struct Regenerating {
+    pub timer: Timer, // Delay before regen starts
+    pub current_rate: f32,
+    pub base_rate: f32,
+    pub max_rate: f32,
+    pub ramp_up_speed: f32,
+}
+
+impl Default for Regenerating {
+    fn default() -> Self {
+        Self {
+            timer: Timer::from_seconds(5.0, TimerMode::Once), // 5 seconds delay
+            current_rate: 1.0,
+            base_rate: 1.0, // 1 HP/sec start
+            max_rate: 20.0, // 20 HP/sec max
+            ramp_up_speed: 5.0, // +5 HP/sec per second
+        }
+    }
+}
+
+fn handle_regeneration(
+    time: Res<Time>,
+    mut query: Query<(&mut Health, &mut Regenerating)>,
+) {
+    for (mut health, mut regen) in query.iter_mut() {
+        if health.current < health.max {
+            regen.timer.tick(time.delta());
+            if regen.timer.is_finished() {
+                // Ramp up rate
+                regen.current_rate = (regen.current_rate + regen.ramp_up_speed * time.delta_secs()).min(regen.max_rate);
+                // Apply regen
+                health.current = (health.current + regen.current_rate * time.delta_secs()).min(health.max);
+            }
+        } else {
+            // Reset if full (or handled by damage reset)
+             // We don't reset timer here because if we are full, we are "safe". 
+             // But if we take damage, we want delay.
+             // The timer is "time since last damage".
+             // If we are full, we haven't taken damage recently (or we healed up).
+             // Actually, if we are full, we don't need to tick.
+        }
+    }
+}
+
 fn billboard_system(
     mut query: Query<&mut Transform, With<Billboard>>,
-    camera_query: Query<&GlobalTransform, With<Camera>>,
+    camera_query: Query<&Transform, (With<Camera>, Without<Billboard>)>,
 ) {
     let camera_transform = if let Some(t) = camera_query.iter().next() { t } else { return };
     
     for mut transform in query.iter_mut() {
-        transform.look_at(camera_transform.translation(), Vec3::Y);
+        transform.rotation = camera_transform.rotation;
     }
 }
 
@@ -47,24 +93,54 @@ fn billboard_system(
 pub struct PlayerHealthUi;
 
 #[derive(Component)]
+pub struct PlayerHealthBar;
+
+#[derive(Component)]
 pub struct DeathScreen;
 
 fn spawn_player_ui(mut commands: Commands) {
-     commands.spawn((
-        Text::new("Health: 100"),
-        TextFont {
-            font_size: 30.0,
-            ..default()
-        },
-        TextColor(Color::srgb(0.0, 1.0, 0.0)),
+    // Health Bar Container
+    commands.spawn((
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(20.0),
             left: Val::Px(20.0),
+            width: Val::Px(300.0),
+            height: Val::Px(30.0),
+            border: UiRect::all(Val::Px(2.0)),
             ..default()
         },
-        PlayerHealthUi,
-    ));
+        BackgroundColor(Color::BLACK),
+        BorderColor::all(Color::WHITE),
+    )).with_children(|parent| {
+        // Health Bar Fill
+        parent.spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.0, 0.8, 0.0)),
+            PlayerHealthBar,
+        ));
+        
+        // Health Text Overlay
+        parent.spawn((
+            Text::new("100 / 100"),
+            TextFont {
+                font_size: 20.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(10.0),
+                top: Val::Px(5.0),
+                ..default()
+            },
+            PlayerHealthUi,
+        ));
+    });
 
     // Death Screen (Red overlay)
     commands.spawn((
@@ -81,15 +157,18 @@ fn spawn_player_ui(mut commands: Commands) {
 }
 
 fn update_player_health_ui(
-    mut query: Query<&mut Text, With<PlayerHealthUi>>,
-    mut death_screen_query: Query<&mut Node, With<DeathScreen>>,
+    mut text_query: Query<&mut Text, With<PlayerHealthUi>>,
+    mut bar_query: Query<&mut Node, With<PlayerHealthBar>>,
+    mut death_screen_query: Query<&mut Node, (With<DeathScreen>, Without<PlayerHealthBar>)>,
     player_query: Query<&Health, With<PlayerBody>>,
 ) {
-    let mut text = if let Ok(t) = query.single_mut() { t } else { return };
+    let mut text = if let Ok(t) = text_query.single_mut() { t } else { return };
+    let mut bar = if let Ok(b) = bar_query.single_mut() { b } else { return };
     let mut death_screen = if let Ok(d) = death_screen_query.single_mut() { d } else { return };
     
     if let Ok(health) = player_query.single() {
-        text.0 = format!("Health: {}", health.current.ceil());
+        text.0 = format!("{:.0} / {:.0}", health.current, health.max);
+        bar.width = Val::Percent((health.current / health.max * 100.0).clamp(0.0, 100.0));
         
         if health.current <= 0.0 {
             death_screen.display = Display::Flex;

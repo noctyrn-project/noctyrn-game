@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::weapons::{WeaponSlot, spawn_weapon_visual, WeaponRegistry};
+use crate::player::input::Keybinds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SwitchState {
@@ -17,6 +18,7 @@ pub struct Inventory {
     pub switch_state: SwitchState,
     pub switch_timer: Timer,
     pub quick_melee_timer: Timer, // To detect hold vs tap
+    pub auto_attack: bool,
 }
 
 impl Default for Inventory {
@@ -28,6 +30,7 @@ impl Default for Inventory {
             switch_state: SwitchState::Idle,
             switch_timer: Timer::from_seconds(0.2, TimerMode::Once),
             quick_melee_timer: Timer::from_seconds(0.3, TimerMode::Once),
+            auto_attack: false,
         }
     }
 }
@@ -39,6 +42,7 @@ pub fn handle_weapon_switching(
     mut commands: Commands,
     time: Res<Time>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    keybinds: Res<Keybinds>,
     mut query: Query<&mut Inventory>,
     mut weapon_query: Query<(Entity, &mut crate::weapons::WeaponRecoil), With<WeaponModel>>,
     camera_query: Query<Entity, With<Camera>>,
@@ -53,53 +57,54 @@ pub fn handle_weapon_switching(
         if keyboard_input.just_pressed(KeyCode::Digit1) { target = Some(WeaponSlot::Primary); }
         else if keyboard_input.just_pressed(KeyCode::Digit2) { target = Some(WeaponSlot::Secondary); }
         // else if keyboard_input.just_pressed(KeyCode::Digit3) { target = Some(WeaponSlot::Melee); } // Removed standard switch
-        else if keyboard_input.just_pressed(KeyCode::Digit4) { target = Some(WeaponSlot::Equipment); }
+        // else if keyboard_input.just_pressed(KeyCode::Digit4) { target = Some(WeaponSlot::Equipment); }
 
         // Quick Melee Logic (Key F)
-        if keyboard_input.just_pressed(KeyCode::KeyF) {
+        if keyboard_input.just_pressed(keybinds.melee) {
             if inventory.active_slot != WeaponSlot::Melee {
                 inventory.previous_slot = Some(inventory.active_slot);
                 target = Some(WeaponSlot::Melee);
                 inventory.quick_melee_timer.reset();
+                inventory.auto_attack = true;
             }
         }
         
-        if keyboard_input.pressed(KeyCode::KeyF) {
+        if keyboard_input.pressed(keybinds.melee) {
             inventory.quick_melee_timer.tick(time.delta());
         }
 
-        if keyboard_input.just_released(KeyCode::KeyF) {
+        if keyboard_input.just_released(keybinds.melee) {
             // Tap (< 0.2s): Quick Melee (Attack + Return)
             // Hold (> 0.2s): Equip (Stay)
             
             if inventory.quick_melee_timer.elapsed_secs() < 0.2 {
-                // Quick Melee: We want to return AFTER the attack.
-                // For now, let's just ensure we return.
-                // Ideally we wait for attack.
-                // But the user said "tapping ... jabs it once, then returns it".
-                // If we switch back immediately, we might miss the jab if the switch anim is slow.
-                // Let's rely on the fact that we switched to Melee.
-                // We need a way to queue the return.
-                // Let's use a "Returning" state or just a timer?
-                // Or we can just set target back to previous, but maybe delay it?
-                
-                // If we set target now, it will start Unequipping Melee immediately.
-                // If Melee hasn't finished Equipping, it might look weird.
-                // But our state machine handles target change during Equipping?
-                // "if t != inventory.active_slot && inventory.switch_state == SwitchState::Idle"
-                // We can only switch if Idle.
-                // So if we are currently Equipping Melee, we can't switch back yet.
-                // We need to queue the return.
-                
-                // Let's use `target_slot` as the queue.
                 if let Some(prev) = inventory.previous_slot {
                     inventory.target_slot = Some(prev);
                     inventory.previous_slot = None;
                 }
             } else {
-                // Hold: Stay equipped.
-                // We don't switch back.
-                inventory.previous_slot = None; // Clear previous so we don't switch back later
+                // Stay equipped
+                inventory.previous_slot = None;
+            }
+        }
+
+        // Grenade Logic (Hold G to equip, Release to throw)
+        if keyboard_input.just_pressed(keybinds.grenade) {
+            if inventory.active_slot != WeaponSlot::Equipment {
+                inventory.previous_slot = Some(inventory.active_slot);
+                target = Some(WeaponSlot::Equipment);
+            }
+        }
+        
+        if keyboard_input.just_released(keybinds.grenade) {
+            // Throw logic is handled in fire_weapon, but we need to switch back after throw?
+            // Or maybe fire_weapon handles the throw, and we switch back here?
+            // If we release G, we want to throw.
+            // But we also want to switch back to previous weapon.
+            // Let's set target back to previous slot.
+            if let Some(prev) = inventory.previous_slot {
+                inventory.target_slot = Some(prev);
+                inventory.previous_slot = None;
             }
         }
 

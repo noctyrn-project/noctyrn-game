@@ -3,7 +3,7 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use super::inventory::{Inventory, WeaponModel};
 use super::movement::Velocity;
 use crate::weapons::{WeaponSlot, WeaponRecoil, BaseWeaponTransform, FireMode};
-use crate::gameplay::{Health, PlayerBody, Enemy};
+use crate::gameplay::{Health, PlayerBody, Enemy, Regenerating};
 use std::collections::HashMap;
 use rand::Rng;
 
@@ -38,8 +38,6 @@ pub struct AmmoUi;
 #[derive(Component)]
 pub struct MeleeSwing {
     pub timer: Timer,
-    pub start_rotation: Quat,
-    pub target_rotation: Quat,
 }
 
 #[derive(Component)]
@@ -109,7 +107,14 @@ pub fn handle_weapon_recoil(
             recoil.switch_rotation.z
         );
 
-        transform.rotation = base.0.rotation * recoil_rot * sway_rot * switch_rot;
+        let melee_rot = Quat::from_euler(
+            EulerRot::XYZ, 
+            recoil.melee_rotation.x, 
+            recoil.melee_rotation.y, 
+            recoil.melee_rotation.z
+        );
+
+        transform.rotation = base.0.rotation * recoil_rot * sway_rot * switch_rot * melee_rot;
     }
 }
 
@@ -168,8 +173,16 @@ pub fn handle_weapon_sway(
     let inventory = inventory_query.iter().next(); // Use iter().next() for safety if single() is weird
     
     let mut target_aim_offset = Vec3::ZERO;
+    let mut ads_speed_mult = 15.0;
+    let mut stability_mult = 1.0;
+    let mut mobility_mult = 1.0;
+
     if let Some(inv) = inventory {
         if let Some(config) = weapon_registry.configs.get(&inv.active_slot) {
+            ads_speed_mult = config.attributes.ads_speed * 20.0;
+            stability_mult = 1.0 - (config.attributes.stability * 0.5); // Higher stability = less sway
+            mobility_mult = 0.5 + (config.attributes.mobility * 0.5); // Higher mobility = faster sway recovery/movement?
+
             if is_aiming {
                 if let Some(offset) = config.attachments.optic.as_ref().and_then(|o| o.meta.as_ref()).and_then(|m| m.aim_offset) {
                     target_aim_offset = Vec3::from(offset);
@@ -180,10 +193,10 @@ pub fn handle_weapon_sway(
 
     for mut recoil in query.iter_mut() {
         // Update Phase
-        recoil.sway_phase += dt * sway_speed;
+        recoil.sway_phase += dt * sway_speed * mobility_mult;
         
-        let bob_x = recoil.sway_phase.sin() * sway_amount;
-        let bob_y = (recoil.sway_phase * 2.0).cos().abs() * sway_amount * 2.0; // More vertical bob
+        let bob_x = recoil.sway_phase.sin() * sway_amount * stability_mult;
+        let bob_y = (recoil.sway_phase * 2.0).cos().abs() * sway_amount * 2.0 * stability_mult; // More vertical bob
 
         // Target Sway (Bobbing + Sprint + Strafe)
         // Disable sway if aiming
@@ -192,33 +205,38 @@ pub fn handle_weapon_sway(
         let target_sway_pos = (Vec3::new(bob_x, bob_y, 0.0) + sprint_pos + Vec3::new(strafe_sway.x, 0.0, 0.0)) * sway_mult;
         
         // Target Rotation (Lag + Sprint + Strafe Roll)
-        let target_sway_rot = (Vec3::new(target_lag_y, target_lag_x, strafe_sway.z) + sprint_rot) * sway_mult;
+        let target_sway_rot = (Vec3::new(target_lag_y, target_lag_x, strafe_sway.z) + sprint_rot) * sway_mult * stability_mult;
         
         // Smoothly interpolate
         recoil.sway_offset = recoil.sway_offset.lerp(target_sway_pos, dt * 10.0);
         recoil.sway_rotation = recoil.sway_rotation.lerp(target_sway_rot, dt * 5.0);
-        recoil.aim_offset = recoil.aim_offset.lerp(target_aim_offset, dt * 15.0);
+        recoil.aim_offset = recoil.aim_offset.lerp(target_aim_offset, dt * ads_speed_mult);
     }
 }
+
+use crate::player::input::Keybinds;
 
 pub fn fire_weapon(
     mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut inventory_query: Query<(&Inventory, &mut AmmoStatus)>,
+    keybinds: Res<Keybinds>,
+    mut inventory_query: Query<(&mut Inventory, &mut AmmoStatus)>,
     camera: Single<(&GlobalTransform, &mut Transform), With<Camera>>,
     mut weapon_query: Query<(Entity, &mut WeaponRecoil, &mut Transform), (With<WeaponModel>, Without<Camera>)>,
+    mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&PlayerBody>, Option<&Enemy>, Option<&mut Regenerating>), Without<Projectile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
     mut last_fire: Local<f32>,
+    mut melee_hold_timer: Local<f32>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
     asset_server: Res<AssetServer>,
 ) {
-    let (inventory, mut ammo_status) = if let Ok(res) = inventory_query.single_mut() { res } else { return };
+    let (mut inventory, mut ammo_status) = if let Ok(res) = inventory_query.single_mut() { res } else { return };
     
     // Prevent firing while sprinting
-    if keyboard_input.pressed(KeyCode::ShiftLeft) {
+    if keyboard_input.pressed(keybinds.sprint) {
         return;
     }
     
@@ -278,7 +296,7 @@ pub fn fire_weapon(
         }
     }
 
-    let (fire_rate, speed, color, size, muzzle_offset, recoil_factor, fire_mode, damage) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+    let (fire_rate, speed, color, size, muzzle_offset, v_recoil, h_recoil, fire_mode, damage) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
         let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
         let mode_str = config.attributes.fire_modes.get(mode_idx).map(|s| s.as_str()).unwrap_or("Auto");
         let mode = match mode_str {
@@ -291,12 +309,12 @@ pub fn fire_weapon(
         let muzzle = config.attachments.barrel.as_ref().and_then(|b| b.meta.as_ref()).and_then(|m| m.muzzle_flash_offset);
         let dmg = config.attachments.ammo.as_ref().map(|a| a.damage).unwrap_or(10.0);
         
-        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, mode, dmg)
+        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, config.attributes.horizontal_recoil, mode, dmg)
     } else {
         match inventory.active_slot {
-            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, FireMode::Semi, 50.0),
-            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None, 0.0, FireMode::Semi, 100.0),
-            _ => (0.2, 30.0, Color::WHITE, 0.1, None, 0.1, FireMode::Auto, 10.0),
+            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, 0.0, FireMode::Semi, 50.0),
+            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None, 0.0, 0.0, FireMode::Semi, 100.0),
+            _ => (0.2, 30.0, Color::WHITE, 0.1, None, 0.1, 0.05, FireMode::Auto, 10.0),
         }
     };
 
@@ -306,26 +324,58 @@ pub fn fire_weapon(
     }
 
     let mut should_fire = false;
+    let mut is_slash = false;
     
-    // Burst Logic
-    if ammo_status.burst_count > 0 {
+    // Auto Attack for Quick Melee
+    if inventory.auto_attack && inventory.active_slot == WeaponSlot::Melee && inventory.switch_state == crate::player::inventory::SwitchState::Idle {
         should_fire = true;
+        inventory.auto_attack = false;
+    }
+    
+    // Grenade Throw Logic (Release G)
+    if inventory.active_slot == WeaponSlot::Equipment && keyboard_input.just_released(keybinds.grenade) {
+        should_fire = true;
+    }
+
+    // Melee Logic (Hold vs Tap)
+    if inventory.active_slot == WeaponSlot::Melee {
+        if mouse_input.pressed(MouseButton::Left) {
+            *melee_hold_timer += time.delta_secs();
+            if *melee_hold_timer > 0.2 {
+                should_fire = true;
+                is_slash = true;
+                *melee_hold_timer = 0.0; // Reset to allow repeated slashes if held? Or wait for release?
+                // If we want continuous slashes, we keep firing.
+            }
+        } else if mouse_input.just_released(MouseButton::Left) {
+            if *melee_hold_timer < 0.2 {
+                should_fire = true; // Stab
+            }
+            *melee_hold_timer = 0.0;
+        } else {
+            *melee_hold_timer = 0.0;
+        }
     } else {
-        match fire_mode {
-            FireMode::Auto => {
-                if mouse_input.pressed(MouseButton::Left) {
-                    should_fire = true;
-                }
-            },
-            FireMode::Semi => {
-                if mouse_input.just_pressed(MouseButton::Left) {
-                    should_fire = true;
-                }
-            },
-            FireMode::Burst(count) => {
-                if mouse_input.just_pressed(MouseButton::Left) {
-                    ammo_status.burst_count = count;
-                    should_fire = true;
+        // Gun Logic
+        if ammo_status.burst_count > 0 {
+            should_fire = true;
+        } else {
+            match fire_mode {
+                FireMode::Auto => {
+                    if mouse_input.pressed(MouseButton::Left) {
+                        should_fire = true;
+                    }
+                },
+                FireMode::Semi => {
+                    if mouse_input.just_pressed(MouseButton::Left) {
+                        should_fire = true;
+                    }
+                },
+                FireMode::Burst(count) => {
+                    if mouse_input.just_pressed(MouseButton::Left) {
+                        ammo_status.burst_count = count;
+                        should_fire = true;
+                    }
                 }
             }
         }
@@ -374,10 +424,31 @@ pub fn fire_weapon(
                 if let Some((weapon_entity, _, _)) = weapon_query.iter().next() {
                     commands.entity(weapon_entity).insert(MeleeSwing {
                         timer: Timer::from_seconds(0.2, TimerMode::Once),
-                        start_rotation: Quat::IDENTITY, // Will be set in system
-                        // Swipe across screen: Rotate Y (yaw) significantly, and some X (pitch)
-                        target_rotation: Quat::from_rotation_y(1.5) * Quat::from_rotation_x(-0.5),
                     });
+                }
+                // Damage Logic
+                let melee_range = 2.5;
+                let final_damage = if is_slash { 30.0 } else { damage }; // Slash = 30, Stab = 50 (from JSON)
+                
+                for (_target_entity, target_transform, mut health, _, is_enemy, mut regen) in health_query.iter_mut() {
+                    if is_enemy.is_none() { continue; } // Only hit enemies
+                    
+                    let to_target = target_transform.translation() - transform.translation; // Use camera pos, not spawn_pos
+                    let distance = to_target.length();
+                    
+                    if distance < melee_range {
+                        let dir_to_target = to_target.normalize();
+                        // Check if in front (cone)
+                        let cone = if is_slash { 0.2 } else { 0.8 }; // Slash is wider (0.2 dot product is wide angle), Stab is narrow
+                        if forward.dot(dir_to_target) > cone {
+                            health.current -= final_damage;
+                            if let Some(r) = regen.as_mut() {
+                                r.timer.reset();
+                                r.current_rate = r.base_rate;
+                            }
+                            println!("Hit enemy! Health: {} (Type: {})", health.current, if is_slash { "Slash" } else { "Stab" });
+                        }
+                    }
                 }
             },
             WeaponSlot::Equipment => {
@@ -395,6 +466,11 @@ pub fn fire_weapon(
                 if let Some((_weapon_entity, mut recoil, _)) = weapon_query.iter_mut().next() {
                      recoil.target_rotation += Vec3::new(-1.0, 0.0, 0.0); // Throw motion
                 }
+
+                // Switch back to primary
+                inventory.target_slot = Some(WeaponSlot::Primary);
+                inventory.switch_state = crate::player::inventory::SwitchState::Unequipping;
+                inventory.switch_timer.reset();
             },
             _ => {
                 // Gun Logic
@@ -402,12 +478,7 @@ pub fn fire_weapon(
                 
                 // Bullet Spread
                 let spread_angle = 0.02; // Adjust as needed
-                let spread_rot = Quat::from_rotation_z(rng.random_range(0.0..std::f32::consts::TAU)) 
-                               * Quat::from_rotation_x(rng.random_range(0.0..spread_angle));
-                let spread_forward = transform.rotation * spread_rot * Vec3::NEG_Z; // Assuming -Z is forward in local space, but we used global forward before.
-                // Actually, 'forward' variable is already global forward.
-                // Let's apply spread to the global forward.
-                // We need a basis.
+                // Apply spread to the global forward.
                 let right = transform.right();
                 let up = transform.up();
                 let r1 = rng.random_range(-spread_angle..spread_angle);
@@ -437,10 +508,10 @@ pub fn fire_weapon(
                 // Apply Weapon Recoil & Muzzle Flash
                 if let Some((weapon_entity, mut recoil, _)) = weapon_query.iter_mut().next() {
                     let mut rng = rand::rng();
-                    let rand_x = rng.random_range(-0.05..0.05) * recoil_factor;
-                    let rand_y = rng.random_range(0.05..0.1) * recoil_factor;
-                    let rand_rot_x = rng.random_range(0.05..0.15) * recoil_factor;
-                    let rand_rot_y = rng.random_range(-0.05..0.05) * recoil_factor;
+                    let rand_x = rng.random_range(-0.5..0.5) * h_recoil;
+                    let rand_y = rng.random_range(0.5..1.0) * v_recoil;
+                    let rand_rot_x = rng.random_range(0.5..1.5) * v_recoil;
+                    let rand_rot_y = rng.random_range(-0.5..0.5) * h_recoil;
 
                     recoil.target_offset += Vec3::new(rand_x, rand_y, 0.1); 
                     recoil.target_rotation += Vec3::new(rand_rot_x, rand_rot_y, 0.0);
@@ -471,24 +542,30 @@ pub fn fire_weapon(
 pub fn handle_melee_swing(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut MeleeSwing, &BaseWeaponTransform)>,
+    mut query: Query<(Entity, &mut WeaponRecoil, &mut MeleeSwing)>,
 ) {
-    for (entity, mut transform, mut swing, base) in query.iter_mut() {
+    for (entity, mut recoil, mut swing) in query.iter_mut() {
         swing.timer.tick(time.delta());
         let t = swing.timer.fraction();
         
         // Simple swing animation: Rotate out and back
-        let rotation = if t < 0.5 {
-            swing.start_rotation.slerp(swing.target_rotation, t * 2.0)
+        // We want to animate Euler angles for the recoil struct
+        // Pitch down (X), Yaw right (Y)
+        let target_euler = Vec3::new(-0.5, 1.5, 0.0); 
+        
+        let current_euler = if t < 0.5 {
+            // Out
+            Vec3::ZERO.lerp(target_euler, t * 2.0)
         } else {
-            swing.target_rotation.slerp(Quat::IDENTITY, (t - 0.5) * 2.0)
+            // Back
+            target_euler.lerp(Vec3::ZERO, (t - 0.5) * 2.0)
         };
         
-        transform.rotation = base.0.rotation * rotation;
+        recoil.melee_rotation = current_euler;
 
         if swing.timer.is_finished() {
             commands.entity(entity).remove::<MeleeSwing>();
-            transform.rotation = base.0.rotation; // Reset
+            recoil.melee_rotation = Vec3::ZERO; // Reset
         }
     }
 }
@@ -497,7 +574,7 @@ pub fn handle_grenade_throw(
     mut commands: Commands,
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Grenade)>,
-    mut health_query: Query<(Entity, &Transform, &mut Health), (With<Health>, Without<Grenade>)>,
+    mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&mut Regenerating>), (With<Health>, Without<Grenade>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -556,11 +633,15 @@ pub fn handle_grenade_throw(
             let explosion_radius = 5.0;
             let max_damage = 100.0;
 
-            for (_target_entity, target_transform, mut health) in health_query.iter_mut() {
-                let distance = transform.translation.distance(target_transform.translation);
+            for (_target_entity, target_transform, mut health, mut regen) in health_query.iter_mut() {
+                let distance = transform.translation.distance(target_transform.translation());
                 if distance < explosion_radius {
                     let damage = max_damage * (1.0 - distance / explosion_radius);
                     health.current -= damage;
+                    if let Some(r) = regen.as_mut() {
+                        r.timer.reset();
+                        r.current_rate = r.base_rate;
+                    }
                 }
             }
         }
@@ -644,7 +725,7 @@ pub fn move_projectiles(
     mut commands: Commands,
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Projectile)>,
-    mut health_query: Query<(Entity, &Transform, &mut Health, Option<&PlayerBody>, Option<&Enemy>), Without<Projectile>>,
+    mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&PlayerBody>, Option<&Enemy>, Option<&mut Regenerating>), Without<Projectile>>,
 ) {
     for (entity, mut transform, mut projectile) in query.iter_mut() {
         projectile.timer.tick(time.delta());
@@ -657,14 +738,18 @@ pub fn move_projectiles(
         transform.translation += delta;
 
         // Simple collision check (distance based)
-        for (_target_entity, target_transform, mut health, is_player, is_enemy) in health_query.iter_mut() {
+        for (_target_entity, target_transform, mut health, is_player, is_enemy, mut regen) in health_query.iter_mut() {
             // Friendly fire check
             if projectile.from_player && is_player.is_some() { continue; }
             if !projectile.from_player && is_enemy.is_some() { continue; }
 
-            if transform.translation.distance(target_transform.translation) < 1.5 {
+            if transform.translation.distance(target_transform.translation()) < 1.5 {
                 // Hit!
                 health.current -= projectile.damage;
+                if let Some(r) = regen.as_mut() {
+                    r.timer.reset();
+                    r.current_rate = r.base_rate;
+                }
                 commands.entity(entity).despawn(); // Destroy projectile
                 break;
             }

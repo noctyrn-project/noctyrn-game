@@ -1,6 +1,6 @@
 {
-  "name": "Example Primary Weapon",
   "info": {
+    "name": "Example Primary Weapon",
     "description": "A versatile and reliable primary weapon suitable for various combat scenarios.",
     "manufacturer": "Example Arms Co.",
     "year_introduced": 2006
@@ -101,6 +101,11 @@
             "final": 15.0,
             "falloff_start": 50.0,
             "falloff_end": 100.0
+        },
+        "limb_modifiers": {
+            "torso_damage": 1.0,
+            "headshot_damage": 2.0,
+            "limb_damage": 0.75
         },
         "penetration": 1.0,
         "range": 100.0,

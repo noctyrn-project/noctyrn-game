@@ -1,15 +1,14 @@
 {
   "info": {
-    "name": "rgd-5",
-    "description": "A standard issue fragmentation grenade.",
-    "manufacturer": "Soviet Union",
-    "year_introduced": 1954,
+    "name": "Example Equipment",
+    "description": "Example description!",
+    "manufacturer": "Example Manufacturer",
+    "year_introduced": 2025,
     "type": "Grenade"
   },
   "meta": {
-    "weapon_type": "Grenade",
-    "model_path": "weapons/models/equipment/rgd-5.glb#Scene0",
-    "icon_path": "weapons/icons/rgd-5.png",
+    "model_path": "weapons/models/equipment/example_equipment.glb#Scene0",
+    "icon_path": "weapons/icons/example_equipment.png",
     "position_offset": [0.2, -0.15, -0.4],
     "rotation_offset": [0.0, 0.0, 0.0],
     "scale": 0.15

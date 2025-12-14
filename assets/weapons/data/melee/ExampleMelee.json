@@ -1,14 +1,14 @@
 {
   "info": {
-    "name": "MSBS Grot Bayonet",
-    "description": "A sharp blade.",
-    "manufacturer": "Fabryka Broni Łucznik",
+    "name": "Example Melee",
+    "description": "Example melee weapon for testing.",
+    "manufacturer": "Example Manufacturer",
     "year_introduced": 2025
   },
   "meta": {
-    "weapon_type": "1 Handed Sharp",
-    "model_path": "weapons/models/melee/msbs_grot_bayonet.glb#Scene0",
-    "icon_path": "weapons/icons/msbs_grot_bayonet.png",
+    "type": "1 Handed Sharp",
+    "model_path": "weapons/models/melee/example_melee.glb#Scene0",
+    "icon_path": "weapons/icons/example_melee.png",
     "position_offset": [0.3, -0.1, -0.6],
     "rotation_offset": [-0.2, -1.57, 1.57],
     "scale": 0.15

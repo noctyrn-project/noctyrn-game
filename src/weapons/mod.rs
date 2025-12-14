@@ -25,6 +25,7 @@ pub struct WeaponRecoil {
     pub aim_offset: Vec3,
     pub switch_offset: Vec3,
     pub switch_rotation: Vec3,
+    pub melee_rotation: Vec3,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -39,29 +40,68 @@ pub struct WeaponInfo {
     pub name: String,
     pub description: String,
     pub manufacturer: String,
-    pub weight: f32,
-    pub length: f32,
+    pub year_introduced: u32,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct WeaponMeta {
+    pub weapon_type: String,
     pub model_path: String,
+    #[serde(default)]
     pub icon_path: String,
     pub position_offset: [f32; 3],
     pub rotation_offset: [f32; 3],
     pub scale: f32,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct WeaponAttributes {
+    #[serde(default)]
     pub fire_rate: f32,
-    pub fire_modes: Vec<String>,
-    pub recoil_control: f32,
-    pub ergonomics: f32,
-    pub accuracy: f32,
-    pub vertical_recoil: f32,
-    pub horizontal_recoil: f32,
+    #[serde(default)]
     pub reload_speed: f32,
+    #[serde(default)]
+    pub accuracy: f32,
+    #[serde(default)]
+    pub mobility: f32,
+    #[serde(default)]
+    pub stability: f32,
+    #[serde(default)]
+    pub horizontal_recoil: f32,
+    #[serde(default)]
+    pub vertical_recoil: f32,
+    #[serde(default)]
+    pub ads_speed: f32,
+    #[serde(default)]
+    pub fire_modes: Vec<String>,
+
+    // Melee specific
+    #[serde(default)]
+    pub attack_speed: f32,
+    #[serde(default)]
+    pub equip_speed: f32,
+    #[serde(default)]
+    pub stab_damage: f32,
+    #[serde(default)]
+    pub slash_damage: f32,
+    #[serde(default)]
+    pub back_stab_multiplier: f32,
+    #[serde(default)]
+    pub reach: f32,
+
+    // Grenade specific
+    #[serde(default)]
+    pub detonation_time: f32,
+    #[serde(default)]
+    pub blast_radius: f32,
+    #[serde(default)]
+    pub blast_damage: f32,
+    #[serde(default)]
+    pub weight: f32,
+    #[serde(default)]
+    pub amount: u32,
+    #[serde(default)]
+    pub special_effects: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -69,44 +109,50 @@ pub struct AttachmentMeta {
     #[serde(default)]
     pub model_path: String,
     #[serde(default)]
+    pub mesh_path: String, // JSON uses mesh_path sometimes?
+    #[serde(default)]
     pub aim_offset: Option<[f32; 3]>,
     #[serde(default)]
     pub muzzle_flash_offset: Option<[f32; 3]>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct OpticStats {
-    pub zoom_level: f32,
-    pub ergonomics_penalty: f32,
+    #[serde(default)]
+    pub position_offset: Option<[f32; 3]>,
+    #[serde(default)]
+    pub rotation_offset: Option<[f32; 3]>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct OpticAttachment {
     pub name: String,
+    #[serde(rename = "type")]
+    pub optic_type: String,
+    pub zoom_level: f32,
+    pub zoom_speed: f32,
+    pub sway_modifier: f32,
+    pub stability_modifier: f32,
+    #[serde(default)]
+    pub special_effects: Vec<String>,
     pub meta: Option<AttachmentMeta>,
-    pub stats: OpticStats,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct BarrelStats {
-    pub length: f32,
-    pub velocity_mult: f32,
-    pub recoil_mult: f32,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct BarrelAttachment {
     pub name: String,
+    pub range_modifier: f32,
+    pub accuracy_modifier: f32,
+    pub horizontal_recoil_modifier: f32,
+    pub vertical_recoil_modifier: f32,
+    #[serde(default)]
+    pub special_effects: Vec<String>,
     pub meta: Option<AttachmentMeta>,
-    pub stats: BarrelStats,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct MagazineAttachment {
     pub name: String,
     pub capacity: u32,
-    pub carry_capacity: u32,
-    pub reload_speed_mult: f32,
+    pub carry_capacity: u32, // Reserve ammo
+    pub reload_speed_modifier: f32,
+    pub meta: Option<AttachmentMeta>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -115,9 +161,10 @@ pub struct AmmoAttachment {
     pub damage: f32,
     pub penetration: f32,
     pub velocity: f32,
+    pub meta: Option<AttachmentMeta>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct WeaponAttachments {
     pub optic: Option<OpticAttachment>,
     pub barrel: Option<BarrelAttachment>,
@@ -130,6 +177,7 @@ pub struct WeaponConfig {
     pub info: WeaponInfo,
     pub meta: WeaponMeta,
     pub attributes: WeaponAttributes,
+    #[serde(default)]
     pub attachments: WeaponAttachments,
 }
 

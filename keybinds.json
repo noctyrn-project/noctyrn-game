@@ -1,0 +1,14 @@
+{
+  "forward": "KeyW",
+  "backward": "KeyS",
+  "left": "KeyA",
+  "right": "KeyD",
+  "jump": "Space",
+  "sprint": "ShiftLeft",
+  "crouch": "ControlLeft",
+  "interact": "KeyE",
+  "grenade": "KeyG",
+  "melee": "KeyF",
+  "stats": "F3",
+  "pause": "Escape"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "HK416",
+  "fire_rate": 0.1,
+  "damage": 25.0,
+  "reload_speed": 2.5,
+  "magazine_size": 30,
+  "model_path": "weapons/models/primary/hk416.glb#Scene0",
+  "position_offset": [0.2, -0.4, -0.5],
+  "rotation_offset": [0.0, 1.57, 0.0],
+  "scale": 0.5
+}

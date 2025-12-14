@@ -1,0 +1,11 @@
+{
+  "name": "MSBS Grot Bayonet",
+  "fire_rate": 0.5,
+  "damage": 50.0,
+  "reload_speed": 0.0,
+  "magazine_size": 0,
+  "model_path": "weapons/models/melee/msbs_grot_bayonet.glb#Scene0",
+  "position_offset": [0.3, -0.1, -0.6],
+  "rotation_offset": [-0.2, -1.57, 1.57],
+  "scale": 0.15
+}

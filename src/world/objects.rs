@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::Rng;
+use crate::player::shooting::Target;
 
 pub fn spawn_objects(
     mut commands: Commands,
@@ -25,6 +26,7 @@ pub fn spawn_objects(
                 ..default()
             })),
             Transform::from_xyz(x, y, z),
+            Target,
         ));
     }
 
@@ -47,6 +49,7 @@ pub fn spawn_objects(
                 ..default()
             })),
             Transform::from_xyz(x, y, z),
+            Target,
         ));
     }
     
@@ -55,5 +58,6 @@ pub fn spawn_objects(
         Mesh3d(meshes.add(Cuboid::new(4.0, 10.0, 4.0))),
         MeshMaterial3d(materials.add(Color::srgb(0.2, 0.2, 0.8))),
         Transform::from_xyz(10.0, 5.0, 10.0),
+        Target,
     ));
 }

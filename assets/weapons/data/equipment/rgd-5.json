@@ -1,0 +1,11 @@
+{
+  "name": "RGD-5 Grenade",
+  "fire_rate": 1.0,
+  "damage": 100.0,
+  "reload_speed": 0.0,
+  "magazine_size": 1,
+  "model_path": "weapons/models/equipment/rgd-5.glb#Scene0",
+  "position_offset": [0.2, -0.15, -0.4],
+  "rotation_offset": [0.0, 0.0, 0.0],
+  "scale": 0.15
+}

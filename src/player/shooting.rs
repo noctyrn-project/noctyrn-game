@@ -151,7 +151,7 @@ pub fn handle_weapon_sway(
     if let Some(inv) = inventory {
         if let Some(config) = weapon_registry.configs.get(&inv.active_slot) {
             if is_aiming {
-                if let Some(offset) = config.aim_offset {
+                if let Some(offset) = config.attachments.optic.as_ref().and_then(|o| o.meta.as_ref()).and_then(|m| m.aim_offset) {
                     target_aim_offset = Vec3::from(offset);
                 }
             }
@@ -214,9 +214,11 @@ pub fn fire_weapon(
         if let Some((slot, _)) = ammo_status.reloading.take() {
             if let Some(config) = weapon_registry.configs.get(&slot) {
                 let current = *ammo_status.current_ammo.get(&slot).unwrap_or(&0);
-                let reserve = *ammo_status.reserve_ammo.get(&slot).unwrap_or(&config.max_ammo); // Default to max if not set
+                let max_ammo = config.attachments.magazine.as_ref().map(|m| m.carry_capacity).unwrap_or(120);
+                let reserve = *ammo_status.reserve_ammo.get(&slot).unwrap_or(&max_ammo);
                 
-                let needed = config.magazine_size.saturating_sub(current);
+                let mag_size = config.attachments.magazine.as_ref().map(|m| m.capacity).unwrap_or(30);
+                let needed = mag_size.saturating_sub(current);
                 let available = reserve.min(needed);
                 
                 ammo_status.current_ammo.insert(slot, current + available);
@@ -233,10 +235,12 @@ pub fn fire_weapon(
     if keyboard_input.just_pressed(KeyCode::KeyR) {
         if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
             let current = *ammo_status.current_ammo.get(&inventory.active_slot).unwrap_or(&0);
-            let reserve = *ammo_status.reserve_ammo.get(&inventory.active_slot).unwrap_or(&config.max_ammo);
+            let max_ammo = config.attachments.magazine.as_ref().map(|m| m.carry_capacity).unwrap_or(120);
+            let reserve = *ammo_status.reserve_ammo.get(&inventory.active_slot).unwrap_or(&max_ammo);
+            let mag_size = config.attachments.magazine.as_ref().map(|m| m.capacity).unwrap_or(30);
             
-            if current < config.magazine_size && reserve > 0 && config.reload_speed > 0.0 {
-                ammo_status.reloading = Some((inventory.active_slot, Timer::from_seconds(config.reload_speed, TimerMode::Once)));
+            if current < mag_size && reserve > 0 && config.attributes.reload_speed > 0.0 {
+                ammo_status.reloading = Some((inventory.active_slot, Timer::from_seconds(config.attributes.reload_speed, TimerMode::Once)));
                 return;
             }
         }
@@ -245,9 +249,9 @@ pub fn fire_weapon(
     // Switch Fire Mode
     if keyboard_input.just_pressed(KeyCode::KeyV) {
         if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
-            if !config.fire_modes.is_empty() {
+            if !config.attributes.fire_modes.is_empty() {
                 let current_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
-                let next_idx = (current_idx + 1) % config.fire_modes.len();
+                let next_idx = (current_idx + 1) % config.attributes.fire_modes.len();
                 ammo_status.current_fire_mode.insert(inventory.active_slot, next_idx);
             }
         }
@@ -255,8 +259,17 @@ pub fn fire_weapon(
 
     let (fire_rate, speed, color, size, muzzle_offset, recoil_factor, fire_mode) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
         let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
-        let mode = config.fire_modes.get(mode_idx).copied().unwrap_or(FireMode::Auto);
-        (config.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, config.muzzle_flash_offset, config.recoil_factor, mode)
+        let mode_str = config.attributes.fire_modes.get(mode_idx).map(|s| s.as_str()).unwrap_or("Auto");
+        let mode = match mode_str {
+            "Auto" => FireMode::Auto,
+            "Semi" => FireMode::Semi,
+            "III Burst" => FireMode::Burst(3),
+            _ => FireMode::Auto,
+        };
+        
+        let muzzle = config.attachments.barrel.as_ref().and_then(|b| b.meta.as_ref()).and_then(|m| m.muzzle_flash_offset);
+        
+        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, mode)
     } else {
         match inventory.active_slot {
             WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, FireMode::Semi),
@@ -300,15 +313,19 @@ pub fn fire_weapon(
         // Check Ammo for guns
         if matches!(inventory.active_slot, WeaponSlot::Primary | WeaponSlot::Secondary) {
             let current = *ammo_status.current_ammo.entry(inventory.active_slot).or_insert_with(|| {
-                weapon_registry.configs.get(&inventory.active_slot).map(|c| c.magazine_size).unwrap_or(0)
+                weapon_registry.configs.get(&inventory.active_slot)
+                    .and_then(|c| c.attachments.magazine.as_ref())
+                    .map(|m| m.capacity)
+                    .unwrap_or(30)
             });
             
             if current == 0 {
                 // Auto reload if empty
                 if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
-                    let reserve = *ammo_status.reserve_ammo.get(&inventory.active_slot).unwrap_or(&config.max_ammo);
+                    let max_ammo = config.attachments.magazine.as_ref().map(|m| m.carry_capacity).unwrap_or(120);
+                    let reserve = *ammo_status.reserve_ammo.get(&inventory.active_slot).unwrap_or(&max_ammo);
                     if reserve > 0 {
-                        ammo_status.reloading = Some((inventory.active_slot, Timer::from_seconds(config.reload_speed, TimerMode::Once)));
+                        ammo_status.reloading = Some((inventory.active_slot, Timer::from_seconds(config.attributes.reload_speed, TimerMode::Once)));
                     }
                 }
                 ammo_status.burst_count = 0; // Cancel burst
@@ -483,14 +500,10 @@ pub fn update_ammo_ui(
         
         if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
             let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
-            let mode = config.fire_modes.get(mode_idx).copied().unwrap_or(FireMode::Auto);
-            let mode_str = match mode {
-                FireMode::Auto => "AUTO",
-                FireMode::Semi => "SEMI",
-                FireMode::Burst(_) => "BURST",
-            };
+            let mode_str = config.attributes.fire_modes.get(mode_idx).map(|s| s.as_str()).unwrap_or("Auto");
+            let ammo_type = config.attachments.ammo.as_ref().map(|a| a.name.as_str()).unwrap_or("Unknown");
             
-            **text = format!("{} | {}\n{} | {}", current, reserve, config.ammo_type, mode_str);
+            **text = format!("{} | {}\n{} | {}", current, reserve, ammo_type, mode_str);
         } else {
              **text = format!("{} | {}", current, reserve);
         }

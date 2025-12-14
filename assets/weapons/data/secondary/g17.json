@@ -1,17 +1,63 @@
 {
-  "name": "G17",
-  "fire_rate": 0.2,
-  "damage": 15.0,
-  "reload_speed": 1.5,
-  "magazine_size": 17,
-  "max_ammo": 51,
-  "ammo_type": "9mm",
-  "recoil_factor": 0.8,
-  "fire_modes": ["Semi"],
-  "model_path": "weapons/models/secondary/g17.glb#Scene0",
-  "position_offset": [0.25, -0.15, -0.5],
-  "rotation_offset": [0.0, 1.57, 0.0],
-  "aim_offset": [-0.25, 0.08, 0.1],
-  "scale": 0.1,
-  "muzzle_flash_offset": [2.0, 1.15, -0.6]
+  "info": {
+    "name": "G17",
+    "description": "A standard issue sidearm.",
+    "manufacturer": "Glock",
+    "weight": 0.9,
+    "length": 200.0
+  },
+  "meta": {
+    "model_path": "weapons/models/secondary/g17.glb#Scene0",
+    "icon_path": "weapons/icons/g17.png",
+    "position_offset": [0.25, -0.15, -0.5],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.1
+  },
+  "attributes": {
+    "fire_rate": 0.2,
+    "fire_modes": ["Semi"],
+    "recoil_control": 0.6,
+    "ergonomics": 0.9,
+    "accuracy": 0.7,
+    "vertical_recoil": 0.8,
+    "horizontal_recoil": 0.3,
+    "reload_speed": 1.5
+  },
+  "attachments": {
+    "optic": {
+      "name": "Iron Sights",
+      "meta": {
+        "model_path": "",
+        "aim_offset": [-0.25, 0.08, 0.1]
+      },
+      "stats": {
+        "zoom_level": 1.0,
+        "ergonomics_penalty": 0.0
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "meta": {
+        "model_path": "",
+        "muzzle_flash_offset": [2.0, 1.15, -0.6]
+      },
+      "stats": {
+        "length": 114.0,
+        "velocity_mult": 1.0,
+        "recoil_mult": 1.0
+      }
+    },
+    "magazine": {
+      "name": "17 Round Mag",
+      "capacity": 17,
+      "carry_capacity": 51,
+      "reload_speed_mult": 1.0
+    },
+    "ammo": {
+      "name": "9mm",
+      "damage": 15.0,
+      "penetration": 0.2,
+      "velocity": 350.0
+    }
+  }
 }

@@ -1,0 +1,20 @@
+{
+    "name": "Example Optic",
+    "type": "Scope",
+    "zoom_level": 1.0,
+    "zoom_speed": 0.5,
+    "sway_modifier": 0.0,
+    "stability_modifier": 0.0,
+    "reticle":{
+        "type": "Crosshair",
+        "color": [1.0, 0.0, 0.0, 1.0],
+        "size": 0.05
+    },
+    "special_effects": [],
+    "meta": {
+        "aim_offset": [-0.3, 0.06, 0.2],
+        "mesh_path": "weapons/models/attachments/default_optic.glb#Scene0",
+        "position_offset": [0.0, 0.05, 0.2],
+        "rotation_offset": [0.0, 0.0, 0.0]
+    }
+}

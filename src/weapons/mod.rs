@@ -25,7 +25,7 @@ pub struct WeaponRecoil {
     pub aim_offset: Vec3,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FireMode {
     Auto,
     Semi,
@@ -33,24 +33,102 @@ pub enum FireMode {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct WeaponConfig {
+pub struct WeaponInfo {
     pub name: String,
-    pub fire_rate: f32,
-    pub damage: f32,
-    pub reload_speed: f32,
-    pub magazine_size: u32,
-    pub max_ammo: u32,
-    pub ammo_type: String,
-    pub recoil_factor: f32,
-    pub fire_modes: Vec<FireMode>,
+    pub description: String,
+    pub manufacturer: String,
+    pub weight: f32,
+    pub length: f32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WeaponMeta {
     pub model_path: String,
+    pub icon_path: String,
     pub position_offset: [f32; 3],
     pub rotation_offset: [f32; 3],
+    pub scale: f32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WeaponAttributes {
+    pub fire_rate: f32,
+    pub fire_modes: Vec<String>,
+    pub recoil_control: f32,
+    pub ergonomics: f32,
+    pub accuracy: f32,
+    pub vertical_recoil: f32,
+    pub horizontal_recoil: f32,
+    pub reload_speed: f32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AttachmentMeta {
+    #[serde(default)]
+    pub model_path: String,
     #[serde(default)]
     pub aim_offset: Option<[f32; 3]>,
-    pub scale: f32,
     #[serde(default)]
     pub muzzle_flash_offset: Option<[f32; 3]>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OpticStats {
+    pub zoom_level: f32,
+    pub ergonomics_penalty: f32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OpticAttachment {
+    pub name: String,
+    pub meta: Option<AttachmentMeta>,
+    pub stats: OpticStats,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct BarrelStats {
+    pub length: f32,
+    pub velocity_mult: f32,
+    pub recoil_mult: f32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct BarrelAttachment {
+    pub name: String,
+    pub meta: Option<AttachmentMeta>,
+    pub stats: BarrelStats,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MagazineAttachment {
+    pub name: String,
+    pub capacity: u32,
+    pub carry_capacity: u32,
+    pub reload_speed_mult: f32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AmmoAttachment {
+    pub name: String,
+    pub damage: f32,
+    pub penetration: f32,
+    pub velocity: f32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WeaponAttachments {
+    pub optic: Option<OpticAttachment>,
+    pub barrel: Option<BarrelAttachment>,
+    pub magazine: Option<MagazineAttachment>,
+    pub ammo: Option<AmmoAttachment>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct WeaponConfig {
+    pub info: WeaponInfo,
+    pub meta: WeaponMeta,
+    pub attributes: WeaponAttributes,
+    pub attachments: WeaponAttachments,
 }
 
 #[derive(Resource, Default)]
@@ -99,12 +177,12 @@ pub fn spawn_weapon_visual(
     materials: &mut Assets<StandardMaterial>,
 ) -> Entity {
     if let Some(config) = registry.configs.get(&slot) {
-        let transform = Transform::from_translation(Vec3::from(config.position_offset))
-            .with_rotation(Quat::from_euler(EulerRot::XYZ, config.rotation_offset[0], config.rotation_offset[1], config.rotation_offset[2]))
-            .with_scale(Vec3::splat(config.scale));
+        let transform = Transform::from_translation(Vec3::from(config.meta.position_offset))
+            .with_rotation(Quat::from_euler(EulerRot::XYZ, config.meta.rotation_offset[0], config.meta.rotation_offset[1], config.meta.rotation_offset[2]))
+            .with_scale(Vec3::splat(config.meta.scale));
 
         commands.spawn((
-            SceneRoot(asset_server.load(&config.model_path)),
+            SceneRoot(asset_server.load(&config.meta.model_path)),
             transform,
             BaseWeaponTransform(transform),
             WeaponRecoil::default(),

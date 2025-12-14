@@ -1,15 +1,32 @@
 {
-  "name": "MSBS Grot Bayonet",
-  "fire_rate": 0.5,
-  "damage": 50.0,
-  "reload_speed": 0.0,
-  "magazine_size": 0,
-  "max_ammo": 0,
-  "ammo_type": "None",
-  "recoil_factor": 0.0,
-  "fire_modes": [],
-  "model_path": "weapons/models/melee/msbs_grot_bayonet.glb#Scene0",
-  "position_offset": [0.3, -0.1, -0.6],
-  "rotation_offset": [-0.2, -1.57, 1.57],
-  "scale": 0.15
+  "info": {
+    "name": "MSBS Grot Bayonet",
+    "description": "A sharp blade.",
+    "manufacturer": "Fabryka Broni",
+    "weight": 0.4,
+    "length": 300.0
+  },
+  "meta": {
+    "model_path": "weapons/models/melee/msbs_grot_bayonet.glb#Scene0",
+    "icon_path": "weapons/icons/bayonet.png",
+    "position_offset": [0.3, -0.1, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.15
+  },
+  "attributes": {
+    "fire_rate": 0.5,
+    "fire_modes": [],
+    "recoil_control": 1.0,
+    "ergonomics": 1.0,
+    "accuracy": 1.0,
+    "vertical_recoil": 0.0,
+    "horizontal_recoil": 0.0,
+    "reload_speed": 0.0
+  },
+  "attachments": {
+    "optic": null,
+    "barrel": null,
+    "magazine": null,
+    "ammo": null
+  }
 }

@@ -1,15 +1,42 @@
 {
-  "name": "RGD-5 Grenade",
-  "fire_rate": 1.0,
-  "damage": 100.0,
-  "reload_speed": 0.0,
-  "magazine_size": 1,
-  "max_ammo": 3,
-  "ammo_type": "Grenade",
-  "recoil_factor": 0.0,
-  "fire_modes": [],
-  "model_path": "weapons/models/equipment/rgd-5.glb#Scene0",
-  "position_offset": [0.2, -0.15, -0.4],
-  "rotation_offset": [0.0, 0.0, 0.0],
-  "scale": 0.15
+  "info": {
+    "name": "RGD-5 Grenade",
+    "description": "Frag out!",
+    "manufacturer": "Soviet Union",
+    "weight": 0.3,
+    "length": 100.0
+  },
+  "meta": {
+    "model_path": "weapons/models/equipment/rgd-5.glb#Scene0",
+    "icon_path": "weapons/icons/rgd5.png",
+    "position_offset": [0.2, -0.15, -0.4],
+    "rotation_offset": [0.0, 0.0, 0.0],
+    "scale": 0.15
+  },
+  "attributes": {
+    "fire_rate": 1.0,
+    "fire_modes": [],
+    "recoil_control": 1.0,
+    "ergonomics": 1.0,
+    "accuracy": 1.0,
+    "vertical_recoil": 0.0,
+    "horizontal_recoil": 0.0,
+    "reload_speed": 0.0
+  },
+  "attachments": {
+    "optic": null,
+    "barrel": null,
+    "magazine": {
+        "name": "Hand",
+        "capacity": 1,
+        "carry_capacity": 3,
+        "reload_speed_mult": 1.0
+    },
+    "ammo": {
+        "name": "Grenade",
+        "damage": 100.0,
+        "penetration": 0.0,
+        "velocity": 0.0
+    }
+  }
 }

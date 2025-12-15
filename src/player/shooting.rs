@@ -24,12 +24,19 @@ pub struct MuzzleFlash {
 pub struct Target;
 
 #[derive(Component, Default)]
+pub struct CameraRecoil {
+    pub current_kick: Vec2, // Pitch, Yaw
+    pub target_kick: Vec2,
+}
+
+#[derive(Component, Default)]
 pub struct AmmoStatus {
     pub current_ammo: HashMap<WeaponSlot, u32>,
     pub reserve_ammo: HashMap<WeaponSlot, u32>,
     pub current_fire_mode: HashMap<WeaponSlot, usize>, // Index into config.fire_modes
     pub reloading: Option<(WeaponSlot, Timer)>,
     pub burst_count: u32, // Shots remaining in current burst
+    pub heat: f32, // Accuracy decay
 }
 
 #[derive(Component)]
@@ -38,6 +45,7 @@ pub struct AmmoUi;
 #[derive(Component)]
 pub struct MeleeSwing {
     pub timer: Timer,
+    pub direction: f32, // 1.0 for right, -1.0 for left
 }
 
 #[derive(Component)]
@@ -68,30 +76,73 @@ pub fn handle_muzzle_flash(
     }
 }
 
+pub fn handle_camera_recoil(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &mut CameraRecoil)>,
+) {
+    for (mut transform, mut recoil) in query.iter_mut() {
+        let dt = time.delta_secs();
+        
+        let previous_kick = recoil.current_kick;
+        
+        // Interpolate current towards target
+        recoil.current_kick = recoil.current_kick.lerp(recoil.target_kick, dt * 20.0);
+        
+        // Decay target back to zero (recovery)
+        recoil.target_kick = recoil.target_kick.lerp(Vec2::ZERO, dt * 5.0);
+        
+        // Apply delta to transform
+        let delta = recoil.current_kick - previous_kick;
+        
+        let (yaw, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw + delta.y, pitch + delta.x, roll);
+    }
+}
+
 pub fn handle_weapon_recoil(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut WeaponRecoil, &BaseWeaponTransform)>,
+    inventory_query: Query<&Inventory>,
+    weapon_registry: Res<crate::weapons::WeaponRegistry>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
 ) {
+    let stability = if let Some(inventory) = inventory_query.iter().next() {
+        weapon_registry.configs.get(&inventory.active_slot)
+            .map(|c| c.attributes.stability)
+            .unwrap_or(0.5)
+    } else {
+        0.5
+    };
+
+    let is_aiming = mouse_input.pressed(MouseButton::Right);
+
     for (mut transform, mut recoil, base) in query.iter_mut() {
         let dt = time.delta_secs();
+        
+        // Stability affects recovery speed
+        let recovery_speed = 5.0 + stability * 15.0; 
         
         // Interpolate current towards target (kick)
         recoil.current_offset = recoil.current_offset.lerp(recoil.target_offset, dt * 20.0);
         recoil.current_rotation = recoil.current_rotation.lerp(recoil.target_rotation, dt * 20.0);
         
         // Decay target back to zero (recovery)
-        recoil.target_offset = recoil.target_offset.lerp(Vec3::ZERO, dt * 10.0);
-        recoil.target_rotation = recoil.target_rotation.lerp(Vec3::ZERO, dt * 10.0);
+        recoil.target_offset = recoil.target_offset.lerp(Vec3::ZERO, dt * recovery_speed);
+        recoil.target_rotation = recoil.target_rotation.lerp(Vec3::ZERO, dt * recovery_speed);
         
         // Apply to transform (Recoil + Sway + Aim + Switch)
         transform.translation = base.0.translation + recoil.current_offset + recoil.sway_offset + recoil.aim_offset + recoil.switch_offset;
         
-        let recoil_rot = Quat::from_euler(
-            EulerRot::XYZ, 
-            recoil.current_rotation.x, 
-            recoil.current_rotation.y, 
-            recoil.current_rotation.z
-        );
+        let recoil_rot = if is_aiming {
+            Quat::IDENTITY
+        } else {
+            Quat::from_euler(
+                EulerRot::XYZ, 
+                recoil.current_rotation.x, 
+                recoil.current_rotation.y, 
+                recoil.current_rotation.z
+            )
+        };
         
         let sway_rot = Quat::from_euler(
             EulerRot::XYZ, 
@@ -216,27 +267,37 @@ pub fn handle_weapon_sway(
 
 use crate::player::input::Keybinds;
 
+#[derive(Default)]
+pub struct FireState {
+    pub last_fire: f32,
+    pub melee_hold_timer: f32,
+    pub last_swing_right: bool,
+}
+
 pub fn fire_weapon(
     mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     keybinds: Res<Keybinds>,
     mut inventory_query: Query<(&mut Inventory, &mut AmmoStatus)>,
-    camera: Single<(&GlobalTransform, &mut Transform), With<Camera>>,
-    mut weapon_query: Query<(Entity, &mut WeaponRecoil, &mut Transform), (With<WeaponModel>, Without<Camera>)>,
+    camera: Single<(&GlobalTransform, &Transform), With<Camera>>,
+    mut weapon_query: Query<(Entity, &mut WeaponRecoil, &mut Transform, Option<&MeleeSwing>), (With<WeaponModel>, Without<Camera>)>,
+    mut camera_recoil_query: Query<&mut CameraRecoil, With<Camera>>,
     mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&PlayerBody>, Option<&Enemy>, Option<&mut Regenerating>), Without<Projectile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
-    mut last_fire: Local<f32>,
-    mut melee_hold_timer: Local<f32>,
+    mut fire_state: Local<FireState>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
     asset_server: Res<AssetServer>,
 ) {
     let (mut inventory, mut ammo_status) = if let Ok(res) = inventory_query.single_mut() { res } else { return };
     
-    // Prevent firing while sprinting
-    if keyboard_input.pressed(keybinds.sprint) {
+    // Decay heat
+    ammo_status.heat = (ammo_status.heat - time.delta_secs() * 2.0).max(0.0);
+
+    // Prevent firing while sprinting or switching weapons
+    if keyboard_input.pressed(keybinds.sprint) || inventory.switch_state != crate::player::inventory::SwitchState::Idle {
         return;
     }
     
@@ -296,7 +357,7 @@ pub fn fire_weapon(
         }
     }
 
-    let (fire_rate, speed, color, size, muzzle_offset, v_recoil, h_recoil, fire_mode, damage) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+    let (fire_rate, speed, color, size, muzzle_offset, v_recoil, h_recoil, fire_mode, damage, accuracy) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
         let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
         let mode_str = config.attributes.fire_modes.get(mode_idx).map(|s| s.as_str()).unwrap_or("Auto");
         let mode = match mode_str {
@@ -309,17 +370,17 @@ pub fn fire_weapon(
         let muzzle = config.attachments.barrel.as_ref().and_then(|b| b.meta.as_ref()).and_then(|m| m.muzzle_flash_offset);
         let dmg = config.attachments.ammo.as_ref().map(|a| a.damage).unwrap_or(10.0);
         
-        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, config.attributes.horizontal_recoil, mode, dmg)
+        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, config.attributes.horizontal_recoil, mode, dmg, config.attributes.accuracy)
     } else {
         match inventory.active_slot {
-            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, 0.0, FireMode::Semi, 50.0),
-            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None, 0.0, 0.0, FireMode::Semi, 100.0),
-            _ => (0.2, 30.0, Color::WHITE, 0.1, None, 0.1, 0.05, FireMode::Auto, 10.0),
+            WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, 0.0, FireMode::Semi, 50.0, 1.0),
+            WeaponSlot::Equipment => (1.0, 15.0, Color::srgb(0.2, 0.8, 0.2), 0.2, None, 0.0, 0.0, FireMode::Semi, 100.0, 1.0),
+            _ => (0.2, 30.0, Color::WHITE, 0.1, None, 0.1, 0.05, FireMode::Auto, 10.0, 0.8),
         }
     };
 
     // Simple cooldown
-    if *last_fire + fire_rate > time.elapsed_secs() {
+    if fire_state.last_fire + fire_rate > time.elapsed_secs() {
         return;
     }
 
@@ -334,8 +395,9 @@ pub fn fire_weapon(
     
     // Grenade Throw Logic (Release G)
     if inventory.active_slot == WeaponSlot::Equipment {
-        if keyboard_input.just_released(keybinds.grenade) {
+        if keyboard_input.just_released(keybinds.grenade) || inventory.throw_queued {
             should_fire = true;
+            inventory.throw_queued = false;
         }
     } else if inventory.active_slot == WeaponSlot::Melee {
         // Melee Logic (Hold vs Tap)
@@ -343,21 +405,29 @@ pub fn fire_weapon(
             .map(|c| c.attributes.attack_speed)
             .unwrap_or(0.5);
             
-        if mouse_input.pressed(MouseButton::Left) {
-            *melee_hold_timer += time.delta_secs();
-            if *melee_hold_timer > 0.2 {
-                should_fire = true;
-                is_slash = true;
-                *melee_hold_timer = 0.0; // Reset to allow repeated slashes if held? Or wait for release?
-                // If we want continuous slashes, we keep firing.
-            }
-        } else if mouse_input.just_released(MouseButton::Left) {
-            if *melee_hold_timer < 0.2 {
-                should_fire = true; // Stab
-            }
-            *melee_hold_timer = 0.0;
+        // Check if already swinging
+        let is_swinging = if let Some((_, _, _, swing)) = weapon_query.iter().next() {
+            swing.is_some()
         } else {
-            *melee_hold_timer = 0.0;
+            false
+        };
+
+        if !is_swinging {
+            if mouse_input.pressed(MouseButton::Left) {
+                fire_state.melee_hold_timer += time.delta_secs();
+                if fire_state.melee_hold_timer > attack_speed {
+                    should_fire = true;
+                    is_slash = true;
+                    fire_state.melee_hold_timer = 0.0; 
+                }
+            } else if mouse_input.just_released(MouseButton::Left) {
+                if fire_state.melee_hold_timer < attack_speed {
+                    should_fire = true; // Stab
+                }
+                fire_state.melee_hold_timer = 0.0;
+            } else {
+                fire_state.melee_hold_timer = 0.0;
+            }
         }
     } else {
         // Gun Logic
@@ -415,9 +485,9 @@ pub fn fire_weapon(
             ammo_status.burst_count -= 1;
         }
 
-        *last_fire = time.elapsed_secs();
+        fire_state.last_fire = time.elapsed_secs();
 
-        let (global_transform, mut local_transform) = camera.into_inner();
+        let (global_transform, _) = camera.into_inner();
         let transform = global_transform.compute_transform();
         let forward = transform.forward();
         let spawn_pos = transform.translation + forward * 1.0;
@@ -429,9 +499,14 @@ pub fn fire_weapon(
                     .map(|c| c.attributes.attack_speed)
                     .unwrap_or(0.5);
 
-                if let Some((weapon_entity, _, _)) = weapon_query.iter().next() {
+                if let Some((weapon_entity, _, _, _)) = weapon_query.iter().next() {
+                    // Toggle direction
+                    fire_state.last_swing_right = !fire_state.last_swing_right;
+                    let direction = if fire_state.last_swing_right { 1.0 } else { -1.0 };
+
                     commands.entity(weapon_entity).insert(MeleeSwing {
                         timer: Timer::from_seconds(attack_speed, TimerMode::Once),
+                        direction,
                     });
                 }
                 // Damage Logic
@@ -471,21 +546,38 @@ pub fn fire_weapon(
                 ));
                 
                 // Animate hand/weapon throw
-                if let Some((_weapon_entity, mut recoil, _)) = weapon_query.iter_mut().next() {
+                if let Some((_weapon_entity, mut recoil, _, _)) = weapon_query.iter_mut().next() {
                      recoil.target_rotation += Vec3::new(-1.0, 0.0, 0.0); // Throw motion
                 }
 
-                // Switch back to primary
-                inventory.target_slot = Some(WeaponSlot::Primary);
+                // Switch back to primary (or previous)
+                if let Some(prev) = inventory.previous_slot {
+                    inventory.target_slot = Some(prev);
+                    inventory.previous_slot = None;
+                } else {
+                    inventory.target_slot = Some(WeaponSlot::Primary);
+                }
                 inventory.switch_state = crate::player::inventory::SwitchState::Unequipping;
+                
+                // Set timer for unequip (using equip_speed of grenade)
+                let speed = weapon_registry.configs.get(&WeaponSlot::Equipment)
+                    .map(|c| c.attributes.equip_speed)
+                    .unwrap_or(0.5);
+                inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));
                 inventory.switch_timer.reset();
             },
             _ => {
                 // Gun Logic
                 let mut rng = rand::rng();
                 
+                // Increase heat
+                ammo_status.heat = (ammo_status.heat + 0.2).min(1.0); // Max heat 1.0
+
                 // Bullet Spread
-                let spread_angle = 0.02; // Adjust as needed
+                let max_spread = 0.1; // 10 degrees approx
+                let heat_penalty = ammo_status.heat * 0.05; // Extra spread from heat
+                let spread_angle = ((1.0 - accuracy) * max_spread + heat_penalty).max(0.001); // Ensure > 0
+                
                 // Apply spread to the global forward.
                 let right = transform.right();
                 let up = transform.up();
@@ -510,19 +602,22 @@ pub fn fire_weapon(
                 ));
 
                 // Apply Camera Recoil
-                let (yaw, pitch, roll) = local_transform.rotation.to_euler(EulerRot::YXZ);
-                local_transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch + 0.005, roll);
+                if let Some(mut camera_recoil) = camera_recoil_query.iter_mut().next() {
+                    let v_recoil_rad = v_recoil * 0.01;
+                    let h_recoil_rad = h_recoil * 0.01;
+                    
+                    let mut rng = rand::rng();
+                    camera_recoil.target_kick += Vec2::new(
+                        rng.random_range(v_recoil_rad * 0.5..v_recoil_rad * 1.5), // Pitch (X)
+                        rng.random_range(-h_recoil_rad..h_recoil_rad) // Yaw (Y)
+                    );
+                }
 
                 // Apply Weapon Recoil & Muzzle Flash
-                if let Some((weapon_entity, mut recoil, _)) = weapon_query.iter_mut().next() {
-                    let mut rng = rand::rng();
-                    let rand_x = rng.random_range(-0.5..0.5) * h_recoil;
-                    let rand_y = rng.random_range(0.5..1.0) * v_recoil;
-                    let rand_rot_x = rng.random_range(0.5..1.5) * v_recoil;
-                    let rand_rot_y = rng.random_range(-0.5..0.5) * h_recoil;
-
-                    recoil.target_offset += Vec3::new(rand_x, rand_y, 0.1); 
-                    recoil.target_rotation += Vec3::new(rand_rot_x, rand_rot_y, 0.0);
+                if let Some((weapon_entity, mut recoil, _, _)) = weapon_query.iter_mut().next() {
+                    // Visual Kick only
+                    recoil.target_offset += Vec3::new(0.0, 0.0, 0.1); 
+                    recoil.target_rotation += Vec3::new(0.1, 0.0, 0.0);
 
                     if let Some(offset) = muzzle_offset {
                         commands.entity(weapon_entity).with_children(|parent| {
@@ -555,21 +650,31 @@ pub fn handle_melee_swing(
     for (entity, mut recoil, mut swing) in query.iter_mut() {
         swing.timer.tick(time.delta());
         let t = swing.timer.fraction();
+        let dir = swing.direction;
         
-        // Simple swing animation: Rotate out and back
-        // We want to animate Euler angles for the recoil struct
-        // Pitch down (X), Yaw right (Y)
-        let target_euler = Vec3::new(-0.5, 1.5, 0.0); 
-        
-        let current_euler = if t < 0.5 {
-            // Out
-            Vec3::ZERO.lerp(target_euler, t * 2.0)
+        // Wind up -> Swipe -> Recover
+        let yaw = if t < 0.2 {
+            // Wind up: 0 to -dir * 0.5
+            let sub_t = t / 0.2;
+            -dir * 0.5 * sub_t
+        } else if t < 0.6 {
+            // Swipe: -dir * 0.5 to dir * 1.5
+            let sub_t = (t - 0.2) / 0.4;
+            -dir * 0.5 + (dir * 2.0) * sub_t
         } else {
-            // Back
-            target_euler.lerp(Vec3::ZERO, (t - 0.5) * 2.0)
+            // Recover: dir * 1.5 to 0
+            let sub_t = (t - 0.6) / 0.4;
+            (dir * 1.5) * (1.0 - sub_t)
         };
         
-        recoil.melee_rotation = current_euler;
+        let pitch = if t > 0.2 && t < 0.6 {
+             // Dip during swipe
+             -0.5 * ((t - 0.2) / 0.4 * std::f32::consts::PI).sin()
+        } else {
+            0.0
+        };
+        
+        recoil.melee_rotation = Vec3::new(pitch, yaw, 0.0);
 
         if swing.timer.is_finished() {
             commands.entity(entity).remove::<MeleeSwing>();

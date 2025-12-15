@@ -18,10 +18,11 @@
     "reload_speed": 2.5,
     "accuracy": 0.9,
     "mobility": 0.7,
-    "stability": 0.8,
-    "horizontal_recoil": 0.1,
-    "vertical_recoil": 0.1,
+    "stability": 0.9,
+    "horizontal_recoil": 0.5,
+    "vertical_recoil": 1.6,
     "ads_speed": 0.6,
+    "equip_speed": 0.3,
     "fire_modes": ["Auto", "Semi"]
   },
   "attachments": {

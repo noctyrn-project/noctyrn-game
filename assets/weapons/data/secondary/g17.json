@@ -16,12 +16,13 @@
   "attributes": {
     "fire_rate": 0.2,
     "reload_speed": 1.5,
-    "accuracy": 0.7,
+    "accuracy": 0.9,
     "mobility": 0.9,
     "stability": 0.6,
-    "horizontal_recoil": 0.1,
-    "vertical_recoil": 0.1,
+    "horizontal_recoil": 0.4,
+    "vertical_recoil": 0.6,
     "ads_speed": 0.8,
+    "equip_speed": 0.3,
     "fire_modes": ["Semi"]
   },
   "attachments": {

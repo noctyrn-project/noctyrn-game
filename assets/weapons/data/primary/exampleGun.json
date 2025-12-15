@@ -21,6 +21,7 @@
     "horizontal_recoil": 0.4,
     "vertical_recoil": 0.5,
     "ads_speed": 0.6,
+    "equip_speed": 1.0,
     "fire_modes": ["Auto", "III Burst", "Semi"]
   },
   "attachments": {
@@ -60,6 +61,7 @@
         "horizontal_recoil_modifier": 0.0,
         "vertical_recoil_modifier": 0.0,
         "ads_speed_modifier": 0.0,
+        "equip_speed_modifier": 0.0,
         "special_effects": [],
         "meta": {
             "mesh_path": "weapons/models/attachments/default_underbarrel.glb#Scene0",
@@ -87,6 +89,7 @@
         "horizontal_recoil_modifier": 0.0,
         "vertical_recoil_modifier": 0.0,
         "ads_speed_modifier": 0.0,
+        "equip_speed_modifier": 0.0,
         "special_effects": [],
         "meta": {
             "mesh_path": "weapons/models/attachments/default_magazine.glb#Scene0",
@@ -126,6 +129,7 @@
         "horizontal_recoil_modifier": 0.0,
         "vertical_recoil_modifier": 0.0,
         "ads_speed_modifier": 0.0,
+        "equip_speed_modifier": 0.0,
         "special_effects": [],
         "meta": {
             "mesh_path": "weapons/models/attachments/default_stock.glb#Scene0",

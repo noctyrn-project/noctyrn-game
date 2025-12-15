@@ -15,7 +15,7 @@
     "scale": 0.15
   },
   "attributes": {
-    "equip_speed": 1.0,
+    "equip_speed": 0.5,
     "detonation_time": 3.0,
     "blast_radius": 5.0,
     "blast_damage": 250.0,

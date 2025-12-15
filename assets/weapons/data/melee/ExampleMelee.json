@@ -15,7 +15,7 @@
   },
   "attributes": {
     "attack_speed": 0.5,
-    "equip_speed": 1.0,
+    "equip_speed": 0.1,
     "stab_damage": 50.0,
     "slash_damage": 30.0,
     "back_stab_multiplier": 2.0,

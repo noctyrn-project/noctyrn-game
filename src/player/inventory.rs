@@ -19,6 +19,7 @@ pub struct Inventory {
     pub switch_timer: Timer,
     pub quick_melee_timer: Timer, // To detect hold vs tap
     pub auto_attack: bool,
+    pub throw_queued: bool,
 }
 
 impl Default for Inventory {
@@ -31,6 +32,7 @@ impl Default for Inventory {
             switch_timer: Timer::from_seconds(0.2, TimerMode::Once),
             quick_melee_timer: Timer::from_seconds(0.3, TimerMode::Once),
             auto_attack: false,
+            throw_queued: false,
         }
     }
 }
@@ -93,18 +95,20 @@ pub fn handle_weapon_switching(
             if inventory.active_slot != WeaponSlot::Equipment {
                 inventory.previous_slot = Some(inventory.active_slot);
                 target = Some(WeaponSlot::Equipment);
+                inventory.throw_queued = false; // Reset queue on new press
             }
         }
         
         if keyboard_input.just_released(keybinds.grenade) {
-            // Throw logic is handled in fire_weapon, but we need to switch back after throw?
-            // Or maybe fire_weapon handles the throw, and we switch back here?
-            // If we release G, we want to throw.
-            // But we also want to switch back to previous weapon.
-            // Let's set target back to previous slot.
-            if let Some(prev) = inventory.previous_slot {
-                inventory.target_slot = Some(prev);
-                inventory.previous_slot = None;
+            if inventory.active_slot == WeaponSlot::Equipment {
+                if inventory.switch_state != SwitchState::Idle {
+                    inventory.throw_queued = true;
+                }
+                // If Idle, shooting.rs handles it via just_released check
+            } else {
+                // Released before even switching? (e.g. very fast tap)
+                // We should ensure we still throw once we get there.
+                inventory.throw_queued = true;
             }
         }
 
@@ -118,7 +122,14 @@ pub fn handle_weapon_switching(
                 if inventory.switch_state == SwitchState::Idle {
                     inventory.target_slot = Some(t);
                     inventory.switch_state = SwitchState::Unequipping;
+                    
+                    // Set timer based on current weapon unequip speed (using equip_speed for now)
+                    let speed = weapon_registry.configs.get(&inventory.active_slot)
+                        .map(|c| c.attributes.equip_speed)
+                        .unwrap_or(0.5);
+                    inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));
                     inventory.switch_timer.reset();
+                    
                 } else if inventory.switch_state == SwitchState::Unequipping {
                      // Change target mid-unequip
                      inventory.target_slot = Some(t);
@@ -186,6 +197,12 @@ pub fn handle_weapon_switching(
                     }
 
                     inventory.switch_state = SwitchState::Equipping;
+                    
+                    // Set timer based on NEW weapon equip speed
+                    let speed = weapon_registry.configs.get(&inventory.active_slot)
+                        .map(|c| c.attributes.equip_speed)
+                        .unwrap_or(0.5);
+                    inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));
                     inventory.switch_timer.reset();
                 }
             },

@@ -15,7 +15,7 @@ use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation, Crouc
 use input::{AccumulatedInput, accumulate_input, clear_input, Keybinds, load_keybinds, save_keybinds};
 use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching};
-use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi};
+use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil};
 
 pub struct Player;
 
@@ -52,6 +52,11 @@ impl Plugin for Player {
             handle_muzzle_flash,
             handle_melee_swing,
             handle_grenade_throw,
+        ).run_if(in_state(GameState::Playing)));
+
+        app.add_systems(Update, handle_camera_recoil.run_if(in_state(GameState::Playing)));
+        
+        app.add_systems(Update, (
             shooting::handle_explosion_particles,
             handle_weapon_sway,
             update_ammo_ui,
@@ -111,6 +116,7 @@ fn spawn_player(
     let camera_entity = commands.spawn((
         Camera3d::default(),
         CameraSensitivity::default(),
+        CameraRecoil::default(),
         Transform::from_xyz(0.0, 0.0, 0.0), // Initial pos, will be updated by translate_camera
     )).id();
 

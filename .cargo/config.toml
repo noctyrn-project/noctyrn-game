@@ -1,0 +1,13 @@
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+# Build GUI (no console) on Windows by setting the subsystem to 'windows'.
+# This makes the produced .exe not open a console window when launched from Explorer.
+rustflags = ["-C", "link-args=-Wl,-subsystem,windows"]
+
+[alias]
+# Run development (uses default features which enable dynamic linking)
+run-dev = "run"
+# Build release with static linking (disable default dev features)
+build-release = "build --release --no-default-features"
+# Run release (static)
+run-release = "run --release --no-default-features"

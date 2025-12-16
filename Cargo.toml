@@ -4,10 +4,18 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = { version = "0.17.3", features = ["dynamic_linking", "serialize"] } # dl before release
+# bevy = { version = "0.17.3", features = ["dynamic_linking", "serialize"] }
+bevy = { version = "0.17.3", features = ["serialize"] }
 rand = "0.9.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+
+[features]
+# When developing locally we want dynamic linking (smaller edit-compile iteration for Bevy internals).
+# Default includes `dev-dylib` so `cargo run` (dev) enables Bevy's `dynamic_linking` feature.
+# Build release with `--no-default-features` to produce a single statically-linked binary.
+default = ["dev-dylib"]
+dev-dylib = ["bevy/dynamic_linking"]
 
 [profile.dev]
 opt-level = 1

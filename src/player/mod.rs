@@ -4,6 +4,10 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::app::AppExit;
 use crate::weapons::{WeaponSlot, spawn_weapon_visual, WeaponRegistry};
 use crate::gameplay::{Health, PlayerBody, Regenerating};
+use crate::ui_config::UiConfig;
+use crate::gameplay::DeathEvent;
+use crate::ui_settings::{spawn_settings_menu, update_settings_menu, handle_settings_interaction, SettingsState};
+use crate::settings::{GameSettings, DebugSettingsConfig};
 
 mod movement;
 mod input;
@@ -12,10 +16,40 @@ mod inventory;
 pub mod shooting;
 
 use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation, CrouchHeight, advance_physics, interpolate_rendered_transform};
-use input::{AccumulatedInput, accumulate_input, clear_input, Keybinds, load_keybinds, save_keybinds};
-use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement};
+use input::{AccumulatedInput, accumulate_input, clear_input, load_keybinds, PlayerToggleState};
+pub use input::{Keybinds, save_keybinds};
+use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching};
 use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil};
+
+#[derive(Resource, Default)]
+pub struct DebugSettings {
+    pub show_hitboxes: bool,
+    pub show_directions: bool,
+    pub free_cam: bool,
+}
+
+#[derive(Resource, Default)]
+pub struct RemappingState {
+    pub active_action: Option<String>,
+}
+
+#[derive(Component)]
+pub struct KeybindingsUi;
+
+#[derive(Component)]
+pub struct DebugUi;
+
+#[derive(Component)]
+pub struct StatsUi;
+
+#[derive(Component)]
+pub struct StatsText;
+
+#[derive(Component)]
+pub struct RemapButton {
+    pub action: String,
+}
 
 pub struct Player;
 
@@ -33,12 +67,13 @@ impl Plugin for Player {
         app.init_state::<GameState>();
         app.init_resource::<DebugSettings>();
         app.init_resource::<RemappingState>();
+        app.init_resource::<SettingsState>();
         
-        app.add_systems(Startup, (spawn_player, spawn_crosshair, spawn_ammo_ui, load_keybinds));
+        app.add_systems(Startup, (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed, load_keybinds));
         app.add_systems(OnEnter(GameState::Menu), spawn_menu);
         app.add_systems(OnExit(GameState::Menu), despawn_menu);
-        app.add_systems(Update, (toggle_pause, grab_cursor, toggle_stats, update_stats_ui, debug_input));
-        app.add_systems(Update, (menu_action, keybind_remapping_system).run_if(in_state(GameState::Menu)));
+        app.add_systems(Update, (toggle_pause, grab_cursor, toggle_stats, update_stats_ui, debug_input, sync_settings, update_fov));
+        app.add_systems(Update, (menu_action, keybind_remapping_system, update_settings_menu, handle_settings_interaction).run_if(in_state(GameState::Menu)));
 
         app.add_systems(PreUpdate, clear_fixed_timestep_flag);
         app.add_systems(FixedPreUpdate, set_fixed_time_step_flag);
@@ -61,7 +96,9 @@ impl Plugin for Player {
             handle_weapon_sway,
             update_ammo_ui,
             reload_weapon,
-            draw_hitboxes
+            draw_hitboxes,
+            update_crosshair,
+            update_kill_feed,
         ).run_if(in_state(GameState::Playing)));
 
         app.add_systems(
@@ -86,6 +123,7 @@ impl Plugin for Player {
         );
 
         app.add_systems(Update, draw_hitboxes);
+        app.add_systems(Update, sync_settings);
     }
 }
 
@@ -137,6 +175,7 @@ fn spawn_player(
         Name::new("Player"),
         Transform::from_translation(initial_pos).with_scale(Vec3::splat(0.3)),
         AccumulatedInput::default(),
+        PlayerToggleState::default(),
         Velocity::default(),
         PhysicalTranslation(initial_pos),
         PreviousPhysicalTranslation(initial_pos),
@@ -149,41 +188,231 @@ fn spawn_player(
     ));
 }
 
-fn spawn_ammo_ui(mut commands: Commands) {
+fn spawn_ammo_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
+    let config = &ui_config.ammo_ui;
     commands.spawn((
         Text::new("Ammo: -- / --"),
         TextFont {
             font_size: 30.0,
             ..default()
         },
-        TextColor(Color::WHITE),
+        TextColor(Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3])),
         Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(20.0),
-            right: Val::Px(20.0),
+            left: Val::Px(config.position[0]),
+            bottom: Val::Px(config.position[1]),
             ..default()
         },
         AmmoUi,
+        BorderRadius::all(Val::Px(config.border_radius)),
     ));
 }
 
-fn spawn_crosshair(mut commands: Commands) {
+#[derive(Component)]
+pub struct CrosshairTop;
+#[derive(Component)]
+pub struct CrosshairBottom;
+#[derive(Component)]
+pub struct CrosshairLeft;
+#[derive(Component)]
+pub struct CrosshairRight;
+
+fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
+    let config = &ui_config.crosshair;
+    let color = Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3]);
+    
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
             left: Val::Percent(50.0),
             top: Val::Percent(50.0),
-            width: Val::Px(4.0),
-            height: Val::Px(4.0),
-            margin: UiRect {
-                left: Val::Px(-2.0),
-                top: Val::Px(-2.0),
-                ..default()
-            },
+            width: Val::Px(0.0),
+            height: Val::Px(0.0),
             ..default()
         },
-        BackgroundColor(Color::WHITE),
+        // Parent node for crosshair
+    )).with_children(|parent| {
+        // Dot
+        if config.dot {
+            parent.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(-config.dot_size / 2.0),
+                    top: Val::Px(-config.dot_size / 2.0),
+                    width: Val::Px(config.dot_size),
+                    height: Val::Px(config.dot_size),
+                    ..default()
+                },
+                BackgroundColor(color),
+            ));
+        }
+
+        // Top
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(-config.thickness / 2.0),
+                bottom: Val::Px(config.gap),
+                width: Val::Px(config.thickness),
+                height: Val::Px(config.size),
+                ..default()
+            },
+            BackgroundColor(color),
+            CrosshairTop,
+        ));
+
+        // Bottom
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(-config.thickness / 2.0),
+                top: Val::Px(config.gap),
+                width: Val::Px(config.thickness),
+                height: Val::Px(config.size),
+                ..default()
+            },
+            BackgroundColor(color),
+            CrosshairBottom,
+        ));
+
+        // Left
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(config.gap),
+                top: Val::Px(-config.thickness / 2.0),
+                width: Val::Px(config.size),
+                height: Val::Px(config.thickness),
+                ..default()
+            },
+            BackgroundColor(color),
+            CrosshairLeft,
+        ));
+
+        // Right
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(config.gap),
+                top: Val::Px(-config.thickness / 2.0),
+                width: Val::Px(config.size),
+                height: Val::Px(config.thickness),
+                ..default()
+            },
+            BackgroundColor(color),
+            CrosshairRight,
+        ));
+    });
+}
+
+fn update_crosshair(
+    ui_config: Res<UiConfig>,
+    ammo_status_query: Query<&AmmoStatus>,
+    inventory_query: Query<&Inventory>,
+    weapon_registry: Res<WeaponRegistry>,
+    mut top_query: Query<&mut Node, (With<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairLeft>, Without<CrosshairRight>)>,
+    mut bottom_query: Query<&mut Node, (With<CrosshairBottom>, Without<CrosshairTop>, Without<CrosshairLeft>, Without<CrosshairRight>)>,
+    mut left_query: Query<&mut Node, (With<CrosshairLeft>, Without<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairRight>)>,
+    mut right_query: Query<&mut Node, (With<CrosshairRight>, Without<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairLeft>)>,
+) {
+    let (heat, accuracy) = if let Some(status) = ammo_status_query.iter().next() {
+        let accuracy = if let Some(inventory) = inventory_query.iter().next() {
+             weapon_registry.configs.get(&inventory.active_slot)
+                .map(|c| c.attributes.accuracy)
+                .unwrap_or(1.0)
+        } else {
+            1.0
+        };
+        (status.heat, accuracy)
+    } else {
+        (0.0, 1.0)
+    };
+
+    let max_spread = 0.1; 
+    let heat_penalty = heat * 0.05;
+    let spread_angle = ((1.0 - accuracy) * max_spread + heat_penalty).max(0.001);
+    
+    // Convert spread angle to pixels (Approximate)
+    let spread_pixels = spread_angle * 1000.0; 
+
+    let config = &ui_config.crosshair;
+    let gap = config.gap + spread_pixels;
+
+    for mut node in top_query.iter_mut() {
+        node.bottom = Val::Px(gap);
+    }
+    for mut node in bottom_query.iter_mut() {
+        node.top = Val::Px(gap);
+    }
+    for mut node in left_query.iter_mut() {
+        node.right = Val::Px(gap);
+    }
+    for mut node in right_query.iter_mut() {
+        node.left = Val::Px(gap);
+    }
+}
+
+#[derive(Component)]
+pub struct KillFeedContainer;
+
+#[derive(Component)]
+pub struct KillFeedItem {
+    pub timer: Timer,
+}
+
+fn spawn_kill_feed(mut commands: Commands, ui_config: Res<UiConfig>) {
+    let config = &ui_config.kill_feed;
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(config.position[0]),
+            top: Val::Px(config.position[1]),
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        KillFeedContainer,
     ));
+}
+
+fn update_kill_feed(
+    mut commands: Commands,
+    mut events: MessageReader<DeathEvent>,
+    ui_config: Res<UiConfig>,
+    container_query: Query<Entity, With<KillFeedContainer>>,
+    mut item_query: Query<(Entity, &mut KillFeedItem)>,
+    time: Res<Time>,
+) {
+    let config = &ui_config.kill_feed;
+    if let Some(container) = container_query.iter().next() {
+        // Add new items
+        for event in events.read() {
+            commands.entity(container).with_children(|parent| {
+                parent.spawn((
+                    Text::new(&event.message),
+                    TextFont { font_size: 20.0, ..default() },
+                    TextColor(Color::srgba(config.text_color[0], config.text_color[1], config.text_color[2], config.text_color[3])),
+                    BackgroundColor(Color::srgba(config.background_color[0], config.background_color[1], config.background_color[2], config.background_color[3])),
+                    Node {
+                        margin: UiRect::bottom(Val::Px(5.0)),
+                        padding: UiRect::all(Val::Px(5.0)),
+                        ..default()
+                    },
+                    KillFeedItem {
+                        timer: Timer::from_seconds(config.item_duration, TimerMode::Once),
+                    },
+                    BorderRadius::all(Val::Px(config.border_radius)),
+                ));
+            });
+        }
+    }
+
+    // Update timers and remove old items
+    for (entity, mut item) in item_query.iter_mut() {
+        item.timer.tick(time.delta());
+        if item.timer.finished() {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 #[derive(Component)]
@@ -192,39 +421,8 @@ struct MenuUi;
 #[derive(Component)]
 enum MenuButton {
     Resume,
-    Stats,
-    Keybindings,
-    Debug,
+    Settings,
     Quit,
-}
-
-#[derive(Component)]
-struct StatsUi;
-
-#[derive(Component)]
-struct StatsText;
-
-#[derive(Resource, Default)]
-pub struct DebugSettings {
-    pub show_hitboxes: bool,
-    pub show_directions: bool,
-    pub free_cam: bool,
-}
-
-#[derive(Component)]
-struct KeybindingsUi;
-
-#[derive(Component)]
-struct DebugUi;
-
-#[derive(Resource, Default)]
-pub struct RemappingState {
-    pub active_action: Option<String>,
-}
-
-#[derive(Component)]
-pub struct RemapButton {
-    pub action: String,
 }
 
 fn spawn_menu(mut commands: Commands) {
@@ -254,6 +452,7 @@ fn spawn_menu(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
+                BorderRadius::all(Val::Px(10.0)),
                 MenuButton::Resume,
             )).with_children(|parent| {
                 parent.spawn((
@@ -263,7 +462,7 @@ fn spawn_menu(mut commands: Commands) {
                 ));
             });
 
-            // Stats Button
+            // Settings Button
             parent.spawn((
                 Button,
                 Node {
@@ -274,50 +473,11 @@ fn spawn_menu(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                MenuButton::Stats,
+                BorderRadius::all(Val::Px(10.0)),
+                MenuButton::Settings,
             )).with_children(|parent| {
                 parent.spawn((
-                    Text::new("Toggle Stats"),
-                    TextFont { font_size: 20.0, ..default() },
-                    TextColor(Color::WHITE),
-                ));
-            });
-
-            // Keybindings Button
-            parent.spawn((
-                Button,
-                Node {
-                    width: Val::Px(200.0),
-                    height: Val::Px(50.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                MenuButton::Keybindings,
-            )).with_children(|parent| {
-                parent.spawn((
-                    Text::new("Keybindings"),
-                    TextFont { font_size: 20.0, ..default() },
-                    TextColor(Color::WHITE),
-                ));
-            });
-
-            // Debug Button
-            parent.spawn((
-                Button,
-                Node {
-                    width: Val::Px(200.0),
-                    height: Val::Px(50.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                MenuButton::Debug,
-            )).with_children(|parent| {
-                parent.spawn((
-                    Text::new("Debug Mode"),
+                    Text::new("Settings"),
                     TextFont { font_size: 20.0, ..default() },
                     TextColor(Color::WHITE),
                 ));
@@ -334,6 +494,7 @@ fn spawn_menu(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(Color::srgb(0.5, 0.1, 0.1)),
+                BorderRadius::all(Val::Px(10.0)),
                 MenuButton::Quit,
             )).with_children(|parent| {
                 parent.spawn((
@@ -345,8 +506,15 @@ fn spawn_menu(mut commands: Commands) {
         });
 }
 
-fn despawn_menu(mut commands: Commands, query: Query<Entity, With<MenuUi>>) {
+fn despawn_menu(
+    mut commands: Commands, 
+    query: Query<Entity, With<MenuUi>>,
+    settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>
+) {
     for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+    for entity in settings_query.iter() {
         commands.entity(entity).despawn();
     }
 }
@@ -356,10 +524,7 @@ fn menu_action(
     mut next_state: ResMut<NextState<GameState>>,
     mut exit: EventWriter<AppExit>,
     mut commands: Commands,
-    stats_query: Query<Entity, With<StatsUi>>,
-    keybinds_query: Query<Entity, With<KeybindingsUi>>,
-    debug_query: Query<Entity, With<DebugUi>>,
-    keybinds: Res<Keybinds>,
+    settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -367,26 +532,11 @@ fn menu_action(
                 MenuButton::Resume => {
                     next_state.set(GameState::Playing);
                 }
-                MenuButton::Stats => {
-                    if let Some(entity) = stats_query.iter().next() {
+                MenuButton::Settings => {
+                    if let Some(entity) = settings_query.iter().next() {
                         commands.entity(entity).despawn();
                     } else {
-                        spawn_stats_ui(&mut commands);
-                    }
-                }
-                MenuButton::Keybindings => {
-                    // Close other menus?
-                    if let Some(entity) = keybinds_query.iter().next() {
-                        commands.entity(entity).despawn();
-                    } else {
-                        spawn_keybindings_ui(&mut commands, &keybinds);
-                    }
-                }
-                MenuButton::Debug => {
-                    if let Some(entity) = debug_query.iter().next() {
-                        commands.entity(entity).despawn();
-                    } else {
-                        spawn_debug_ui(&mut commands);
+                        spawn_settings_menu(&mut commands);
                     }
                 }
                 MenuButton::Quit => {
@@ -397,142 +547,16 @@ fn menu_action(
     }
 }
 
-fn spawn_keybindings_ui(commands: &mut Commands, keybinds: &Keybinds) {
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(80.0),
-            height: Val::Percent(80.0),
-            left: Val::Percent(10.0),
-            top: Val::Percent(10.0),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            padding: UiRect::all(Val::Px(20.0)),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.95)),
-        KeybindingsUi,
-    )).with_children(|parent| {
-        parent.spawn((
-            Text::new("Keybindings (Click to remap)"),
-            TextFont { font_size: 30.0, ..default() },
-            TextColor(Color::WHITE),
-        ));
-        
-        let keys = [
-            ("Forward", keybinds.forward),
-            ("Backward", keybinds.backward),
-            ("Left", keybinds.left),
-            ("Right", keybinds.right),
-            ("Jump", keybinds.jump),
-            ("Sprint", keybinds.sprint),
-            ("Crouch", keybinds.crouch),
-            ("Interact", keybinds.interact),
-            ("Grenade", keybinds.grenade),
-            ("Melee", keybinds.melee),
-        ];
-        
-        for (name, key) in keys {
-            parent.spawn((
-                Node {
-                    width: Val::Px(400.0),
-                    height: Val::Px(40.0),
-                    justify_content: JustifyContent::SpaceBetween,
-                    align_items: AlignItems::Center,
-                    margin: UiRect::all(Val::Px(5.0)),
-                    ..default()
-                },
-            )).with_children(|row| {
-                row.spawn((
-                    Text::new(name),
-                    TextFont { font_size: 20.0, ..default() },
-                    TextColor(Color::WHITE),
-                ));
-                
-                row.spawn((
-                    Button,
-                    Node {
-                        width: Val::Px(150.0),
-                        height: Val::Px(35.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                    RemapButton { action: name.to_string() },
-                )).with_children(|btn| {
-                    btn.spawn((
-                        Text::new(format!("{:?}", key)),
-                        TextFont { font_size: 18.0, ..default() },
-                        TextColor(Color::WHITE),
-                    ));
-                });
-            });
-        }
-        
-        parent.spawn((
-            Button,
-            Node {
-                margin: UiRect::top(Val::Px(20.0)),
-                padding: UiRect::all(Val::Px(10.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.5, 0.1, 0.1)),
-            MenuButton::Keybindings, // Re-use to close
-        )).with_children(|parent| {
-            parent.spawn((Text::new("Close"), TextFont { font_size: 20.0, ..default() }, TextColor(Color::WHITE)));
-        });
-    });
-}
 
-fn spawn_debug_ui(commands: &mut Commands) {
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(50.0),
-            height: Val::Percent(50.0),
-            left: Val::Percent(25.0),
-            top: Val::Percent(25.0),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            padding: UiRect::all(Val::Px(20.0)),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.95)),
-        DebugUi,
-    )).with_children(|parent| {
-        parent.spawn((
-            Text::new("Debug Mode"),
-            TextFont { font_size: 30.0, ..default() },
-            TextColor(Color::WHITE),
-        ));
-        
-        // Toggles (Simplified as text for now)
-        parent.spawn((Text::new("Hitboxes: [H]"), TextFont { font_size: 20.0, ..default() }, TextColor(Color::WHITE)));
-        parent.spawn((Text::new("Directions: [J]"), TextFont { font_size: 20.0, ..default() }, TextColor(Color::WHITE)));
-        parent.spawn((Text::new("Free Cam: [K]"), TextFont { font_size: 20.0, ..default() }, TextColor(Color::WHITE)));
-        
-        parent.spawn((
-            Button,
-            Node {
-                margin: UiRect::top(Val::Px(20.0)),
-                padding: UiRect::all(Val::Px(10.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.5, 0.1, 0.1)),
-            MenuButton::Debug, // Re-use to close
-        )).with_children(|parent| {
-            parent.spawn((Text::new("Close"), TextFont { font_size: 20.0, ..default() }, TextColor(Color::WHITE)));
-        });
-    });
-}
 
 fn debug_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut debug_settings: ResMut<DebugSettings>,
+    mut game_settings: ResMut<crate::settings::GameSettings>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyH) {
         debug_settings.show_hitboxes = !debug_settings.show_hitboxes;
+        game_settings.debug.show_hitboxes = debug_settings.show_hitboxes;
         println!("Hitboxes: {}", debug_settings.show_hitboxes);
     }
     if keyboard_input.just_pressed(KeyCode::KeyJ) {
@@ -541,6 +565,7 @@ fn debug_input(
     }
     if keyboard_input.just_pressed(KeyCode::KeyK) {
         debug_settings.free_cam = !debug_settings.free_cam;
+        game_settings.debug.free_cam = debug_settings.free_cam;
         println!("Free Cam: {}", debug_settings.free_cam);
     }
 }
@@ -598,13 +623,22 @@ fn spawn_stats_ui(commands: &mut Commands) {
 fn update_stats_ui(
     diagnostics: Res<DiagnosticsStore>,
     mut query: Query<&mut Text, With<StatsText>>,
+    game_settings: Res<crate::settings::GameSettings>,
+    entities: Query<Entity>,
 ) {
     for mut text in query.iter_mut() {
+        let mut output = String::new();
         if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(value) = fps.smoothed() {
-                text.0 = format!("FPS: {:.1}", value);
+                output.push_str(&format!("FPS: {:.1}\n", value));
             }
         }
+        
+        if game_settings.debug.show_resource_usage {
+            output.push_str(&format!("Entities: {}\n", entities.iter().count()));
+        }
+        
+        text.0 = output;
     }
 }
 
@@ -694,6 +728,57 @@ fn draw_hitboxes(
         } else {
              // Character (Approximate hitbox)
              gizmos.cuboid(Transform::from_translation(pos + Vec3::new(0.0, 1.0, 0.0)).with_scale(Vec3::new(0.5, 2.0, 0.5)), color);
+        }
+    }
+}
+
+fn sync_settings(
+    game_settings: Res<crate::settings::GameSettings>,
+    mut debug_settings: ResMut<DebugSettings>,
+    mut commands: Commands,
+    stats_query: Query<Entity, With<StatsUi>>,
+    mut window_query: Query<&mut Window>,
+    mut wireframe_config: ResMut<bevy::pbr::wireframe::WireframeConfig>,
+) {
+    if game_settings.is_changed() {
+        debug_settings.show_hitboxes = game_settings.debug.show_hitboxes;
+        debug_settings.free_cam = game_settings.debug.free_cam;
+        wireframe_config.global = game_settings.debug.show_wireframe;
+        
+        // Sync FPS counter
+        if game_settings.debug.show_fps {
+            if stats_query.iter().next().is_none() {
+                spawn_stats_ui(&mut commands);
+            }
+        } else {
+            if let Some(entity) = stats_query.iter().next() {
+                commands.entity(entity).despawn();
+            }
+        }
+
+        // Sync Graphics
+        if let Some(mut window) = window_query.iter_mut().next() {
+            if game_settings.graphics.resolution == [0, 0] {
+                window.mode = bevy::window::WindowMode::BorderlessFullscreen(bevy::window::MonitorSelection::Current);
+            } else {
+                window.mode = bevy::window::WindowMode::Windowed;
+                let width = game_settings.graphics.resolution[0] as f32;
+                let height = game_settings.graphics.resolution[1] as f32;
+                if window.resolution.width() != width || window.resolution.height() != height {
+                    window.resolution.set(width, height);
+                }
+            }
+            
+            // Simple FPS Cap via VSync
+            let target_mode = if game_settings.graphics.fps_cap > 0 {
+                bevy::window::PresentMode::AutoVsync
+            } else {
+                bevy::window::PresentMode::AutoNoVsync
+            };
+            
+            if window.present_mode != target_mode {
+                window.present_mode = target_mode;
+            }
         }
     }
 }

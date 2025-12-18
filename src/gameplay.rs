@@ -2,11 +2,13 @@ use bevy::prelude::*;
 use crate::player::GameState;
 use crate::player::shooting::Projectile;
 use bevy::ecs::relationship::Relationship;
+use crate::ui_config::UiConfig;
 
 pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
+        app.add_message::<DeathEvent>();
         app.add_systems(Startup, (spawn_enemies, spawn_player_ui));
         app.add_systems(Update, (
             update_health_bars,
@@ -98,20 +100,22 @@ pub struct PlayerHealthBar;
 #[derive(Component)]
 pub struct DeathScreen;
 
-fn spawn_player_ui(mut commands: Commands) {
+fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
+    let config = &ui_config.health_bar;
     // Health Bar Container
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(20.0),
-            left: Val::Px(20.0),
-            width: Val::Px(300.0),
-            height: Val::Px(30.0),
+            left: Val::Px(config.position[0]),
+            bottom: Val::Px(config.position[1]),
+            width: Val::Px(config.size[0]),
+            height: Val::Px(config.size[1]),
             border: UiRect::all(Val::Px(2.0)),
             ..default()
         },
         BackgroundColor(Color::BLACK),
         BorderColor::all(Color::WHITE),
+        BorderRadius::all(Val::Px(config.border_radius)),
     )).with_children(|parent| {
         // Health Bar Fill
         parent.spawn((
@@ -120,8 +124,9 @@ fn spawn_player_ui(mut commands: Commands) {
                 height: Val::Percent(100.0),
                 ..default()
             },
-            BackgroundColor(Color::srgb(0.0, 0.8, 0.0)),
+            BackgroundColor(Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3])),
             PlayerHealthBar,
+            BorderRadius::all(Val::Px(config.border_radius)),
         ));
         
         // Health Text Overlay
@@ -131,11 +136,11 @@ fn spawn_player_ui(mut commands: Commands) {
                 font_size: 20.0,
                 ..default()
             },
-            TextColor(Color::WHITE),
+            TextColor(Color::srgba(config.text_color[0], config.text_color[1], config.text_color[2], config.text_color[3])),
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(10.0),
-                top: Val::Px(5.0),
+                top: Val::Px(5.0), // Approximate centering
                 ..default()
             },
             PlayerHealthUi,
@@ -357,10 +362,15 @@ pub struct TurretProjectile;
 
 fn handle_death(
     mut commands: Commands,
-    query: Query<(Entity, &Health), Without<PlayerBody>>,
+    query: Query<(Entity, &Health, Option<&Enemy>, Option<&Turret>), Without<PlayerBody>>,
+    mut death_events: MessageWriter<DeathEvent>,
 ) {
-    for (entity, health) in query.iter() {
+    for (entity, health, enemy, turret) in query.iter() {
         if health.current <= 0.0 {
+            let name = if turret.is_some() { "Turret" } else if enemy.is_some() { "Target Dummy" } else { "Unknown" };
+            death_events.write(DeathEvent {
+                message: format!("Player killed {}", name),
+            });
             commands.entity(entity).despawn();
         }
     }
@@ -417,4 +427,9 @@ fn respawn_player(
             }
         }
     }
-} 
+}
+
+#[derive(Message)]
+pub struct DeathEvent {
+    pub message: String,
+}

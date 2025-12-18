@@ -3,6 +3,7 @@ use bevy::{input::mouse::AccumulatedMouseMotion, prelude::*};
 use super::input::AccumulatedInput;
 use super::movement::CrouchHeight;
 use super::DebugSettings;
+use crate::settings::GameSettings;
 
 #[derive(Debug, Component, Deref, DerefMut)]
 pub struct CameraSensitivity(Vec2);
@@ -18,14 +19,16 @@ impl Default for CameraSensitivity {
 pub fn rotate_camera(
     accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
     player: Single<(&mut Transform, &CameraSensitivity), With<Camera>>,
+    settings: Res<GameSettings>,
 ) {
     let (mut transform, camera_sensitivity) = player.into_inner();
 
     let delta = accumulated_mouse_motion.delta;
 
     if delta != Vec2::ZERO {
-        let delta_yaw = -delta.x * camera_sensitivity.x;
-        let delta_pitch = -delta.y * camera_sensitivity.y;
+        let sensitivity_mult = settings.gameplay.sensitivity;
+        let delta_yaw = -delta.x * camera_sensitivity.x * sensitivity_mult;
+        let delta_pitch = -delta.y * camera_sensitivity.y * sensitivity_mult;
 
         let (yaw, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
         let yaw = yaw + delta_yaw;
@@ -74,7 +77,7 @@ pub fn free_cam_movement(
 
     let forward = transform.forward();
     let right = transform.right();
-    let up = transform.up();
+    let _up = transform.up();
 
     if keyboard_input.pressed(KeyCode::KeyW) {
         velocity += forward.as_vec3();
@@ -97,5 +100,18 @@ pub fn free_cam_movement(
 
     if velocity != Vec3::ZERO {
         transform.translation += velocity.normalize_or_zero() * speed * time.delta_secs();
+    }
+}
+
+pub fn update_fov(
+    settings: Res<GameSettings>,
+    mut query: Query<&mut Projection, With<Camera>>,
+) {
+    if settings.is_changed() {
+        for mut projection in query.iter_mut() {
+            if let Projection::Perspective(ref mut perspective) = *projection {
+                perspective.fov = settings.graphics.fov.to_radians();
+            }
+        }
     }
 }

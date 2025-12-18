@@ -1,0 +1,28 @@
+[crosshair]
+color = [1.0, 1.0, 1.0, 1.0] # RGBA
+size = 10.0
+thickness = 2.0
+gap = 5.0
+dot = true
+dot_size = 2.0
+
+[health_bar]
+position = [20.0, 20.0] # Bottom Left (x, y from bottom-left corner)
+size = [300.0, 40.0]
+color = [1.0, 0.0, 0.0, 1.0]
+text_color = [1.0, 1.0, 1.0, 1.0]
+border_radius = 5.0
+
+[ammo_ui]
+position = [1250.0, 20.0] # Bottom Left (above health)
+size = [100.0, 30.0]
+color = [1.0, 1.0, 1.0, 1.0]
+border_radius = 5.0
+
+[kill_feed]
+position = [20.0, 20.0] # Top Left (x, y from top-left corner)
+max_items = 5
+item_duration = 5.0
+text_color = [1.0, 1.0, 1.0, 1.0]
+background_color = [0.0, 0.0, 0.0, 0.5]
+border_radius = 5.0

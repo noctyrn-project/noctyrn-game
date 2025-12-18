@@ -1,0 +1,11 @@
+title = "Fearlyss"
+version = "0.1.0"
+description = "A FPS game built with Bevy Engine."
+credits = [
+    "GitanElyon - Lead Developer",
+    "Amiel Mandell - Animations & Models",
+    "D_U - Weapon Models",
+    "favoritelike69 - Character Models",
+    "Bevy Engine - Game Engine",
+    "Rust Community - Crates & Support"
+]

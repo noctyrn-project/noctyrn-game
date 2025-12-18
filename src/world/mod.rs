@@ -6,12 +6,30 @@ use bevy::{
 };
 
 mod objects;
+use crate::settings::GameSettings;
 
 pub struct World;
 
 impl Plugin for World {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (init, objects::spawn_objects));
+        app.add_systems(Update, update_lighting);
+    }
+}
+
+fn update_lighting(
+    settings: Res<GameSettings>,
+    mut query: Query<&mut PointLight, With<MainLight>>,
+) {
+    if settings.is_changed() {
+        for mut light in query.iter_mut() {
+            light.shadows_enabled = match settings.graphics.shadow_quality.as_str() {
+                "Low" => false,
+                _ => true,
+            };
+            // You could also adjust shadow map size here if Bevy exposed it easily on the component,
+            // but usually that's a resource configuration. For now, toggling shadows is a good start.
+        }
     }
 }
 
@@ -55,6 +73,7 @@ pub fn init(
             ..default()
         },
         Transform::from_xyz(8.0, 16.0, 8.0),
+        MainLight,
     ));
 }
 
@@ -99,3 +118,6 @@ fn create_grid_image() -> Image {
     
     image
 }
+
+#[derive(Component)]
+pub struct MainLight;

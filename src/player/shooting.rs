@@ -176,11 +176,13 @@ pub fn handle_weapon_sway(
     mouse_input: Res<ButtonInput<MouseButton>>,
     mut query: Query<&mut WeaponRecoil, With<WeaponModel>>,
     player_velocity: Single<&Velocity>,
+    player_input: Single<&super::input::AccumulatedInput>,
     inventory_query: Query<&Inventory>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
     camera_query: Query<&GlobalTransform, With<Camera>>,
 ) {
     let velocity = player_velocity.into_inner();
+    let input = player_input.into_inner();
     let speed = Vec3::new(velocity.x, 0.0, velocity.z).length();
     let dt = time.delta_secs();
     
@@ -199,8 +201,8 @@ pub fn handle_weapon_sway(
     let target_lag_y = mouse_delta.y * 0.002;
 
     // 3. Sprint Pose
-    let is_sprinting = keyboard_input.pressed(KeyCode::ShiftLeft);
-    let moving_forward = keyboard_input.pressed(KeyCode::KeyW);
+    let is_sprinting = input.sprint;
+    let moving_forward = input.raw_movement.y > 0.0;
     
     let (sprint_pos, sprint_rot) = if is_sprinting && moving_forward && speed > 0.1 {
         (Vec3::new(0.1, -0.1, -0.1), Vec3::new(-0.4, 0.8, 0.0)) // Example sprint pose

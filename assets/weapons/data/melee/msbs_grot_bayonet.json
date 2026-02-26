@@ -7,7 +7,8 @@
   },
   "meta": {
     "weapon_type": "1 Handed Sharp",
-    "model_path": "weapons/models/melee/msbs_grot_bayonet.glb#Scene0",
+    "category": "blade",
+    "model_path": "weapons/models/melee/blade/msbs_grot_bayonet.glb#Scene0",
     "icon_path": "weapons/icons/msbs_grot_bayonet.png",
     "position_offset": [0.3, -0.1, -0.6],
     "rotation_offset": [-0.2, -1.57, 1.57],

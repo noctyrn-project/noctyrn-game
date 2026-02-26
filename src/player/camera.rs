@@ -3,6 +3,7 @@ use bevy::{input::mouse::AccumulatedMouseMotion, prelude::*};
 use super::input::AccumulatedInput;
 use super::movement::CrouchHeight;
 use super::DebugSettings;
+use super::WeaponTerminalOpen;
 use crate::settings::GameSettings;
 
 #[derive(Debug, Component, Deref, DerefMut)]
@@ -20,7 +21,9 @@ pub fn rotate_camera(
     accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
     player: Single<(&mut Transform, &CameraSensitivity), With<Camera>>,
     settings: Res<GameSettings>,
+    terminal_open: Res<WeaponTerminalOpen>,
 ) {
+    if terminal_open.0 { return; }
     let (mut transform, camera_sensitivity) = player.into_inner();
 
     let delta = accumulated_mouse_motion.delta;

@@ -1,0 +1,35 @@
+{
+  "info": {
+    "name": "Colt Python",
+    "description": "A premium revolver known for its smooth trigger and legendary accuracy.",
+    "manufacturer": "Colt's Manufacturing",
+    "year_introduced": 1955
+  },
+  "meta": {
+    "weapon_type": "Revolver",
+    "category": "revolver",
+    "model_path": "weapons/models/secondary/revolver/colt_python.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.25, -0.15, -0.5],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.1
+  },
+  "attributes": {
+    "fire_rate": 0.35,
+    "reload_speed": 3.0,
+    "accuracy": 0.92,
+    "mobility": 0.85,
+    "stability": 0.55,
+    "horizontal_recoil": 0.6,
+    "vertical_recoil": 1.5,
+    "ads_speed": 0.7,
+    "equip_speed": 0.3,
+    "fire_modes": ["Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.25, 0.08, 0.1] } },
+    "barrel": { "name": "6\" Barrel", "range_modifier": 0.1, "accuracy_modifier": 0.05, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [2.5, 1.15, -0.6] } },
+    "magazine": { "name": "6 Round Cylinder", "capacity": 6, "carry_capacity": 30, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": ".357 Magnum", "damage": 50.0, "penetration": 0.5, "velocity": 440.0 }
+  }
+}

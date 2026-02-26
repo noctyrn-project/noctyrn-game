@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "SKS Bayonet",
+    "description": "The folding spike bayonet integral to the SKS rifle.",
+    "manufacturer": "Tula Arms Plant",
+    "year_introduced": 1945
+  },
+  "meta": {
+    "weapon_type": "1 Handed Sharp",
+    "category": "blade",
+    "model_path": "weapons/models/melee/blade/sks_bayonet.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.1, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.15
+  },
+  "attributes": {
+    "attack_speed": 0.3,
+    "equip_speed": 0.12,
+    "stab_damage": 58.0,
+    "slash_damage": 25.0,
+    "back_stab_multiplier": 2.0,
+    "reach": 2.1,
+    "mobility": 1.0
+  }
+}

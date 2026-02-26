@@ -2,7 +2,7 @@
 toggle_sprint = false
 toggle_ads = false
 toggle_crouch = false
-sensitivity = 0.6000000238418579
+sensitivity = 1.2000001668930054
 
 [graphics]
 resolution = [
@@ -13,13 +13,13 @@ texture_quality = "High"
 shadow_quality = "High"
 view_distance = 1000.0
 fps_cap = 0
-fov = 60.0
+fov = 90.0
 
 [debug]
 show_fps = true
 max_fps_display = 144
 show_resource_usage = true
-show_hitboxes = false
+show_hitboxes = true
 free_cam = false
 god_mode = false
 infinite_ammo = false

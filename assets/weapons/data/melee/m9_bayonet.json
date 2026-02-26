@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "M9 Bayonet",
+    "description": "The standard U.S. military bayonet, versatile as both knife and bayonet.",
+    "manufacturer": "Phrobis III",
+    "year_introduced": 1986
+  },
+  "meta": {
+    "weapon_type": "1 Handed Sharp",
+    "category": "blade",
+    "model_path": "weapons/models/melee/blade/m9_bayonet.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.1, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.15
+  },
+  "attributes": {
+    "attack_speed": 0.25,
+    "equip_speed": 0.1,
+    "stab_damage": 52.0,
+    "slash_damage": 30.0,
+    "back_stab_multiplier": 2.0,
+    "reach": 1.9,
+    "mobility": 1.0
+  }
+}

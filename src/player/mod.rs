@@ -2,12 +2,14 @@ use bevy::prelude::*;
 use bevy::window::CursorOptions;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::app::AppExit;
-use crate::weapons::{WeaponSlot, spawn_weapon_visual, WeaponRegistry};
+use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout, WeaponConfig, sync_loadout_to_configs, slot_from_weapon_type};
 use crate::gameplay::{Health, PlayerBody, Regenerating};
 use crate::ui_config::UiConfig;
 use crate::gameplay::DeathEvent;
-use crate::ui_settings::{spawn_settings_menu, update_settings_menu, handle_settings_interaction, SettingsState};
-use crate::settings::{GameSettings, DebugSettingsConfig};
+use crate::ui_settings::{spawn_settings_menu, update_settings_menu, handle_settings_interaction, handle_slider_drag, SettingsState};
+use crate::settings::GameSettings;
+use crate::menu::{MenuPlugin};
+use rand::Rng;
 
 mod movement;
 mod input;
@@ -19,7 +21,7 @@ use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation, Crouc
 use input::{AccumulatedInput, accumulate_input, clear_input, load_keybinds, PlayerToggleState};
 pub use input::{Keybinds, save_keybinds};
 use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov};
-use inventory::{Inventory, WeaponModel, handle_weapon_switching};
+use inventory::{Inventory, WeaponModel, handle_weapon_switching, SwitchState};
 use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil};
 
 #[derive(Resource, Default)]
@@ -28,6 +30,22 @@ pub struct DebugSettings {
     pub show_directions: bool,
     pub free_cam: bool,
 }
+
+/// Resource to track whether the in-game weapon terminal overlay is open.
+#[derive(Resource, Default)]
+pub struct WeaponTerminalOpen(pub bool);
+
+#[derive(Component)]
+pub struct WeaponTerminalUi;
+
+#[derive(Component)]
+pub struct WeaponTerminalItem {
+    pub weapon_id: String,
+    pub slot: WeaponSlot,
+}
+
+#[derive(Component)]
+pub struct WeaponTerminalClose;
 
 #[derive(Resource, Default)]
 pub struct RemappingState {
@@ -56,24 +74,34 @@ pub struct Player;
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
     #[default]
+    MainMenu,
+    LoadoutSelect,
+    CrateOpening,
+    GameModeSelect,
     Playing,
-    Menu,
+    Paused,
 }
 
 impl Plugin for Player {
     fn build(&self, app: &mut App) {
         app.add_plugins(FrameTimeDiagnosticsPlugin::default());
+        app.add_plugins(MenuPlugin);
         app.init_resource::<DidFixedTimestepRunThisFrame>();
         app.init_state::<GameState>();
         app.init_resource::<DebugSettings>();
         app.init_resource::<RemappingState>();
         app.init_resource::<SettingsState>();
+        app.init_resource::<WeaponTerminalOpen>();
         
-        app.add_systems(Startup, (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed, load_keybinds));
-        app.add_systems(OnEnter(GameState::Menu), spawn_menu);
-        app.add_systems(OnExit(GameState::Menu), despawn_menu);
-        app.add_systems(Update, (toggle_pause, grab_cursor, toggle_stats, update_stats_ui, debug_input, sync_settings, update_fov));
-        app.add_systems(Update, (menu_action, keybind_remapping_system, update_settings_menu, handle_settings_interaction).run_if(in_state(GameState::Menu)));
+        app.add_systems(Startup, load_keybinds);
+        app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed));
+        app.add_systems(OnExit(GameState::Playing), despawn_gameplay_ui);
+        app.add_systems(OnEnter(GameState::Paused), spawn_pause_menu);
+        app.add_systems(OnExit(GameState::Paused), despawn_pause_menu);
+        app.add_systems(Update, grab_cursor);
+        app.add_systems(Update, (toggle_pause, toggle_stats, update_stats_ui, debug_input, sync_settings, update_fov).run_if(in_state(GameState::Playing).or(in_state(GameState::Paused))));
+        app.add_systems(Update, (pause_menu_action, keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::Paused)));
+        app.add_systems(Update, (keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::MainMenu)));
 
         app.add_systems(PreUpdate, clear_fixed_timestep_flag);
         app.add_systems(FixedPreUpdate, set_fixed_time_step_flag);
@@ -99,6 +127,14 @@ impl Plugin for Player {
             draw_hitboxes,
             update_crosshair,
             update_kill_feed,
+            update_hit_markers,
+        ).run_if(in_state(GameState::Playing)));
+
+        // Weapon terminal overlay systems
+        app.add_systems(Update, (
+            spawn_weapon_terminal_overlay,
+            weapon_terminal_interaction,
+            close_weapon_terminal,
         ).run_if(in_state(GameState::Playing)));
 
         app.add_systems(
@@ -122,8 +158,7 @@ impl Plugin for Player {
             ),
         );
 
-        app.add_systems(Update, draw_hitboxes);
-        app.add_systems(Update, sync_settings);
+        app.add_systems(Update, sync_settings.run_if(in_state(GameState::Playing).or(in_state(GameState::Paused))));
     }
 }
 
@@ -149,6 +184,7 @@ fn spawn_player(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
     weapon_registry: Res<WeaponRegistry>,
+    loadout: Res<PlayerLoadout>,
 ) {
     // Spawn Camera
     let camera_entity = commands.spawn((
@@ -158,18 +194,30 @@ fn spawn_player(
         Transform::from_xyz(0.0, 0.0, 0.0), // Initial pos, will be updated by translate_camera
     )).id();
 
-    // Spawn initial weapon (Primary)
-    let weapon_entity = spawn_weapon_visual(
+    // Spawn initial weapon with loadout skin
+    let skin = loadout.get_skin(WeaponSlot::Primary);
+    let weapon_entity = spawn_weapon_visual_skinned(
         &mut commands,
         WeaponSlot::Primary,
+        skin,
         &asset_server,
         &weapon_registry,
         &mut meshes,
         &mut materials,
     );
-    commands.entity(weapon_entity).insert(WeaponModel);
+
+    // Initialize with equipping animation offset so the weapon rises into view
+    let mut initial_recoil = crate::weapons::WeaponRecoil::default();
+    initial_recoil.switch_offset = Vec3::new(0.0, -0.5, 0.0);
+    initial_recoil.switch_rotation = Vec3::new(-1.0, 0.0, 0.0);
+    commands.entity(weapon_entity).insert((WeaponModel, initial_recoil));
     commands.entity(camera_entity).add_child(weapon_entity);
     
+    // Start in Equipping state so the weapon animates up and firing is blocked
+    let mut initial_inventory = Inventory::default();
+    initial_inventory.switch_state = SwitchState::Equipping;
+    initial_inventory.switch_timer = Timer::from_seconds(0.4, TimerMode::Once);
+
     let initial_pos = Vec3::new(0.0, 2.0, 0.0);
     commands.spawn((
         Name::new("Player"),
@@ -180,7 +228,7 @@ fn spawn_player(
         PhysicalTranslation(initial_pos),
         PreviousPhysicalTranslation(initial_pos),
         CrouchHeight::default(),
-        Inventory::default(),
+        initial_inventory,
         AmmoStatus::default(),
         Health { current: 100.0, max: 100.0 },
         Regenerating::default(),
@@ -204,7 +252,6 @@ fn spawn_ammo_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
             ..default()
         },
         AmmoUi,
-        BorderRadius::all(Val::Px(config.border_radius)),
     ));
 }
 
@@ -400,7 +447,6 @@ fn update_kill_feed(
                     KillFeedItem {
                         timer: Timer::from_seconds(config.item_duration, TimerMode::Once),
                     },
-                    BorderRadius::all(Val::Px(config.border_radius)),
                 ));
             });
         }
@@ -409,23 +455,50 @@ fn update_kill_feed(
     // Update timers and remove old items
     for (entity, mut item) in item_query.iter_mut() {
         item.timer.tick(time.delta());
-        if item.timer.finished() {
+        if item.timer.is_finished() {
             commands.entity(entity).despawn();
         }
     }
 }
 
 #[derive(Component)]
-struct MenuUi;
+struct PauseMenuUi;
 
 #[derive(Component)]
-enum MenuButton {
+struct PauseCamera;
+
+#[derive(Component)]
+enum PauseMenuButton {
     Resume,
     Settings,
+    MainMenu,
     Quit,
 }
 
-fn spawn_menu(mut commands: Commands) {
+#[derive(Component)]
+pub struct GameplayUi;
+
+fn despawn_gameplay_ui(
+    mut commands: Commands,
+    query: Query<Entity, Or<(With<AmmoUi>, With<CrosshairTop>, With<CrosshairBottom>, With<CrosshairLeft>, With<CrosshairRight>, With<KillFeedContainer>, With<StatsUi>, With<GameplayUi>)>>,
+    camera_query: Query<Entity, With<Camera>>,
+    player_query: Query<Entity, With<PlayerBody>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+    for entity in camera_query.iter() {
+        commands.entity(entity).despawn();
+    }
+    for entity in player_query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn spawn_pause_menu(mut commands: Commands) {
+    // Spawn a Camera2d for the pause menu UI since the menu camera is despawned during Playing
+    commands.spawn((Camera2d, PauseCamera, Camera { order: 10, ..default() }));
+
     commands
         .spawn((
             Node {
@@ -438,78 +511,49 @@ fn spawn_menu(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
-            MenuUi,
+            PauseMenuUi,
         ))
         .with_children(|parent| {
-            // Resume Button
             parent.spawn((
-                Button,
-                Node {
-                    width: Val::Px(200.0),
-                    height: Val::Px(50.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                BorderRadius::all(Val::Px(10.0)),
-                MenuButton::Resume,
-            )).with_children(|parent| {
-                parent.spawn((
-                    Text::new("Resume"),
-                    TextFont { font_size: 20.0, ..default() },
-                    TextColor(Color::WHITE),
-                ));
-            });
+                Text::new("PAUSED"),
+                TextFont { font_size: 48.0, ..default() },
+                TextColor(Color::WHITE),
+                Node { margin: UiRect::bottom(Val::Px(20.0)), ..default() },
+            ));
 
-            // Settings Button
-            parent.spawn((
-                Button,
-                Node {
-                    width: Val::Px(200.0),
-                    height: Val::Px(50.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                BorderRadius::all(Val::Px(10.0)),
-                MenuButton::Settings,
-            )).with_children(|parent| {
+            for (label, button, color) in [
+                ("Resume", PauseMenuButton::Resume, Color::srgb(0.3, 0.3, 0.3)),
+                ("Settings", PauseMenuButton::Settings, Color::srgb(0.3, 0.3, 0.3)),
+                ("Main Menu", PauseMenuButton::MainMenu, Color::srgb(0.4, 0.3, 0.1)),
+                ("Quit", PauseMenuButton::Quit, Color::srgb(0.5, 0.1, 0.1)),
+            ] {
                 parent.spawn((
-                    Text::new("Settings"),
-                    TextFont { font_size: 20.0, ..default() },
-                    TextColor(Color::WHITE),
-                ));
-            });
-
-            // Quit Button
-            parent.spawn((
-                Button,
-                Node {
-                    width: Val::Px(200.0),
-                    height: Val::Px(50.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.5, 0.1, 0.1)),
-                BorderRadius::all(Val::Px(10.0)),
-                MenuButton::Quit,
-            )).with_children(|parent| {
-                parent.spawn((
-                    Text::new("Quit"),
-                    TextFont { font_size: 20.0, ..default() },
-                    TextColor(Color::WHITE),
-                ));
-            });
+                    Button,
+                    Node {
+                        width: Val::Px(200.0),
+                        height: Val::Px(50.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(color),
+                    button,
+                )).with_children(|parent| {
+                    parent.spawn((
+                        Text::new(label),
+                        TextFont { font_size: 20.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
+            }
         });
 }
 
-fn despawn_menu(
+fn despawn_pause_menu(
     mut commands: Commands, 
-    query: Query<Entity, With<MenuUi>>,
-    settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>
+    query: Query<Entity, With<PauseMenuUi>>,
+    settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
+    pause_cam_query: Query<Entity, With<PauseCamera>>,
 ) {
     for entity in query.iter() {
         commands.entity(entity).despawn();
@@ -517,29 +561,35 @@ fn despawn_menu(
     for entity in settings_query.iter() {
         commands.entity(entity).despawn();
     }
+    for entity in pause_cam_query.iter() {
+        commands.entity(entity).despawn();
+    }
 }
 
-fn menu_action(
-    interaction_query: Query<(&Interaction, &MenuButton), (Changed<Interaction>, With<Button>)>,
+fn pause_menu_action(
+    interaction_query: Query<(&Interaction, &PauseMenuButton), (Changed<Interaction>, With<Button>)>,
     mut next_state: ResMut<NextState<GameState>>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
     mut commands: Commands,
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
             match button {
-                MenuButton::Resume => {
+                PauseMenuButton::Resume => {
                     next_state.set(GameState::Playing);
                 }
-                MenuButton::Settings => {
+                PauseMenuButton::Settings => {
                     if let Some(entity) = settings_query.iter().next() {
                         commands.entity(entity).despawn();
                     } else {
                         spawn_settings_menu(&mut commands);
                     }
                 }
-                MenuButton::Quit => {
+                PauseMenuButton::MainMenu => {
+                    next_state.set(GameState::MainMenu);
+                }
+                PauseMenuButton::Quit => {
                     exit.write(AppExit::Success);
                 }
             }
@@ -552,7 +602,7 @@ fn menu_action(
 fn debug_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut debug_settings: ResMut<DebugSettings>,
-    mut game_settings: ResMut<crate::settings::GameSettings>,
+    mut game_settings: ResMut<GameSettings>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyH) {
         debug_settings.show_hitboxes = !debug_settings.show_hitboxes;
@@ -578,8 +628,9 @@ fn toggle_pause(
 ) {
     if keyboard_input.just_pressed(keybinds.pause) {
         match state.get() {
-            GameState::Playing => next_state.set(GameState::Menu),
-            GameState::Menu => next_state.set(GameState::Playing),
+            GameState::Playing => next_state.set(GameState::Paused),
+            GameState::Paused => next_state.set(GameState::Playing),
+            _ => {}
         }
     }
 }
@@ -623,8 +674,9 @@ fn spawn_stats_ui(commands: &mut Commands) {
 fn update_stats_ui(
     diagnostics: Res<DiagnosticsStore>,
     mut query: Query<&mut Text, With<StatsText>>,
-    game_settings: Res<crate::settings::GameSettings>,
+    game_settings: Res<GameSettings>,
     entities: Query<Entity>,
+    velocity_query: Query<&Velocity, With<PlayerBody>>,
 ) {
     for mut text in query.iter_mut() {
         let mut output = String::new();
@@ -637,6 +689,12 @@ fn update_stats_ui(
         if game_settings.debug.show_resource_usage {
             output.push_str(&format!("Entities: {}\n", entities.iter().count()));
         }
+
+        // Show player speed
+        if let Ok(velocity) = velocity_query.single() {
+            let horiz = Vec3::new(velocity.x, 0.0, velocity.z).length();
+            output.push_str(&format!("Speed: {:.1}\n", horiz));
+        }
         
         text.0 = output;
     }
@@ -645,14 +703,15 @@ fn update_stats_ui(
 fn grab_cursor(
     mut cursors: Query<&mut CursorOptions>,
     state: Res<State<GameState>>,
+    terminal_open: Res<WeaponTerminalOpen>,
 ) {
     if let Ok(mut cursor) = cursors.single_mut() {
         match state.get() {
-            GameState::Playing => {
+            GameState::Playing if !terminal_open.0 => {
                 cursor.visible = false;
                 cursor.grab_mode = bevy::window::CursorGrabMode::Locked;
             }
-            GameState::Menu => {
+            _ => {
                 cursor.visible = true;
                 cursor.grab_mode = bevy::window::CursorGrabMode::None;
             }
@@ -712,28 +771,50 @@ fn keybind_remapping_system(
 
 fn draw_hitboxes(
     mut gizmos: Gizmos,
-    query: Query<(&GlobalTransform, Option<&crate::gameplay::Turret>), With<crate::gameplay::Enemy>>,
+    enemy_query: Query<(&GlobalTransform, Option<&crate::gameplay::Turret>), With<crate::gameplay::Enemy>>,
+    collider_query: Query<(&GlobalTransform, &crate::world::objects::StaticCollider)>,
+    ramp_query: Query<(&GlobalTransform, &crate::world::objects::RampCollider)>,
     debug_settings: Res<DebugSettings>,
 ) {
     if !debug_settings.show_hitboxes {
         return;
     }
 
-    for (transform, turret) in query.iter() {
+    // Draw all static colliders (green wireframe)
+    for (transform, collider) in collider_query.iter() {
+        let pos = transform.translation();
+        let size = collider.half_extents * 2.0;
+        gizmos.cube(
+            Transform::from_translation(pos).with_scale(size),
+            Color::srgba(0.0, 1.0, 0.0, 0.4),
+        );
+    }
+
+    // Draw ramp colliders (cyan wireframe, respecting rotation)
+    for (transform, ramp) in ramp_query.iter() {
+        let size = ramp.half_extents * 2.0;
+        gizmos.cube(
+            Transform::from_translation(transform.translation())
+                .with_rotation(transform.to_scale_rotation_translation().1)
+                .with_scale(size),
+            Color::srgba(0.0, 1.0, 1.0, 0.4),
+        );
+    }
+
+    // Draw enemy hitboxes (red)
+    for (transform, turret) in enemy_query.iter() {
         let pos = transform.translation();
         let color = Color::srgb(1.0, 0.0, 0.0);
-        
         if turret.is_some() {
-             gizmos.cuboid(Transform::from_translation(pos).with_scale(Vec3::splat(1.0)), color);
+            gizmos.cube(Transform::from_translation(pos).with_scale(Vec3::splat(1.0)), color);
         } else {
-             // Character (Approximate hitbox)
-             gizmos.cuboid(Transform::from_translation(pos + Vec3::new(0.0, 1.0, 0.0)).with_scale(Vec3::new(0.5, 2.0, 0.5)), color);
+            gizmos.cube(Transform::from_translation(pos + Vec3::new(0.0, 1.0, 0.0)).with_scale(Vec3::new(0.5, 2.0, 0.5)), color);
         }
     }
 }
 
 fn sync_settings(
-    game_settings: Res<crate::settings::GameSettings>,
+    game_settings: Res<GameSettings>,
     mut debug_settings: ResMut<DebugSettings>,
     mut commands: Commands,
     stats_query: Query<Entity, With<StatsUi>>,
@@ -779,6 +860,373 @@ fn sync_settings(
             if window.present_mode != target_mode {
                 window.present_mode = target_mode;
             }
+        }
+    }
+}
+
+// ── Hit Marker System ──
+
+#[derive(Component)]
+pub struct HitMarker {
+    pub timer: Timer,
+}
+
+#[derive(Component)]
+pub struct DamageNumber {
+    pub timer: Timer,
+    pub velocity: Vec3,
+}
+
+pub fn spawn_hit_marker(commands: &mut Commands) {
+    let arm_length = 12.0;
+    let thickness = 2.0;
+    let gap = 4.0;
+    let color = Color::srgba(1.0, 1.0, 1.0, 0.9);
+
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(50.0),
+            top: Val::Percent(50.0),
+            width: Val::Px(0.0),
+            height: Val::Px(0.0),
+            ..default()
+        },
+        HitMarker { timer: Timer::from_seconds(0.3, TimerMode::Once) },
+    )).with_children(|parent| {
+        // Build X-shaped hitmarker using small square segments along diagonals
+        // Each arm is a series of small segments going outward at 45 degrees
+        let segment_size = thickness;
+        let segments = (arm_length / segment_size) as i32;
+        
+        for (dir_x, dir_y) in [(-1.0_f32, -1.0_f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+            for i in 0..segments {
+                let dist = gap + (i as f32) * segment_size * 0.707; // 0.707 ≈ 1/sqrt(2)
+                let px = dir_x * dist;
+                let py = dir_y * dist;
+                parent.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(px - segment_size / 2.0),
+                        top: Val::Px(py - segment_size / 2.0),
+                        width: Val::Px(segment_size),
+                        height: Val::Px(segment_size),
+                        ..default()
+                    },
+                    BackgroundColor(color),
+                ));
+            }
+        }
+    });
+}
+
+pub fn spawn_damage_number(commands: &mut Commands, damage: f32, _position: Vec3) {
+    let color = if damage >= 50.0 {
+        Color::srgb(1.0, 0.2, 0.2)
+    } else {
+        Color::srgb(1.0, 1.0, 0.3)
+    };
+
+    let mut rng = rand::rng();
+    let offset_x: f32 = rng.random_range(-4.0..4.0);
+    let vel_x: f32 = rng.random_range(-30.0..30.0);
+    let vel_y: f32 = rng.random_range(-65.0..-35.0);
+
+    commands.spawn((
+        Text::new(format!("{:.0}", damage)),
+        TextFont { font_size: 18.0, ..default() },
+        TextColor(color),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(52.0 + offset_x),
+            top: Val::Percent(45.0),
+            ..default()
+        },
+        DamageNumber {
+            timer: Timer::from_seconds(0.8, TimerMode::Once),
+            velocity: Vec3::new(vel_x, vel_y, 0.0),
+        },
+    ));
+}
+
+fn update_hit_markers(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut marker_query: Query<(Entity, &mut HitMarker)>,
+    mut number_query: Query<(Entity, &mut DamageNumber, &mut Node, &mut TextColor)>,
+) {
+    for (entity, mut marker) in marker_query.iter_mut() {
+        marker.timer.tick(time.delta());
+        if marker.timer.is_finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+    for (entity, mut number, mut node, mut color) in number_query.iter_mut() {
+        number.timer.tick(time.delta());
+        let dt = time.delta_secs();
+
+        if let Val::Percent(top) = node.top {
+            node.top = Val::Percent(top + number.velocity.y * dt * 0.05);
+        }
+        if let Val::Percent(left) = node.left {
+            node.left = Val::Percent(left + number.velocity.x * dt * 0.03);
+        }
+
+        // Decelerate horizontal movement
+        number.velocity.x *= 0.95;
+
+        let alpha = 1.0 - number.timer.fraction();
+        color.0 = color.0.with_alpha(alpha);
+
+        if number.timer.is_finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// In-Game Weapon Terminal Overlay
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+fn spawn_weapon_terminal_overlay(
+    mut commands: Commands,
+    terminal_open: Res<WeaponTerminalOpen>,
+    existing_ui: Query<Entity, With<WeaponTerminalUi>>,
+    registry: Res<WeaponRegistry>,
+    loadout: Res<PlayerLoadout>,
+) {
+    // Only spawn when first opened and no UI exists yet
+    if !terminal_open.0 || !existing_ui.is_empty() {
+        return;
+    }
+
+    // Build a simplified weapon picker overlay
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+        GlobalZIndex(100),
+        WeaponTerminalUi,
+    )).with_children(|overlay| {
+        // Main panel
+        overlay.spawn(
+            Node {
+                width: Val::Px(700.0),
+                max_height: Val::Percent(80.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(20.0)),
+                row_gap: Val::Px(12.0),
+                overflow: Overflow::scroll_y(),
+                ..default()
+            },
+        ).with_children(|panel| {
+            // Title
+            panel.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                margin: UiRect::bottom(Val::Px(8.0)),
+                ..default()
+            }).with_children(|title_row| {
+                title_row.spawn((
+                    Text::new("WEAPON TERMINAL"),
+                    TextFont { font_size: 24.0, ..default() },
+                    TextColor(Color::srgba(0.9, 0.3, 0.3, 0.95)),
+                ));
+                // Close button
+                title_row.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(32.0),
+                        height: Val::Px(32.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                    WeaponTerminalClose,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("✕"),
+                        TextFont { font_size: 18.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
+            });
+
+            // Show weapons grouped by slot
+            let slots = [
+                (WeaponSlot::Primary, "PRIMARY", &loadout.primary),
+                (WeaponSlot::Secondary, "SECONDARY", &loadout.secondary),
+                (WeaponSlot::Melee, "MELEE", &loadout.melee),
+                (WeaponSlot::Equipment, "EQUIPMENT", &loadout.equipment),
+            ];
+
+            for (slot, label, equipped_id) in &slots {
+                panel.spawn((
+                    Text::new(label.to_string()),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                    Node { margin: UiRect::top(Val::Px(6.0)), ..default() },
+                ));
+
+                // Weapon items for this slot
+                panel.spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                }).with_children(|slot_list| {
+                    let mut weapons_for_slot: Vec<(&String, &WeaponConfig)> = registry.weapons.iter()
+                        .filter(|(_, c)| slot_from_weapon_type(&c.meta.weapon_type) == *slot)
+                        .collect();
+                    weapons_for_slot.sort_by(|a, b| a.1.info.name.cmp(&b.1.info.name));
+
+                    for (wid, config) in weapons_for_slot {
+                        let is_equipped = *equipped_id == wid.as_str();
+                        let bg = if is_equipped {
+                            Color::srgba(0.15, 0.35, 0.15, 0.7)
+                        } else {
+                            Color::srgba(0.12, 0.12, 0.18, 0.7)
+                        };
+
+                        slot_list.spawn((
+                            Button,
+                            Node {
+                                width: Val::Percent(100.0),
+                                height: Val::Px(38.0),
+                                padding: UiRect::horizontal(Val::Px(14.0)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                ..default()
+                            },
+                            BackgroundColor(bg),
+                            WeaponTerminalItem {
+                                weapon_id: wid.clone(),
+                                slot: *slot,
+                            },
+                        )).with_children(|item| {
+                            item.spawn((
+                                Text::new(&config.info.name),
+                                TextFont { font_size: 15.0, ..default() },
+                                TextColor(if is_equipped { Color::srgb(0.5, 1.0, 0.5) } else { Color::srgba(0.85, 0.85, 0.9, 0.9) }),
+                            ));
+                            if is_equipped {
+                                item.spawn((
+                                    Text::new("EQUIPPED"),
+                                    TextFont { font_size: 11.0, ..default() },
+                                    TextColor(Color::srgba(0.4, 0.8, 0.4, 0.7)),
+                                ));
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
+}
+
+fn weapon_terminal_interaction(
+    mut item_query: Query<(&Interaction, &WeaponTerminalItem, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
+    mut loadout: ResMut<PlayerLoadout>,
+    mut commands: Commands,
+    existing_ui: Query<Entity, With<WeaponTerminalUi>>,
+    mut terminal_open: ResMut<WeaponTerminalOpen>,
+    mut registry: ResMut<WeaponRegistry>,
+    weapon_model_query: Query<(Entity, &WeaponModel)>,
+    camera_query: Query<Entity, With<Camera3d>>,
+    inventory_query: Query<&Inventory>,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if !terminal_open.0 { return; }
+
+    for (interaction, item, mut bg) in item_query.iter_mut() {
+        match *interaction {
+            Interaction::Pressed => {
+                // Equip the weapon
+                match item.slot {
+                    WeaponSlot::Primary => loadout.primary = item.weapon_id.clone(),
+                    WeaponSlot::Secondary => loadout.secondary = item.weapon_id.clone(),
+                    WeaponSlot::Melee => loadout.melee = item.weapon_id.clone(),
+                    WeaponSlot::Equipment => loadout.equipment = item.weapon_id.clone(),
+                }
+
+                sync_loadout_to_configs(&mut registry, &loadout);
+
+                // Rebuild the in-hand weapon model if we're holding the same slot
+                if let Ok(inventory) = inventory_query.single() {
+                    if inventory.active_slot == item.slot {
+                        // Despawn old weapon model
+                        for (entity, _) in weapon_model_query.iter() {
+                            commands.entity(entity).despawn();
+                        }
+                        // Only spawn new model if we have a config for this slot
+                        if registry.configs.contains_key(&item.slot) {
+                            let skin = loadout.get_skin(item.slot);
+                            if let Some(camera_entity) = camera_query.iter().next() {
+                                let weapon_entity = spawn_weapon_visual_skinned(
+                                    &mut commands,
+                                    item.slot,
+                                    skin,
+                                    &asset_server,
+                                    &registry,
+                                    &mut meshes,
+                                    &mut materials,
+                                );
+                                commands.entity(weapon_entity).insert(WeaponModel);
+                                commands.entity(camera_entity).add_child(weapon_entity);
+                            }
+                        }
+                    }
+                }
+
+                // Close the overlay
+                terminal_open.0 = false;
+                for entity in existing_ui.iter() {
+                    commands.entity(entity).despawn();
+                }
+            }
+            Interaction::Hovered => {
+                *bg = BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.8));
+            }
+            Interaction::None => {
+                let is_equipped = match item.slot {
+                    WeaponSlot::Primary => loadout.primary == item.weapon_id,
+                    WeaponSlot::Secondary => loadout.secondary == item.weapon_id,
+                    WeaponSlot::Melee => loadout.melee == item.weapon_id,
+                    WeaponSlot::Equipment => loadout.equipment == item.weapon_id,
+                };
+                *bg = if is_equipped {
+                    BackgroundColor(Color::srgba(0.15, 0.35, 0.15, 0.7))
+                } else {
+                    BackgroundColor(Color::srgba(0.12, 0.12, 0.18, 0.7))
+                };
+            }
+        }
+    }
+}
+
+fn close_weapon_terminal(
+    mut commands: Commands,
+    mut terminal_open: ResMut<WeaponTerminalOpen>,
+    close_query: Query<&Interaction, (Changed<Interaction>, With<WeaponTerminalClose>)>,
+    existing_ui: Query<Entity, With<WeaponTerminalUi>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) {
+    let should_close = keyboard_input.just_pressed(KeyCode::Escape)
+        || close_query.iter().any(|i| *i == Interaction::Pressed);
+
+    if terminal_open.0 && should_close {
+        terminal_open.0 = false;
+        for entity in existing_ui.iter() {
+            commands.entity(entity).despawn();
         }
     }
 }

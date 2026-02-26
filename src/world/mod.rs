@@ -5,7 +5,7 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 
-mod objects;
+pub mod objects;
 use crate::settings::GameSettings;
 
 pub struct World;
@@ -13,7 +13,7 @@ pub struct World;
 impl Plugin for World {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (init, objects::spawn_objects));
-        app.add_systems(Update, update_lighting);
+        app.add_systems(Update, (update_lighting, objects::update_moving_targets, objects::update_popup_targets, objects::update_glass_shards));
     }
 }
 

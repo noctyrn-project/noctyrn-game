@@ -7,7 +7,8 @@
   },
   "meta": {
     "weapon_type": "Secondary",
-    "model_path": "weapons/models/secondary/g17.glb#Scene0",
+    "category": "pistol",
+    "model_path": "weapons/models/secondary/pistol/g17.glb#Scene0",
     "icon_path": "weapons/icons/g17.png",
     "position_offset": [0.25, -0.15, -0.5],
     "rotation_offset": [0.0, 1.57, 0.0],

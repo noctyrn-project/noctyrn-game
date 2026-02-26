@@ -7,6 +7,7 @@
   },
   "meta": {
     "weapon_type": "Primary",
+    "category": "assault",
     "model_path": "weapons/models/primary/hk416.glb#Scene0",
     "icon_path": "weapons/icons/hk416.png",
     "position_offset": [0.3, -0.2, -0.7],

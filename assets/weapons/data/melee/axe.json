@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "Fire Axe",
+    "description": "A heavy two-handed axe that delivers devastating cleaving blows.",
+    "manufacturer": "Generic",
+    "year_introduced": 1900
+  },
+  "meta": {
+    "weapon_type": "2 Handed Sharp",
+    "category": "2hblade",
+    "model_path": "weapons/models/melee/2hblade/axe.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.35, -0.15, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.18
+  },
+  "attributes": {
+    "attack_speed": 0.6,
+    "equip_speed": 0.3,
+    "stab_damage": 40.0,
+    "slash_damage": 75.0,
+    "back_stab_multiplier": 1.5,
+    "reach": 2.5,
+    "mobility": 0.7
+  }
+}

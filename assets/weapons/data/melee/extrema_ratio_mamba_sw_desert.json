@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "Extrema Ratio Mamba",
+    "description": "An Italian combat knife designed for special forces operations.",
+    "manufacturer": "Extrema Ratio",
+    "year_introduced": 2005
+  },
+  "meta": {
+    "weapon_type": "1 Handed Sharp",
+    "category": "blade",
+    "model_path": "weapons/models/melee/blade/extrema_ratio_mamba_sw_desert.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.1, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.15
+  },
+  "attributes": {
+    "attack_speed": 0.22,
+    "equip_speed": 0.1,
+    "stab_damage": 60.0,
+    "slash_damage": 35.0,
+    "back_stab_multiplier": 2.0,
+    "reach": 1.8,
+    "mobility": 1.0
+  }
+}

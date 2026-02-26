@@ -1,0 +1,35 @@
+{
+  "info": {
+    "name": "FN SCAR-H",
+    "description": "A heavy battle rifle chambered in 7.62 NATO with excellent range and damage.",
+    "manufacturer": "FN Herstal",
+    "year_introduced": 2009
+  },
+  "meta": {
+    "weapon_type": "Assault Rifle",
+    "category": "assault",
+    "model_path": "weapons/models/primary/assault/fn_scar_h_std.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.2, -0.7],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.2
+  },
+  "attributes": {
+    "fire_rate": 0.09,
+    "reload_speed": 2.8,
+    "accuracy": 0.88,
+    "mobility": 0.55,
+    "stability": 0.7,
+    "horizontal_recoil": 0.8,
+    "vertical_recoil": 2.2,
+    "ads_speed": 0.5,
+    "equip_speed": 0.4,
+    "fire_modes": ["Auto", "Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
+    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [4.5, 0.0, 0.0] } },
+    "magazine": { "name": "20 Round Mag", "capacity": 20, "carry_capacity": 80, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": "7.62 NATO", "damage": 35.0, "penetration": 0.7, "velocity": 850.0 }
+  }
+}

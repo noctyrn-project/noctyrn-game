@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "CJRB Chord",
+    "description": "A modern folding knife with a sleek design and razor-sharp edge.",
+    "manufacturer": "CJRB Cutlery",
+    "year_introduced": 2021
+  },
+  "meta": {
+    "weapon_type": "1 Handed Sharp",
+    "category": "blade",
+    "model_path": "weapons/models/melee/blade/cjrb_chord.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.1, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.15
+  },
+  "attributes": {
+    "attack_speed": 0.18,
+    "equip_speed": 0.08,
+    "stab_damage": 42.0,
+    "slash_damage": 32.0,
+    "back_stab_multiplier": 2.5,
+    "reach": 1.4,
+    "mobility": 1.0
+  }
+}

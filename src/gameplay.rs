@@ -9,7 +9,8 @@ pub struct GameplayPlugin;
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<DeathEvent>();
-        app.add_systems(Startup, (spawn_enemies, spawn_player_ui));
+        app.add_systems(OnEnter(GameState::Playing), (spawn_enemies, spawn_player_ui));
+        app.add_systems(OnExit(GameState::Playing), despawn_gameplay_entities);
         app.add_systems(Update, (
             update_health_bars,
             update_player_health_ui,
@@ -23,6 +24,22 @@ impl Plugin for GameplayPlugin {
             billboard_system,
             handle_regeneration,
         ).run_if(in_state(GameState::Playing)));
+    }
+}
+
+fn despawn_gameplay_entities(
+    mut commands: Commands,
+    query: Query<Entity, Or<(With<Enemy>, With<DeathScreen>)>>,
+    health_ui_query: Query<Entity, Or<(With<PlayerHealthUi>, With<PlayerHealthBar>)>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+    // Despawn health bar UI and its parent container
+    for entity in health_ui_query.iter() {
+        if let Ok(mut cmds) = commands.get_entity(entity) {
+            cmds.despawn();
+        }
     }
 }
 
@@ -115,7 +132,6 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         },
         BackgroundColor(Color::BLACK),
         BorderColor::all(Color::WHITE),
-        BorderRadius::all(Val::Px(config.border_radius)),
     )).with_children(|parent| {
         // Health Bar Fill
         parent.spawn((
@@ -126,7 +142,6 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
             },
             BackgroundColor(Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3])),
             PlayerHealthBar,
-            BorderRadius::all(Val::Px(config.border_radius)),
         ));
         
         // Health Text Overlay

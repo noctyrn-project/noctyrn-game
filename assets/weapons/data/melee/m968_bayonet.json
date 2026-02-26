@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "M968 Bayonet",
+    "description": "A Portuguese military bayonet with a robust and practical design.",
+    "manufacturer": "FBP",
+    "year_introduced": 1968
+  },
+  "meta": {
+    "weapon_type": "1 Handed Sharp",
+    "category": "blade",
+    "model_path": "weapons/models/melee/blade/m968_bayonet.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.1, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.15
+  },
+  "attributes": {
+    "attack_speed": 0.28,
+    "equip_speed": 0.1,
+    "stab_damage": 50.0,
+    "slash_damage": 28.0,
+    "back_stab_multiplier": 2.0,
+    "reach": 2.0,
+    "mobility": 1.0
+  }
+}

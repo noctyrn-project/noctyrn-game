@@ -8,6 +8,7 @@ mod gameplay;
 mod ui_config;
 mod settings;
 mod ui_settings;
+mod menu;
 
 fn main() {
     App::new()

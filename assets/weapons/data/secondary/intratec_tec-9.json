@@ -1,0 +1,35 @@
+{
+  "info": {
+    "name": "Intratec TEC-9",
+    "description": "A semi-automatic machine pistol with a large magazine capacity.",
+    "manufacturer": "Intratec",
+    "year_introduced": 1985
+  },
+  "meta": {
+    "weapon_type": "Machine Pistol",
+    "category": "mpistol",
+    "model_path": "weapons/models/secondary/mpistol/intratec_tec-9.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.25, -0.15, -0.5],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.12
+  },
+  "attributes": {
+    "fire_rate": 0.08,
+    "reload_speed": 2.0,
+    "accuracy": 0.6,
+    "mobility": 0.88,
+    "stability": 0.45,
+    "horizontal_recoil": 0.8,
+    "vertical_recoil": 1.2,
+    "ads_speed": 0.7,
+    "equip_speed": 0.22,
+    "fire_modes": ["Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.25, 0.06, 0.1] } },
+    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [2.0, 0.0, 0.0] } },
+    "magazine": { "name": "32 Round Mag", "capacity": 32, "carry_capacity": 96, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": "9mm", "damage": 18.0, "penetration": 0.2, "velocity": 360.0 }
+  }
+}

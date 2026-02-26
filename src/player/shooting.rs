@@ -4,6 +4,7 @@ use super::inventory::{Inventory, WeaponModel};
 use super::movement::Velocity;
 use crate::weapons::{WeaponSlot, WeaponRecoil, BaseWeaponTransform, FireMode};
 use crate::gameplay::{Health, PlayerBody, Enemy, Regenerating};
+use crate::player::{spawn_hit_marker, spawn_damage_number};
 use std::collections::HashMap;
 use rand::Rng;
 
@@ -204,11 +205,14 @@ pub fn handle_weapon_sway(
     let is_sprinting = input.sprint;
     let moving_forward = input.raw_movement.y > 0.0;
     
-    let (sprint_pos, sprint_rot) = if is_sprinting && moving_forward && speed > 0.1 {
-        (Vec3::new(0.1, -0.1, -0.1), Vec3::new(-0.4, 0.8, 0.0)) // Example sprint pose
+    let sprint_factor = if is_sprinting && moving_forward && speed > 0.1 {
+        1.0
     } else {
-        (Vec3::ZERO, Vec3::ZERO)
+        0.0
     };
+
+    let sprint_target_pos = Vec3::new(0.1, -0.1, -0.1);
+    let sprint_target_rot = Vec3::new(-0.4, 0.8, 0.0);
 
     // 4. Strafe Sway
     let mut strafe_sway = Vec3::ZERO;
@@ -248,12 +252,19 @@ pub fn handle_weapon_sway(
         // Update Phase
         recoil.sway_phase += dt * sway_speed * mobility_mult;
         
+        // Smoothly transition sprint factor
+        recoil.sprint_blend = recoil.sprint_blend + (sprint_factor - recoil.sprint_blend) * dt * 6.0;
+        let blend = recoil.sprint_blend;
+        
         let bob_x = recoil.sway_phase.sin() * sway_amount * stability_mult;
-        let bob_y = (recoil.sway_phase * 2.0).cos().abs() * sway_amount * 2.0 * stability_mult; // More vertical bob
+        let bob_y = (recoil.sway_phase * 2.0).cos().abs() * sway_amount * 2.0 * stability_mult;
 
         // Target Sway (Bobbing + Sprint + Strafe)
         // Disable sway if aiming
         let sway_mult = if is_aiming { 0.1 } else { 1.0 };
+        
+        let sprint_pos = sprint_target_pos * blend;
+        let sprint_rot = sprint_target_rot * blend;
         
         let target_sway_pos = (Vec3::new(bob_x, bob_y, 0.0) + sprint_pos + Vec3::new(strafe_sway.x, 0.0, 0.0)) * sway_mult;
         
@@ -531,6 +542,8 @@ pub fn fire_weapon(
                                 r.timer.reset();
                                 r.current_rate = r.base_rate;
                             }
+                            spawn_hit_marker(&mut commands);
+                            spawn_damage_number(&mut commands, final_damage, target_transform.translation());
                             println!("Hit enemy! Health: {} (Type: {})", health.current, if is_slash { "Slash" } else { "Stab" });
                         }
                     }
@@ -712,9 +725,9 @@ pub fn handle_grenade_throw(
             // Explosion
             commands.entity(entity).despawn();
             
-            // Smoke Particles
+            // Smoke Particles - uneven polygon shapes for realistic explosion
             let mut rng = rand::rng();
-            for _ in 0..20 {
+            for _ in 0..25 {
                 let dir = Vec3::new(
                     rng.random_range(-1.0..1.0),
                     rng.random_range(-1.0..1.0),
@@ -725,15 +738,27 @@ pub fn handle_grenade_throw(
                 let life = rng.random_range(1.0..2.5);
                 let scale = rng.random_range(0.5..1.5);
 
+                // Create irregular shapes by using cuboids with random dimensions
+                let sx = rng.random_range(0.4..1.6);
+                let sy = rng.random_range(0.4..1.6);
+                let sz = rng.random_range(0.4..1.6);
+
                 commands.spawn((
-                    Mesh3d(meshes.add(Sphere::new(1.0))), // Low poly sphere or IcoSphere
+                    Mesh3d(meshes.add(Cuboid::new(sx, sy, sz))),
                     MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgba(1.0, 1.0, 0.8, 0.8), // Start White-Yellow
+                        base_color: Color::srgba(1.0, 1.0, 0.8, 0.8),
                         alpha_mode: AlphaMode::Blend,
                         unlit: true,
                         ..default()
                     })),
-                    Transform::from_translation(transform.translation).with_scale(Vec3::splat(0.1)),
+                    Transform::from_translation(transform.translation)
+                        .with_scale(Vec3::splat(0.1))
+                        .with_rotation(Quat::from_euler(
+                            EulerRot::XYZ,
+                            rng.random_range(0.0..std::f32::consts::TAU),
+                            rng.random_range(0.0..std::f32::consts::TAU),
+                            rng.random_range(0.0..std::f32::consts::TAU),
+                        )),
                     ExplosionParticle {
                         velocity: dir * speed,
                         timer: Timer::from_seconds(life, TimerMode::Once),
@@ -841,6 +866,11 @@ pub fn move_projectiles(
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Projectile)>,
     mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&PlayerBody>, Option<&Enemy>, Option<&mut Regenerating>), Without<Projectile>>,
+    terminal_query: Query<(&GlobalTransform, &crate::world::objects::WeaponTerminal), Without<Projectile>>,
+    mut terminal_open: ResMut<crate::player::WeaponTerminalOpen>,
+    collider_query: Query<(Entity, &Transform, &crate::world::objects::StaticCollider, Option<&crate::world::objects::MaterialType>), Without<Projectile>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (entity, mut transform, mut projectile) in query.iter_mut() {
         projectile.timer.tick(time.delta());
@@ -850,22 +880,98 @@ pub fn move_projectiles(
         }
 
         let delta = projectile.velocity * time.delta_secs();
+        let _old_pos = transform.translation;
         transform.translation += delta;
+        let new_pos = transform.translation;
 
-        // Simple collision check (distance based)
+        // Check terminal hits first
+        if projectile.from_player {
+            let mut hit_terminal = false;
+            for (terminal_transform, _terminal) in terminal_query.iter() {
+                if transform.translation.distance(terminal_transform.translation()) < 1.5 {
+                    terminal_open.0 = true;
+                    commands.entity(entity).despawn();
+                    hit_terminal = true;
+                    break;
+                }
+            }
+            if hit_terminal { continue; }
+        }
+
+        // AABB collision with static colliders (penetration system)
+        let mut hit_collider = false;
+        for (_col_entity, col_transform, collider, material_type) in collider_query.iter() {
+            let col_pos = col_transform.translation;
+            let he = collider.half_extents;
+
+            // Check if bullet path intersects the AABB
+            let min = col_pos - he;
+            let max = col_pos + he;
+
+            // Simple point-in-AABB check for the bullet position
+            if new_pos.x > min.x && new_pos.x < max.x
+                && new_pos.y > min.y && new_pos.y < max.y
+                && new_pos.z > min.z && new_pos.z < max.z
+            {
+                if let Some(mat_type) = material_type {
+                    let _penetration_power = 1.0 - mat_type.resistance();
+                    
+                    // Check if bullet can penetrate
+                    let bullet_pen = projectile.damage / 100.0; // Normalize damage as penetration factor
+                    
+                    if mat_type.shatters() {
+                        // Glass shattering effect
+                        let bullet_dir = projectile.velocity.normalize_or_zero();
+                        crate::world::objects::spawn_glass_shatter(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            new_pos,
+                            bullet_dir,
+                        );
+                        // Bullet passes through glass with slight damage reduction
+                        projectile.damage *= mat_type.damage_falloff();
+                        // Don't destroy the bullet, it penetrates
+                        continue;
+                    } else if bullet_pen > mat_type.resistance() * 0.5 {
+                        // Bullet penetrates: reduce damage and continue
+                        projectile.damage *= mat_type.damage_falloff();
+                        // Slow bullet down
+                        projectile.velocity *= 0.7;
+                        // Don't destroy - bullet continues through
+                        continue;
+                    } else {
+                        // Bullet stopped by material
+                        commands.entity(entity).despawn();
+                        hit_collider = true;
+                        break;
+                    }
+                } else {
+                    // No material type - bullet stops
+                    commands.entity(entity).despawn();
+                    hit_collider = true;
+                    break;
+                }
+            }
+        }
+        if hit_collider { continue; }
+
+        // Entity collision check (distance based)
         for (_target_entity, target_transform, mut health, is_player, is_enemy, mut regen) in health_query.iter_mut() {
-            // Friendly fire check
             if projectile.from_player && is_player.is_some() { continue; }
             if !projectile.from_player && is_enemy.is_some() { continue; }
 
             if transform.translation.distance(target_transform.translation()) < 1.5 {
-                // Hit!
                 health.current -= projectile.damage;
                 if let Some(r) = regen.as_mut() {
                     r.timer.reset();
                     r.current_rate = r.base_rate;
                 }
-                commands.entity(entity).despawn(); // Destroy projectile
+                if projectile.from_player {
+                    spawn_hit_marker(&mut commands);
+                    spawn_damage_number(&mut commands, projectile.damage, target_transform.translation());
+                }
+                commands.entity(entity).despawn();
                 break;
             }
         }

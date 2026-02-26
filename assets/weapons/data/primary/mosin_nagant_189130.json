@@ -1,0 +1,35 @@
+{
+  "info": {
+    "name": "Mosin Nagant 1891/30",
+    "description": "A bolt-action rifle that served through two world wars, still deadly accurate.",
+    "manufacturer": "Tula Arms Plant",
+    "year_introduced": 1891
+  },
+  "meta": {
+    "weapon_type": "Rifle",
+    "category": "rifle",
+    "model_path": "weapons/models/primary/rifle/mosin_nagant_189130.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.2, -0.7],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.2
+  },
+  "attributes": {
+    "fire_rate": 0.8,
+    "reload_speed": 3.5,
+    "accuracy": 0.92,
+    "mobility": 0.5,
+    "stability": 0.7,
+    "horizontal_recoil": 0.4,
+    "vertical_recoil": 3.0,
+    "ads_speed": 0.45,
+    "equip_speed": 0.45,
+    "fire_modes": ["Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
+    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [5.0, 0.0, 0.0] } },
+    "magazine": { "name": "5 Round Internal", "capacity": 5, "carry_capacity": 40, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": "7.62x54mmR", "damage": 55.0, "penetration": 0.8, "velocity": 800.0 }
+  }
+}

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::weapons::{WeaponSlot, spawn_weapon_visual, WeaponRegistry};
+use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout};
 use crate::player::input::Keybinds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -50,6 +50,7 @@ pub fn handle_weapon_switching(
     camera_query: Query<Entity, With<Camera>>,
     asset_server: Res<AssetServer>,
     weapon_registry: Res<WeaponRegistry>,
+    loadout: Res<PlayerLoadout>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -148,6 +149,20 @@ pub fn handle_weapon_switching(
         // State Machine
         match inventory.switch_state {
             SwitchState::Idle => {
+                // Check if there's a queued target from rapid switching
+                if let Some(target) = inventory.target_slot {
+                    if target != inventory.active_slot {
+                        inventory.switch_state = SwitchState::Unequipping;
+                        let speed = weapon_registry.configs.get(&inventory.active_slot)
+                            .map(|c| c.attributes.equip_speed)
+                            .unwrap_or(0.5);
+                        inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));
+                        inventory.switch_timer.reset();
+                    } else {
+                        inventory.target_slot = None;
+                    }
+                }
+
                 // Ensure weapon is in correct position
                 if let Some((_, mut recoil)) = weapon_query.iter_mut().next() {
                     recoil.switch_offset = Vec3::ZERO;
@@ -176,11 +191,13 @@ pub fn handle_weapon_switching(
                     }
                     inventory.target_slot = None;
                     
-                    // Spawn new
+                    // Spawn new (with skin from loadout)
                     if let Some(camera_entity) = camera_query.iter().next() {
-                        let weapon_entity = spawn_weapon_visual(
+                        let skin = loadout.get_skin(inventory.active_slot);
+                        let weapon_entity = spawn_weapon_visual_skinned(
                             &mut commands,
                             inventory.active_slot,
+                            skin,
                             &asset_server,
                             &weapon_registry,
                             &mut meshes,

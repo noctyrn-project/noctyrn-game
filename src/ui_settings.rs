@@ -1,8 +1,7 @@
 use bevy::prelude::*;
-use bevy::ui::RelativeCursorPosition;
 use bevy::ecs::change_detection::DetectChangesMut;
 use crate::settings::{GameSettings, save_game_settings};
-use crate::player::{Keybinds, save_keybinds, RemapButton};
+use crate::player::{Keybinds, RemapButton};
 use serde::Deserialize;
 use std::fs;
 
@@ -60,7 +59,6 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
             ..default()
         },
         BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.95)),
-        BorderRadius::all(Val::Px(20.0)),
     )).id();
     commands.entity(root).add_child(main_window);
 
@@ -76,7 +74,6 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
         },
         BorderColor::from(Color::srgba(0.3, 0.3, 0.3, 0.5)),
         BackgroundColor(Color::srgba(0.15, 0.15, 0.15, 1.0)),
-        BorderRadius::left(Val::Px(20.0)),
     )).id();
     commands.entity(main_window).add_child(sidebar);
 
@@ -120,7 +117,6 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
             ..default()
         },
         BackgroundColor(Color::srgba(0.8, 0.2, 0.2, 0.8)),
-        BorderRadius::all(Val::Px(10.0)),
         CloseSettingsButton,
     )).id();
     commands.entity(sidebar).add_child(close_btn);
@@ -176,7 +172,6 @@ fn spawn_tab_button(commands: &mut Commands, parent: Entity, text: &str, tab: Se
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            BorderRadius::all(Val::Px(10.0)),
             TabButton { tab },
         )).with_children(|parent| {
             parent.spawn((
@@ -317,7 +312,6 @@ fn spawn_cycler(commands: &mut Commands, parent: Entity, label: &str, value: &st
                     ..default()
                 },
                 BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
-                BorderRadius::all(Val::Px(5.0)),
                 SettingToggle { action }, // Reusing SettingToggle component for cyclers
             )).with_children(|parent| {
                 parent.spawn((
@@ -536,7 +530,6 @@ fn spawn_toggle(commands: &mut Commands, parent: Entity, label: &str, value: boo
                     ..default()
                 },
                 BackgroundColor(if value { Color::srgb(0.2, 0.8, 0.2) } else { Color::srgb(0.8, 0.2, 0.2) }),
-                BorderRadius::all(Val::Px(15.0)),
                 SettingToggle { action },
             )).with_children(|parent| {
                 parent.spawn((
@@ -551,15 +544,17 @@ fn spawn_toggle(commands: &mut Commands, parent: Entity, label: &str, value: boo
 
 pub fn handle_settings_interaction(
     mut commands: Commands,
-    mut interaction_query: Query<(Entity, &Interaction, &mut BackgroundColor, Option<&TabButton>, Option<&CloseSettingsButton>, Option<&SettingToggle>, Option<&Slider>, Option<&Selector>), With<Button>>,
+    mut interaction_query: Query<(Entity, &Interaction, &mut BackgroundColor, Option<&TabButton>, Option<&CloseSettingsButton>, Option<&SettingToggle>, Option<&Selector>, Option<&SliderButton>), With<Button>>,
     mut settings_state: ResMut<SettingsState>,
     mut game_settings: ResMut<GameSettings>,
     mut menu_query: Query<Entity, With<SettingsMenuUi>>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mut value_text_query: Query<(&mut Text, &SliderValueText)>,
+    mut fill_query: Query<(&mut Node, &SliderFill)>,
 ) {
 
 
-    for (entity, interaction, mut bg_color, tab_button, close_button, toggle, _slider, selector) in interaction_query.iter_mut() {
+    for (entity, interaction, mut bg_color, tab_button, close_button, toggle, selector, slider_button) in interaction_query.iter_mut() {
         let is_hovered = *interaction == Interaction::Hovered;
 
         if let Some(tab) = tab_button {
@@ -602,6 +597,12 @@ pub fn handle_settings_interaction(
                 *bg_color = BackgroundColor(Color::srgb(0.2, 0.2, 0.2));
              } else {
                 *bg_color = BackgroundColor(Color::srgb(0.1, 0.1, 0.1));
+             }
+        } else if slider_button.is_some() {
+             if is_hovered || *interaction == Interaction::Pressed {
+                *bg_color = BackgroundColor(Color::srgb(0.35, 0.35, 0.4));
+             } else {
+                *bg_color = BackgroundColor(Color::srgb(0.25, 0.25, 0.3));
              }
         }
 
@@ -670,6 +671,42 @@ pub fn handle_settings_interaction(
                     }
                     save_game_settings(&game_settings);
                     settings_state.set_changed();
+                } else if let Some(slider_btn) = slider_button {
+                    let current_value = match slider_btn.action {
+                        SettingAction::CycleSensitivity => game_settings.gameplay.sensitivity,
+                        SettingAction::CycleViewDistance => game_settings.graphics.view_distance,
+                        SettingAction::CycleFov => game_settings.graphics.fov,
+                        _ => 0.0,
+                    };
+                    // Look up min/max/step from Slider component (we know them from action)
+                    let (min, max, step) = match slider_btn.action {
+                        SettingAction::CycleSensitivity => (0.1, 5.0, 0.1),
+                        SettingAction::CycleViewDistance => (100.0, 2000.0, 100.0),
+                        SettingAction::CycleFov => (60.0, 120.0, 1.0),
+                        _ => (0.0, 1.0, 0.1),
+                    };
+                    let new_value = (current_value + step * slider_btn.direction as f32).clamp(min, max);
+                    match slider_btn.action {
+                        SettingAction::CycleSensitivity => game_settings.gameplay.sensitivity = new_value,
+                        SettingAction::CycleViewDistance => game_settings.graphics.view_distance = new_value,
+                        SettingAction::CycleFov => game_settings.graphics.fov = new_value,
+                        _ => {}
+                    }
+                    save_game_settings(&game_settings);
+                    settings_state.set_changed();
+                    
+                    // Update display
+                    for (mut text, sv) in value_text_query.iter_mut() {
+                        if std::mem::discriminant(&sv.action) == std::mem::discriminant(&slider_btn.action) {
+                            text.0 = format!("{:.1}", new_value);
+                        }
+                    }
+                    for (mut node, sf) in fill_query.iter_mut() {
+                        if std::mem::discriminant(&sf.action) == std::mem::discriminant(&slider_btn.action) {
+                            let pct = if max > min { ((new_value - min) / (max - min) * 100.0).clamp(0.0, 100.0) } else { 0.0 };
+                            node.width = Val::Percent(pct);
+                        }
+                    }
                 }
             } else if mouse_button_input.just_pressed(MouseButton::Right) {
                 if let Some(selector) = selector {
@@ -727,19 +764,22 @@ pub struct Slider {
     pub min: f32,
     pub max: f32,
     pub step: f32,
-    pub value_text_entity: Entity,
-    pub knob_entity: Entity,
 }
 
 #[derive(Component)]
-pub struct SliderKnob;
+pub struct SliderValueText {
+    pub action: SettingAction,
+}
 
 #[derive(Component)]
-pub struct SliderTrack;
+pub struct SliderFill {
+    pub action: SettingAction,
+}
 
-#[derive(Component, Default)]
-pub struct SliderDragState {
-    pub start_value: f32,
+#[derive(Component)]
+pub struct SliderButton {
+    pub action: SettingAction,
+    pub direction: i32, // -1 for decrease, +1 for increase
 }
 
 #[derive(Component)]
@@ -762,8 +802,6 @@ fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32
             margin: UiRect::bottom(Val::Px(15.0)),
             ..default()
         }).with_children(|parent| {
-            let mut value_text_entity = Entity::PLACEHOLDER;
-            
             // Label + Value
             parent.spawn(Node {
                 width: Val::Percent(100.0),
@@ -772,46 +810,87 @@ fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32
                 ..default()
             }).with_children(|parent| {
                 parent.spawn((Text::new(label), TextFont { font_size: 18.0, ..default() }, TextColor(Color::WHITE)));
-                value_text_entity = parent.spawn((Text::new(format!("{:.1}", value)), TextFont { font_size: 18.0, ..default() }, TextColor(Color::WHITE))).id();
+                parent.spawn((
+                    Text::new(format!("{:.1}", value)),
+                    TextFont { font_size: 18.0, ..default() },
+                    TextColor(Color::WHITE),
+                    SliderValueText { action },
+                ));
             });
 
-            // Track
-            let mut knob_entity = Entity::PLACEHOLDER;
-            
-            parent.spawn((
-                Button, // Make it interactable
-                SliderTrack,
-                Node {
-                    width: Val::Percent(100.0),
-                    height: Val::Px(20.0),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::FlexStart,
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
-                BorderRadius::all(Val::Px(10.0)),
-                RelativeCursorPosition::default(),
-                SliderDragState::default(),
-            )).with_children(|parent| {
-                // Knob
-                let percent = if max > min { (value - min) / (max - min) } else { 0.0 };
-                let percent = percent.clamp(0.0, 1.0);
-                
-                knob_entity = parent.spawn((
+            // Slider row: [-] [====fill====] [+]
+            parent.spawn(Node {
+                width: Val::Percent(100.0),
+                height: Val::Px(30.0),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(6.0),
+                ..default()
+            }).with_children(|row| {
+                // Minus button
+                row.spawn((
+                    Button,
                     Node {
-                        width: Val::Px(20.0),
-                        height: Val::Px(20.0),
-                        position_type: PositionType::Absolute,
-                        left: Val::Percent(percent * 100.0), 
+                        width: Val::Px(30.0),
+                        height: Val::Px(30.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
                         ..default()
                     },
-                    BackgroundColor(Color::WHITE),
-                    BorderRadius::all(Val::Px(10.0)),
-                    SliderKnob,
-                )).id();
-            }).insert(Slider { action, min, max, step, value_text_entity, knob_entity })
-            .observe(on_slider_drag_start)
-            .observe(on_slider_drag);
+                    BackgroundColor(Color::srgb(0.25, 0.25, 0.3)),
+                    SliderButton { action, direction: -1 },
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("-"),
+                        TextFont { font_size: 20.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
+
+                // Track background (clickable/draggable)
+                let percent = if max > min { ((value - min) / (max - min) * 100.0).clamp(0.0, 100.0) } else { 0.0 };
+                row.spawn((
+                    Button,
+                    Node {
+                        flex_grow: 1.0,
+                        height: Val::Px(12.0),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.15, 0.15, 0.2)),
+                    Slider { action, min, max, step },
+                )).with_children(|track| {
+                    // Fill
+                    track.spawn((
+                        Node {
+                            width: Val::Percent(percent),
+                            height: Val::Percent(100.0),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.3, 0.5, 0.8)),
+                        SliderFill { action },
+                    ));
+                });
+
+                // Plus button
+                row.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(30.0),
+                        height: Val::Px(30.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.25, 0.25, 0.3)),
+                    SliderButton { action, direction: 1 },
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("+"),
+                        TextFont { font_size: 20.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
+            });
         });
     });
 }
@@ -841,7 +920,6 @@ fn spawn_selector(commands: &mut Commands, parent: Entity, label: &str, options:
                 },
                 BackgroundColor(Color::srgb(0.1, 0.1, 0.1)),
                 BorderColor::from(Color::WHITE),
-                BorderRadius::all(Val::Px(5.0)),
                 Selector { action, options: options.clone(), current_index },
             )).with_children(|parent| {
                 parent.spawn((
@@ -870,7 +948,6 @@ fn spawn_selector(commands: &mut Commands, parent: Entity, label: &str, options:
                             ..default()
                         },
                         BackgroundColor(color),
-                        BorderRadius::all(Val::Px(size / 2.0)),
                     ));
                 }
             });
@@ -878,96 +955,73 @@ fn spawn_selector(commands: &mut Commands, parent: Entity, label: &str, options:
     });
 }
 
-fn on_slider_drag_start(
-    trigger: On<Pointer<DragStart>>,
-    mut slider_query: Query<(&GlobalTransform, &ComputedNode, &Slider, &mut SliderDragState)>,
+fn on_slider_drag_start() {}
+// Old observer-based drag system removed - using +/- buttons and click-drag now
+
+/// System to handle click-and-drag on slider tracks
+pub fn handle_slider_drag(
+    slider_query: Query<(&Interaction, &Slider, &Node, &GlobalTransform)>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window>,
     mut game_settings: ResMut<GameSettings>,
     mut settings_state: ResMut<SettingsState>,
-    mut text_query: Query<&mut Text>,
-    mut node_query: Query<&mut Node>,
+    mut value_text_query: Query<(&mut Text, &SliderValueText)>,
+    mut fill_query: Query<(&mut Node, &SliderFill), Without<Slider>>,
 ) {
-    let entity = trigger.entity;
-    if let Ok((transform, computed_node, slider, mut drag_state)) = slider_query.get_mut(entity) {
-        // If clicking the knob, don't jump the value, just start dragging from current
-        if trigger.target() == slider.knob_entity {
-             let current_value = match slider.action {
-                SettingAction::CycleSensitivity => game_settings.gameplay.sensitivity,
-                SettingAction::CycleViewDistance => game_settings.graphics.view_distance,
-                SettingAction::CycleFov => game_settings.graphics.fov,
-                _ => slider.min,
-            };
-            drag_state.start_value = current_value;
-        } else if let Some(hit_position) = trigger.event.hit.position {
-            let new_value = calculate_value_from_position(hit_position, transform, computed_node, slider);
-            drag_state.start_value = new_value;
-            apply_slider_value(new_value, slider, &mut game_settings, &mut settings_state, &mut text_query, &mut node_query);
+    if !mouse_button_input.pressed(MouseButton::Left) {
+        return;
+    }
+
+    let Ok(window) = windows.single() else { return };
+    let Some(cursor_pos) = window.cursor_position() else { return };
+
+    for (interaction, slider, node, global_transform) in slider_query.iter() {
+        if *interaction != Interaction::Pressed {
+            continue;
         }
-    }
-}
 
-fn on_slider_drag(
-    trigger: On<Pointer<Drag>>,
-    mut slider_query: Query<(&GlobalTransform, &ComputedNode, &Slider, &SliderDragState)>,
-    mut game_settings: ResMut<GameSettings>,
-    mut settings_state: ResMut<SettingsState>,
-    mut text_query: Query<&mut Text>,
-    mut node_query: Query<&mut Node>,
-) {
-    let entity = trigger.entity;
-    if let Ok((transform, computed_node, slider, drag_state)) = slider_query.get_mut(entity) {
-        let (scale, _, _) = transform.to_scale_rotation_translation();
-        let slider_width = computed_node.size().x * scale.x;
+        // Calculate the slider track's screen-space bounds
+        let track_world_pos = global_transform.translation();
+        let track_left = track_world_pos.x;
+        // We need the computed width - use node width or estimate from flex_grow
+        let track_width = match node.width {
+            Val::Px(w) => w,
+            _ => {
+                // For flex_grow sliders, estimate from cursor relative to track position
+                // The track takes available space, approximate width from window size minus margins
+                400.0 // Reasonable estimate for flex-grow track
+            }
+        };
+
+        // Calculate where cursor is relative to track
+        let relative_x = (cursor_pos.x - track_left).clamp(0.0, track_width);
+        let fraction = relative_x / track_width;
         
-        let delta_ratio = trigger.event.distance.x / slider_width;
-        let value_range = slider.max - slider.min;
-        let value_delta = delta_ratio * value_range;
-        
-        let raw_value = drag_state.start_value + value_delta;
-        let steps = ((raw_value - slider.min) / slider.step).round();
-        let new_value = (slider.min + steps * slider.step).clamp(slider.min, slider.max);
-        
-        apply_slider_value(new_value, slider, &mut game_settings, &mut settings_state, &mut text_query, &mut node_query);
-    }
-}
+        // Snap to step
+        let raw_value = slider.min + fraction * (slider.max - slider.min);
+        let stepped = ((raw_value - slider.min) / slider.step).round() * slider.step + slider.min;
+        let new_value = stepped.clamp(slider.min, slider.max);
 
-fn calculate_value_from_position(
-    cursor_world_pos: Vec3,
-    transform: &GlobalTransform,
-    computed_node: &ComputedNode,
-    slider: &Slider
-) -> f32 {
-    let (scale, _, translation) = transform.to_scale_rotation_translation();
-    let slider_width = computed_node.size().x * scale.x;
-    let slider_start_x = translation.x - slider_width / 2.0;
-    let relative_x = cursor_world_pos.x - slider_start_x;
-    let ratio = (relative_x / slider_width).clamp(0.0, 1.0);
-    let raw_value = slider.min + (slider.max - slider.min) * ratio;
-    let steps = ((raw_value - slider.min) / slider.step).round();
-    (slider.min + steps * slider.step).clamp(slider.min, slider.max)
-}
+        match slider.action {
+            SettingAction::CycleSensitivity => game_settings.gameplay.sensitivity = new_value,
+            SettingAction::CycleViewDistance => game_settings.graphics.view_distance = new_value,
+            SettingAction::CycleFov => game_settings.graphics.fov = new_value,
+            _ => {}
+        }
+        save_game_settings(&game_settings);
+        settings_state.set_changed();
 
-fn apply_slider_value(
-    new_value: f32,
-    slider: &Slider,
-    game_settings: &mut GameSettings,
-    settings_state: &mut ResMut<SettingsState>,
-    text_query: &mut Query<&mut Text>,
-    node_query: &mut Query<&mut Node>,
-) {
-    match slider.action {
-        SettingAction::CycleSensitivity => game_settings.gameplay.sensitivity = new_value,
-        SettingAction::CycleViewDistance => game_settings.graphics.view_distance = new_value,
-        SettingAction::CycleFov => game_settings.graphics.fov = new_value,
-        _ => {}
-    }
-    save_game_settings(game_settings);
-    settings_state.set_changed();
-
-    if let Ok(mut text) = text_query.get_mut(slider.value_text_entity) {
-        text.0 = format!("{:.1}", new_value);
-    }
-    if let Ok(mut node) = node_query.get_mut(slider.knob_entity) {
-        let percent = if slider.max > slider.min { (new_value - slider.min) / (slider.max - slider.min) } else { 0.0 };
-        node.left = Val::Percent(percent * 100.0);
+        // Update display
+        for (mut text, sv) in value_text_query.iter_mut() {
+            if std::mem::discriminant(&sv.action) == std::mem::discriminant(&slider.action) {
+                text.0 = format!("{:.1}", new_value);
+            }
+        }
+        for (mut node, sf) in fill_query.iter_mut() {
+            if std::mem::discriminant(&sf.action) == std::mem::discriminant(&slider.action) {
+                let pct = if slider.max > slider.min { ((new_value - slider.min) / (slider.max - slider.min) * 100.0).clamp(0.0, 100.0) } else { 0.0 };
+                node.width = Val::Percent(pct);
+            }
+        }
     }
 }

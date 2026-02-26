@@ -1,0 +1,27 @@
+{
+  "info": {
+    "name": "Dominator Paralyzer",
+    "description": "A non-lethal energy weapon from the Psycho-Pass universe, used to incapacitate.",
+    "manufacturer": "Cerevo",
+    "year_introduced": 2112
+  },
+  "meta": {
+    "weapon_type": "Special",
+    "category": "other",
+    "model_path": "weapons/models/equipment/other/cerevo_dominator_paralyzer.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.2, -0.15, -0.4],
+    "rotation_offset": [0.0, 0.0, 0.0],
+    "scale": 0.15
+  },
+  "attributes": {
+    "equip_speed": 0.4,
+    "detonation_time": 0.0,
+    "blast_radius": 3.0,
+    "blast_damage": 50.0,
+    "weight": 0.5,
+    "mobility": 0.8,
+    "amount": 5,
+    "special_effects": ["stun"]
+  }
+}

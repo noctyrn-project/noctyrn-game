@@ -1,0 +1,35 @@
+{
+  "info": {
+    "name": "Barrett M82",
+    "description": "An anti-materiel sniper rifle capable of penetrating armored targets at extreme range.",
+    "manufacturer": "Barrett Firearms",
+    "year_introduced": 1982
+  },
+  "meta": {
+    "weapon_type": "Sniper Rifle",
+    "category": "sniper",
+    "model_path": "weapons/models/primary/sniper/barrett_m82.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.22, -0.8],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.18
+  },
+  "attributes": {
+    "fire_rate": 1.2,
+    "reload_speed": 4.0,
+    "accuracy": 0.98,
+    "mobility": 0.25,
+    "stability": 0.4,
+    "horizontal_recoil": 0.8,
+    "vertical_recoil": 5.0,
+    "ads_speed": 0.3,
+    "equip_speed": 0.6,
+    "fire_modes": ["Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "12x Scope", "type": "Scope", "zoom_level": 12.0, "zoom_speed": 0.3, "sway_modifier": 0.3, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.1, 0.3] } },
+    "barrel": { "name": "Heavy Match Barrel", "range_modifier": 0.3, "accuracy_modifier": 0.05, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [6.0, 0.0, 0.0] } },
+    "magazine": { "name": "10 Round Mag", "capacity": 10, "carry_capacity": 30, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": ".50 BMG", "damage": 120.0, "penetration": 1.0, "velocity": 890.0 }
+  }
+}

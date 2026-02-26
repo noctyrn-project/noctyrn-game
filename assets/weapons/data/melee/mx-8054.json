@@ -1,0 +1,26 @@
+{
+  "info": {
+    "name": "MX-8054",
+    "description": "A tactical tanto-style knife for precision close-quarters combat.",
+    "manufacturer": "MTech",
+    "year_introduced": 2018
+  },
+  "meta": {
+    "weapon_type": "1 Handed Sharp",
+    "category": "blade",
+    "model_path": "weapons/models/melee/blade/mx-8054.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.1, -0.6],
+    "rotation_offset": [-0.2, -1.57, 1.57],
+    "scale": 0.15
+  },
+  "attributes": {
+    "attack_speed": 0.2,
+    "equip_speed": 0.08,
+    "stab_damage": 48.0,
+    "slash_damage": 30.0,
+    "back_stab_multiplier": 2.5,
+    "reach": 1.5,
+    "mobility": 1.0
+  }
+}

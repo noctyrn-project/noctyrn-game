@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# bevy = { version = "0.17.3", features = ["dynamic_linking", "serialize"] }
-bevy = { version = "0.17.3", features = ["serialize"] }
+# bevy = { version = "0.18", features = ["dynamic_linking", "serialize"] }
+bevy = { version = "0.18", features = ["serialize"] }
 rand = "0.9.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"

@@ -103,7 +103,9 @@ pub fn accumulate_input(
     game_settings: Res<GameSettings>,
     mut player: Single<(&mut AccumulatedInput, &mut PlayerToggleState)>,
     camera: Single<&Transform, With<Camera>>,
+    terminal_open: Res<super::WeaponTerminalOpen>,
 ) {
+    if terminal_open.0 { return; }
     let (mut input, mut toggle_state) = player.into_inner();
     let mut movement = Vec3::ZERO;
     if keyboard_input.pressed(keybinds.move_forward) {

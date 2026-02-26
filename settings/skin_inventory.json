@@ -1,0 +1,19 @@
+{
+  "owned": {
+    "sig_sauer_mpx": {
+      "NeonPink": 1
+    },
+    "hk_mp7_a1": {
+      "SolidGreen": 1
+    },
+    "franchi_spas_12": {
+      "CarbonFiber": 1
+    },
+    "vss_vintorez": {
+      "CamoWoodland": 1
+    },
+    "tompson": {
+      "CamoDesert": 1
+    }
+  }
+}

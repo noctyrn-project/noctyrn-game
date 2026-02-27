@@ -96,15 +96,15 @@ pub struct PopUpTarget {
 pub struct DistanceMarker;
 
 pub fn spawn_objects(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    spawn_geometry(&mut commands, &mut meshes, &mut materials);
-    spawn_weapon_terminals(&mut commands, &mut meshes, &mut materials);
-    spawn_shooting_range(&mut commands, &mut meshes, &mut materials);
-    spawn_parkour_course(&mut commands, &mut meshes, &mut materials);
-    spawn_material_test_area(&mut commands, &mut meshes, &mut materials);
+    spawn_geometry(commands, meshes, materials);
+    spawn_weapon_terminals(commands, meshes, materials);
+    spawn_shooting_range(commands, meshes, materials);
+    spawn_parkour_course(commands, meshes, materials);
+    spawn_material_test_area(commands, meshes, materials);
 }
 
 fn spawn_geometry(
@@ -129,25 +129,71 @@ fn spawn_geometry(
         ..default()
     });
 
-    // ── Ramps ──
-    // Forward ramp (slope)
+    // ── Ramps at various angles ──
+    // Gentle ramp (10°)
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(4.0, 0.3, 8.0))),
+        Mesh3d(meshes.add(Cuboid::new(4.0, 1.0, 10.0))),
         MeshMaterial3d(concrete.clone()),
-        Transform::from_xyz(-15.0, 1.0, -15.0)
-            .with_rotation(Quat::from_rotation_x(-0.2)),
+        Transform::from_xyz(-15.0, 0.8, -15.0)
+            .with_rotation(Quat::from_rotation_x(-0.17)),
         Target,
-        RampCollider { half_extents: Vec3::new(2.0, 0.15, 4.0) },
+        RampCollider { half_extents: Vec3::new(2.0, 0.5, 5.0) },
     ));
-    // Side ramp
+    // Medium ramp (20°)
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(4.0, 0.3, 8.0))),
+        Mesh3d(meshes.add(Cuboid::new(4.0, 1.0, 8.0))),
+        MeshMaterial3d(concrete.clone()),
+        Transform::from_xyz(-9.0, 1.2, -15.0)
+            .with_rotation(Quat::from_rotation_x(-0.35)),
+        Target,
+        RampCollider { half_extents: Vec3::new(2.0, 0.5, 4.0) },
+    ));
+    // Steep ramp (30°)
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(4.0, 1.0, 6.0))),
+        MeshMaterial3d(concrete.clone()),
+        Transform::from_xyz(-3.0, 1.5, -15.0)
+            .with_rotation(Quat::from_rotation_x(-0.52)),
+        Target,
+        RampCollider { half_extents: Vec3::new(2.0, 0.5, 3.0) },
+    ));
+    // Very steep ramp (45°)
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(4.0, 1.0, 5.0))),
+        MeshMaterial3d(concrete.clone()),
+        Transform::from_xyz(3.0, 1.8, -15.0)
+            .with_rotation(Quat::from_rotation_x(-0.78)),
+        Target,
+        RampCollider { half_extents: Vec3::new(2.0, 0.5, 2.5) },
+    ));
+    // Side-angled ramp (Z-axis rotation)
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(4.0, 1.0, 8.0))),
         MeshMaterial3d(concrete.clone()),
         Transform::from_xyz(15.0, 1.0, -15.0)
             .with_rotation(Quat::from_rotation_x(-0.25)),
         Target,
-        RampCollider { half_extents: Vec3::new(2.0, 0.15, 4.0) },
+        RampCollider { half_extents: Vec3::new(2.0, 0.5, 4.0) },
     ));
+    // Ramp labels
+    commands.spawn((
+        Text2d::new("RAMP TEST AREA"),
+        TextFont { font_size: 48.0, ..default() },
+        TextColor(Color::srgb(0.3, 0.8, 0.3)),
+        Transform::from_translation(Vec3::new(-6.0, 4.0, -15.0))
+            .with_scale(Vec3::splat(0.025)),
+        Billboard,
+    ));
+    for (label, x) in [("10°", -15.0), ("20°", -9.0), ("30°", -3.0), ("45°", 3.0)] {
+        commands.spawn((
+            Text2d::new(label),
+            TextFont { font_size: 28.0, ..default() },
+            TextColor(Color::srgb(0.5, 0.8, 0.5)),
+            Transform::from_translation(Vec3::new(x, 3.0, -15.0))
+                .with_scale(Vec3::splat(0.02)),
+            Billboard,
+        ));
+    }
 
     // ── Walls / Cover ──
     // Low wall (half cover)

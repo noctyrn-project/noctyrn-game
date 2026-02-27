@@ -8,6 +8,7 @@
   "meta": {
     "weapon_type": "2 Handed Sharp",
     "category": "2hblade",
+    "artist": "D_U",
     "model_path": "weapons/models/melee/2hblade/axe.glb#Scene0",
     "icon_path": "",
     "position_offset": [0.35, -0.15, -0.6],

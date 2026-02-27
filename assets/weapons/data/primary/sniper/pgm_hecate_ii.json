@@ -1,0 +1,36 @@
+{
+  "info": {
+    "name": "PGM Hécate II",
+    "description": "A French anti-materiel rifle with extreme precision at long range.",
+    "manufacturer": "PGM Précision",
+    "year_introduced": 1993
+  },
+  "meta": {
+    "weapon_type": "Sniper Rifle",
+    "category": "sniper",
+    "artist": "D_U",
+    "model_path": "weapons/models/primary/sniper/pgm_hecate_ii.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.22, -0.8],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.18
+  },
+  "attributes": {
+    "fire_rate": 1.5,
+    "reload_speed": 4.5,
+    "accuracy": 0.99,
+    "mobility": 0.2,
+    "stability": 0.35,
+    "horizontal_recoil": 0.6,
+    "vertical_recoil": 5.5,
+    "ads_speed": 0.25,
+    "equip_speed": 0.65,
+    "fire_modes": ["Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "12x Scope", "type": "Scope", "zoom_level": 12.0, "zoom_speed": 0.3, "sway_modifier": 0.3, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.1, 0.3] } },
+    "barrel": { "name": "Match Barrel", "range_modifier": 0.3, "accuracy_modifier": 0.05, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [6.5, 0.0, 0.0] } },
+    "magazine": { "name": "7 Round Mag", "capacity": 7, "carry_capacity": 21, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": ".50 BMG", "damage": 130.0, "penetration": 1.0, "velocity": 825.0 }
+  }
+}

@@ -1,7 +1,178 @@
 use bevy::prelude::*;
 use bevy::app::AppExit;
 use crate::player::GameState;
-use crate::weapons::{WeaponRegistry, WeaponSlot, PlayerLoadout, WeaponConfig, sync_loadout_to_configs, WeaponSkin, WeaponSkinTag, SkinRarity, SkinInventory};
+use crate::weapons::{WeaponRegistry, WeaponSlot, PlayerLoadout, WeaponConfig, sync_loadout_to_configs, WeaponSkin, WeaponSkinTag, SkinRarity, SkinInventory, PlayerCredits};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Game Modes
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum GameMode {
+    #[default]
+    FreeForAll,
+    TeamDeathmatch,
+    KillConfirmed,
+    CaptureTheFlag,
+    Assassins,
+    KingOfTheHill,
+    Hardpoint,
+    CapturePoint,
+    TestingGrounds,
+    // ── Limited-Time Modes ──
+    Juggernaut,
+    HighExplosives,
+    OneInTheChamber,
+    GunGame,
+    Infected,
+}
+
+impl GameMode {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            GameMode::FreeForAll => "FREE FOR ALL",
+            GameMode::TeamDeathmatch => "TEAM DEATHMATCH",
+            GameMode::KillConfirmed => "KILL CONFIRMED",
+            GameMode::CaptureTheFlag => "CAPTURE THE FLAG",
+            GameMode::Assassins => "ASSASSINS",
+            GameMode::KingOfTheHill => "KING OF THE HILL",
+            GameMode::Hardpoint => "HARDPOINT",
+            GameMode::CapturePoint => "CAPTURE POINT",
+            GameMode::TestingGrounds => "TESTING GROUNDS",
+            GameMode::Juggernaut => "JUGGERNAUT",
+            GameMode::HighExplosives => "HIGH EXPLOSIVES",
+            GameMode::OneInTheChamber => "ONE IN THE CHAMBER",
+            GameMode::GunGame => "GUN GAME",
+            GameMode::Infected => "INFECTED",
+        }
+    }
+
+    pub fn short_name(&self) -> &'static str {
+        match self {
+            GameMode::FreeForAll => "FFA",
+            GameMode::TeamDeathmatch => "TDM",
+            GameMode::KillConfirmed => "KC",
+            GameMode::CaptureTheFlag => "CTF",
+            GameMode::Assassins => "ASN",
+            GameMode::KingOfTheHill => "KOTH",
+            GameMode::Hardpoint => "HP",
+            GameMode::CapturePoint => "CP",
+            GameMode::TestingGrounds => "TG",
+            GameMode::Juggernaut => "JGR",
+            GameMode::HighExplosives => "HE",
+            GameMode::OneInTheChamber => "OITC",
+            GameMode::GunGame => "GG",
+            GameMode::Infected => "INF",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            GameMode::FreeForAll => "Every player for themselves. Get the most kills to win.",
+            GameMode::TeamDeathmatch => "Two teams fight. First to 150 kills wins.",
+            GameMode::KillConfirmed => "Team mode. Collect dog tags from fallen enemies to score.",
+            GameMode::CaptureTheFlag => "Steal the enemy flag and return it to your base to score.",
+            GameMode::Assassins => "Each player has a specific target. Hunt them down.",
+            GameMode::KingOfTheHill => "Hold the zone for 5 seconds to capture. Control it to win.",
+            GameMode::Hardpoint => "Three smaller zones. Hold them to earn points.",
+            GameMode::CapturePoint => "Three moving zones. Capture them instantly to score.",
+            GameMode::TestingGrounds => "Practice with all weapons. Spawn targets, test movement.",
+            GameMode::Juggernaut => "A random player becomes the Juggernaut with 1000 HP and a minigun. Kill them to become the new Juggernaut.",
+            GameMode::HighExplosives => "Explosive weapons only. RPGs, grenade launchers, and more.",
+            GameMode::OneInTheChamber => "One bullet. One kill grants another bullet. Knife as backup.",
+            GameMode::GunGame => "Cycle through every weapon. First to get a kill with each wins.",
+            GameMode::Infected => "One player starts infected. Kill survivors to spread the infection.",
+        }
+    }
+
+    pub fn player_count(&self) -> &'static str {
+        match self {
+            GameMode::TestingGrounds => "1 Player",
+            _ => "Up to 50 Players",
+        }
+    }
+
+    pub fn accent_color(&self) -> Color {
+        match self {
+            GameMode::FreeForAll => Color::srgb(0.9, 0.3, 0.3),
+            GameMode::TeamDeathmatch => Color::srgb(0.3, 0.5, 0.9),
+            GameMode::KillConfirmed => Color::srgb(0.9, 0.7, 0.2),
+            GameMode::CaptureTheFlag => Color::srgb(0.3, 0.8, 0.5),
+            GameMode::Assassins => Color::srgb(0.7, 0.2, 0.8),
+            GameMode::KingOfTheHill => Color::srgb(0.9, 0.5, 0.1),
+            GameMode::Hardpoint => Color::srgb(0.2, 0.7, 0.8),
+            GameMode::CapturePoint => Color::srgb(0.5, 0.8, 0.3),
+            GameMode::TestingGrounds => Color::srgb(0.4, 0.7, 0.9),
+            GameMode::Juggernaut => Color::srgb(0.95, 0.2, 0.1),
+            GameMode::HighExplosives => Color::srgb(1.0, 0.6, 0.0),
+            GameMode::OneInTheChamber => Color::srgb(0.6, 0.6, 0.6),
+            GameMode::GunGame => Color::srgb(0.2, 0.9, 0.4),
+            GameMode::Infected => Color::srgb(0.4, 0.8, 0.1),
+        }
+    }
+
+    /// Standard competitive modes (excludes Testing Grounds and LTMs)
+    pub fn competitive_modes() -> &'static [GameMode] {
+        &[
+            GameMode::FreeForAll,
+            GameMode::TeamDeathmatch,
+            GameMode::KillConfirmed,
+            GameMode::CaptureTheFlag,
+            GameMode::Assassins,
+            GameMode::KingOfTheHill,
+            GameMode::Hardpoint,
+            GameMode::CapturePoint,
+        ]
+    }
+
+    /// Limited-time modes
+    pub fn ltm_modes() -> &'static [GameMode] {
+        &[
+            GameMode::Juggernaut,
+            GameMode::HighExplosives,
+            GameMode::OneInTheChamber,
+            GameMode::GunGame,
+            GameMode::Infected,
+        ]
+    }
+
+    /// Whether this mode has two teams (red vs blue)
+    pub fn is_team_mode(&self) -> bool {
+        matches!(
+            self,
+            GameMode::TeamDeathmatch
+                | GameMode::KillConfirmed
+                | GameMode::CaptureTheFlag
+                | GameMode::KingOfTheHill
+                | GameMode::Hardpoint
+                | GameMode::CapturePoint
+                | GameMode::Infected
+        )
+    }
+
+    /// Whether this mode is a limited-time mode
+    pub fn is_ltm(&self) -> bool {
+        matches!(
+            self,
+            GameMode::Juggernaut
+                | GameMode::HighExplosives
+                | GameMode::OneInTheChamber
+                | GameMode::GunGame
+                | GameMode::Infected
+        )
+    }
+}
+
+#[derive(Resource)]
+pub struct SelectedGameMode {
+    pub mode: GameMode,
+}
+
+impl Default for SelectedGameMode {
+    fn default() -> Self {
+        Self { mode: GameMode::FreeForAll }
+    }
+}
 
 pub struct MenuPlugin;
 
@@ -10,9 +181,12 @@ impl Plugin for MenuPlugin {
         app.init_resource::<LoadoutUiState>();
         app.init_resource::<LoadoutDragState>();
         app.init_resource::<CrateState>();
-        app.add_systems(OnEnter(GameState::MainMenu), (ensure_menu_camera, spawn_main_menu));
-        app.add_systems(OnExit(GameState::MainMenu), despawn_main_menu);
-        app.add_systems(Update, (main_menu_interaction, main_menu_hover).run_if(in_state(GameState::MainMenu)));
+        app.init_resource::<CrateWeaponPickerState>();
+        app.init_resource::<SelectedGameMode>();
+        app.init_resource::<SellConfirmState>();
+        app.add_systems(OnEnter(GameState::MainMenu), (setup_main_menu_scene, spawn_main_menu));
+        app.add_systems(OnExit(GameState::MainMenu), (despawn_main_menu, cleanup_main_menu_scene));
+        app.add_systems(Update, (main_menu_interaction, main_menu_hover, rotate_main_menu_pill).run_if(in_state(GameState::MainMenu)));
 
         app.add_systems(OnEnter(GameState::LoadoutSelect), (setup_loadout_scene, spawn_loadout_menu));
         app.add_systems(OnExit(GameState::LoadoutSelect), (despawn_loadout_menu, cleanup_loadout_scene));
@@ -24,11 +198,14 @@ impl Plugin for MenuPlugin {
 
         app.add_systems(OnEnter(GameState::CrateOpening), (ensure_menu_camera, spawn_crate_menu));
         app.add_systems(OnExit(GameState::CrateOpening), despawn_crate_menu);
-        app.add_systems(Update, (crate_interaction, update_crate_animation).run_if(in_state(GameState::CrateOpening)));
+        app.add_systems(Update, (crate_interaction, update_crate_animation, crate_weapon_picker_interaction, crate_skip_interaction).run_if(in_state(GameState::CrateOpening)));
 
         app.add_systems(OnEnter(GameState::GameModeSelect), (ensure_menu_camera, spawn_gamemode_menu));
         app.add_systems(OnExit(GameState::GameModeSelect), despawn_gamemode_menu);
         app.add_systems(Update, (gamemode_interaction, gamemode_hover).run_if(in_state(GameState::GameModeSelect)));
+        app.add_systems(OnEnter(GameState::Cosmetics), (ensure_menu_camera, spawn_cosmetics_menu));
+        app.add_systems(OnExit(GameState::Cosmetics), despawn_cosmetics_menu);
+        app.add_systems(Update, (cosmetics_interaction, cosmetics_hover, sell_confirm_interaction).run_if(in_state(GameState::Cosmetics)));
         app.add_systems(OnEnter(GameState::Playing), despawn_menu_camera);
     }
 }
@@ -52,6 +229,160 @@ fn despawn_menu_camera(mut commands: Commands, query: Query<Entity, With<MenuCam
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Main Menu 3D Scene
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct MainMenuSceneEntity;
+
+#[derive(Component)]
+struct MainMenuPill;
+
+const MENU_SCENE_ORIGIN: Vec3 = Vec3::new(200.0, 200.0, 200.0);
+
+fn setup_main_menu_scene(
+    mut commands: Commands,
+    existing_menu_cam: Query<Entity, With<MenuCamera>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    loadout: Res<PlayerLoadout>,
+    registry: Res<WeaponRegistry>,
+    asset_server: Res<AssetServer>,
+) {
+    // Despawn any existing 2D menu camera
+    for entity in existing_menu_cam.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // Spawn 3D camera for main menu
+    commands.spawn((
+        Camera3d::default(),
+        Camera {
+            clear_color: ClearColorConfig::Custom(Color::srgb(0.08, 0.08, 0.14)),
+            ..default()
+        },
+        Transform::from_translation(MENU_SCENE_ORIGIN + Vec3::new(0.0, 1.2, 4.0))
+            .looking_at(MENU_SCENE_ORIGIN + Vec3::new(0.0, 0.7, 0.0), Vec3::Y),
+        MainMenuSceneEntity,
+    ));
+
+    // Lighting
+    commands.spawn((
+        PointLight {
+            color: Color::srgb(0.95, 0.92, 1.0),
+            intensity: 150_000.0,
+            range: 25.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_translation(MENU_SCENE_ORIGIN + Vec3::new(2.0, 4.0, 3.0)),
+        MainMenuSceneEntity,
+    ));
+    commands.spawn((
+        PointLight {
+            color: Color::srgb(0.4, 0.5, 0.85),
+            intensity: 60_000.0,
+            range: 20.0,
+            shadows_enabled: false,
+            ..default()
+        },
+        Transform::from_translation(MENU_SCENE_ORIGIN + Vec3::new(-3.0, 2.0, -1.0)),
+        MainMenuSceneEntity,
+    ));
+
+    // Pedestal (cylinder)
+    commands.spawn((
+        Mesh3d(meshes.add(Cylinder::new(0.6, 0.3))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.15, 0.15, 0.2),
+            metallic: 0.8,
+            perceptual_roughness: 0.2,
+            ..default()
+        })),
+        Transform::from_translation(MENU_SCENE_ORIGIN + Vec3::new(0.0, 0.15, 0.0)),
+        MainMenuSceneEntity,
+    ));
+
+    // Pill character (capsule) on pedestal
+    let pill_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.6, 0.65, 0.7),
+        metallic: 0.3,
+        perceptual_roughness: 0.5,
+        ..default()
+    });
+    commands.spawn((
+        Mesh3d(meshes.add(Capsule3d::new(0.3, 1.0))),
+        MeshMaterial3d(pill_material),
+        Transform::from_translation(MENU_SCENE_ORIGIN + Vec3::new(0.0, 1.1, 0.0)),
+        MainMenuSceneEntity,
+        MainMenuPill,
+    )).with_children(|pill| {
+        // Weapon model held by character
+        let weapon_id = &loadout.primary;
+        if let Some(config) = registry.weapons.get(weapon_id) {
+            let model_file = config.meta.model_path.split('#').next().unwrap_or("");
+            let model_exists = !model_file.is_empty()
+                && std::path::Path::new(&format!("assets/{}", model_file)).exists();
+
+            if model_exists {
+                pill.spawn((
+                    SceneRoot(asset_server.load(&config.meta.model_path)),
+                    Transform::from_translation(Vec3::new(0.35, -0.1, -0.2))
+                        .with_rotation(Quat::from_rotation_y(-0.3))
+                        .with_scale(Vec3::splat(config.meta.scale * 1.5)),
+                ));
+            } else {
+                // Gray placeholder block
+                pill.spawn((
+                    Mesh3d(meshes.add(Cuboid::new(0.06, 0.1, 0.5))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.25, 0.25, 0.3),
+                        metallic: 0.6,
+                        perceptual_roughness: 0.3,
+                        ..default()
+                    })),
+                    Transform::from_translation(Vec3::new(0.35, -0.1, -0.2))
+                        .with_rotation(Quat::from_rotation_y(-0.3)),
+                ));
+            }
+        }
+    });
+
+    // Floor disc
+    commands.spawn((
+        Mesh3d(meshes.add(Circle::new(3.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgba(0.1, 0.1, 0.15, 0.85),
+            metallic: 0.9,
+            perceptual_roughness: 0.1,
+            ..default()
+        })),
+        Transform::from_translation(MENU_SCENE_ORIGIN)
+            .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+        MainMenuSceneEntity,
+    ));
+}
+
+fn cleanup_main_menu_scene(
+    mut commands: Commands,
+    query: Query<Entity, With<MainMenuSceneEntity>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn rotate_main_menu_pill(
+    _time: Res<Time>,
+    mut query: Query<&mut Transform, With<MainMenuPill>>,
+) {
+    // Face forward (toward camera) - no spinning
+    for mut transform in query.iter_mut() {
+        transform.rotation = Quat::IDENTITY;
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Main Menu
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -61,13 +392,18 @@ struct MainMenuUi;
 #[derive(Component)]
 enum MainMenuButton {
     Play,
+    GameModeSelect,
     Loadout,
     Crates,
+    Cosmetics,
     Settings,
     Quit,
 }
 
-fn spawn_main_menu(mut commands: Commands) {
+#[derive(Component)]
+struct MainMenuCreditsText;
+
+fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMode>, credits: Res<PlayerCredits>) {
     commands.spawn((
         Node {
             width: Val::Percent(100.0),
@@ -77,25 +413,56 @@ fn spawn_main_menu(mut commands: Commands) {
             padding: UiRect::all(Val::Px(50.0)),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.03, 0.03, 0.06)),
+        BackgroundColor(Color::NONE),
         MainMenuUi,
     )).with_children(|root| {
-        // Top section - Title
+        // Top section - Title and Credits
         root.spawn(Node {
-            flex_direction: FlexDirection::Column,
+            width: Val::Percent(100.0),
+            flex_direction: FlexDirection::Row,
+            justify_content: JustifyContent::SpaceBetween,
+            align_items: AlignItems::FlexStart,
             ..default()
-        }).with_children(|top| {
-            top.spawn((
-                Text::new("FEARLYSS"),
-                TextFont { font_size: 84.0, ..default() },
-                TextColor(Color::srgb(0.9, 0.1, 0.1)),
-            ));
-            top.spawn((
-                Text::new("TACTICAL SHOOTER"),
-                TextFont { font_size: 14.0, ..default() },
-                TextColor(Color::srgba(0.5, 0.5, 0.5, 0.6)),
-                Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
-            ));
+        }).with_children(|top_row| {
+            top_row.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                ..default()
+            }).with_children(|top| {
+                top.spawn((
+                    Text::new("FEARLYSS"),
+                    TextFont { font_size: 84.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.1, 0.1)),
+                ));
+                top.spawn((
+                    Text::new("TACTICAL SHOOTER"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgba(0.5, 0.5, 0.5, 0.6)),
+                    Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
+                ));
+            });
+            
+            // Credits display
+            top_row.spawn((
+                Node {
+                    padding: UiRect::all(Val::Px(10.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.8)),
+                BorderColor::all(Color::srgba(0.9, 0.7, 0.2, 0.5)),
+            )).with_children(|credits_box| {
+                credits_box.spawn((
+                    Text::new("CREDITS: "),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                ));
+                credits_box.spawn((
+                    Text::new(credits.balance.to_string()),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.7, 0.2)),
+                    MainMenuCreditsText,
+                ));
+            });
         });
 
         // Bottom section
@@ -115,6 +482,7 @@ fn spawn_main_menu(mut commands: Commands) {
                 for (label, button, text_color) in [
                     ("LOADOUT", MainMenuButton::Loadout, Color::WHITE),
                     ("CRATES", MainMenuButton::Crates, Color::srgba(0.9, 0.7, 0.2, 0.9)),
+                    ("COSMETICS", MainMenuButton::Cosmetics, Color::srgba(0.2, 0.8, 0.4, 0.9)),
                     ("SETTINGS", MainMenuButton::Settings, Color::srgba(0.7, 0.7, 0.7, 0.9)),
                     ("QUIT", MainMenuButton::Quit, Color::srgba(0.6, 0.4, 0.4, 0.8)),
                 ] {
@@ -143,24 +511,52 @@ fn spawn_main_menu(mut commands: Commands) {
                 ));
             });
 
-            // Right side - PLAY button
-            bottom.spawn((
-                Button,
-                Node {
-                    width: Val::Px(240.0),
-                    height: Val::Px(64.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.12, 0.45, 0.12)),
-                MainMenuButton::Play,
-            )).with_children(|btn| {
-                btn.spawn((
-                    Text::new("PLAY"),
-                    TextFont { font_size: 26.0, ..default() },
-                    TextColor(Color::WHITE),
-                ));
+            // Right side - gamemode + PLAY button stack
+            bottom.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::End,
+                row_gap: Val::Px(8.0),
+                ..default()
+            }).with_children(|right| {
+                // Currently selected gamemode button
+                right.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(240.0),
+                        height: Val::Px(36.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.9)),
+                    MainMenuButton::GameModeSelect,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new(format!("▸ {}", selected_mode.mode.display_name())),
+                        TextFont { font_size: 13.0, ..default() },
+                        TextColor(selected_mode.mode.accent_color()),
+                    ));
+                });
+
+                // PLAY button
+                right.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(240.0),
+                        height: Val::Px(64.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.12, 0.45, 0.12)),
+                    MainMenuButton::Play,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("PLAY"),
+                        TextFont { font_size: 26.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
             });
         });
     });
@@ -178,11 +574,25 @@ fn main_menu_interaction(
     mut exit: MessageWriter<AppExit>,
     mut commands: Commands,
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
 ) {
+    // Handle Escape key to toggle settings or quit
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        if let Some(entity) = settings_query.iter().next() {
+            commands.entity(entity).despawn();
+        } else {
+            // If settings is not open, maybe open a pause menu or just settings
+            crate::ui_settings::spawn_settings_menu(&mut commands);
+        }
+    }
+
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
             match button {
                 MainMenuButton::Play => {
+                    next_state.set(GameState::Playing);
+                }
+                MainMenuButton::GameModeSelect => {
                     next_state.set(GameState::GameModeSelect);
                 }
                 MainMenuButton::Loadout => {
@@ -190,6 +600,9 @@ fn main_menu_interaction(
                 }
                 MainMenuButton::Crates => {
                     next_state.set(GameState::CrateOpening);
+                }
+                MainMenuButton::Cosmetics => {
+                    next_state.set(GameState::Cosmetics);
                 }
                 MainMenuButton::Settings => {
                     if let Some(entity) = settings_query.iter().next() {
@@ -213,8 +626,10 @@ fn main_menu_hover(
     for (interaction, button, children) in query.iter_mut() {
         let (base_color, hover_color) = match button {
             MainMenuButton::Play => (Color::WHITE, Color::srgb(0.5, 1.0, 0.5)),
+            MainMenuButton::GameModeSelect => (Color::srgba(0.6, 0.6, 0.7, 0.9), Color::WHITE),
             MainMenuButton::Loadout => (Color::WHITE, Color::srgb(0.7, 0.85, 1.0)),
             MainMenuButton::Crates => (Color::srgba(0.9, 0.7, 0.2, 0.9), Color::srgb(1.0, 0.85, 0.3)),
+            MainMenuButton::Cosmetics => (Color::srgba(0.2, 0.8, 0.4, 0.9), Color::srgb(0.4, 1.0, 0.6)),
             MainMenuButton::Settings => (Color::srgba(0.7, 0.7, 0.7, 0.9), Color::WHITE),
             MainMenuButton::Quit => (Color::srgba(0.6, 0.4, 0.4, 0.8), Color::srgb(1.0, 0.5, 0.5)),
         };
@@ -344,7 +759,7 @@ fn setup_loadout_scene(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            clear_color: ClearColorConfig::Custom(Color::srgb(0.04, 0.04, 0.07)),
+            clear_color: ClearColorConfig::Custom(Color::srgb(0.12, 0.12, 0.18)),
             ..default()
         },
         Transform::from_translation(PREVIEW_ORIGIN + Vec3::new(0.0, 0.3, 2.5))
@@ -579,11 +994,11 @@ fn category_display_name(category: &str) -> &str {
     match category {
         "assault" => "Assault Rifles",
         "carbine" => "Carbines",
-        "smg" => "Submachine Guns",
+        "smg" => "SMGs",
         "pdw" => "PDWs",
-        "lmg" => "Light Machine Guns",
-        "dmr" => "Marksman Rifles",
-        "sniper" => "Sniper Rifles",
+        "lmg" => "LMBGs",
+        "dmr" => "DMRs",
+        "sniper" => "Snipers",
         "shotgun" => "Shotguns",
         "rifle" => "Rifles",
         "pistol" => "Pistols",
@@ -720,11 +1135,11 @@ fn update_loadout_ui(
                         let is_selected = ui_state.selected_weapon_id.as_deref() == Some(id.as_str());
 
                         let bg = if is_selected {
-                            Color::srgba(0.2, 0.35, 0.55, 0.9)
+                            Color::srgba(0.2, 0.35, 0.55, 0.5)
                         } else if is_equipped {
-                            Color::srgba(0.12, 0.25, 0.12, 0.7)
+                            Color::srgba(0.12, 0.25, 0.12, 0.35)
                         } else {
-                            Color::srgba(0.1, 0.1, 0.14, 0.5)
+                            Color::srgba(0.1, 0.1, 0.14, 0.2)
                         };
 
                         parent.spawn((
@@ -943,63 +1358,25 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
 }
 
 fn spawn_stat_bar(parent: &mut ChildSpawnerCommands, label: &str, value: f32, max: f32) {
-    let fill_pct = (value / max * 100.0).clamp(0.0, 100.0);
-
-    // For fire rate, lower = better, so invert display
-    let is_inverted = label == "Fire Rate" || label == "Reload Speed" || label == "Detonation Time";
-    let display_pct = if is_inverted { 100.0 - fill_pct } else { fill_pct };
-
-    let bar_color = if display_pct > 70.0 {
-        Color::srgb(0.2, 0.7, 0.3)
-    } else if display_pct > 40.0 {
-        Color::srgb(0.8, 0.7, 0.2)
-    } else {
-        Color::srgb(0.7, 0.2, 0.2)
-    };
-
     parent.spawn(Node {
         width: Val::Percent(100.0),
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
+        justify_content: JustifyContent::SpaceBetween,
         column_gap: Val::Px(10.0),
         ..default()
     }).with_children(|row: &mut ChildSpawnerCommands| {
         row.spawn((
             Text::new(label),
-            TextFont { font_size: 12.0, ..default() },
-            TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8)),
-            Node { width: Val::Px(100.0), ..default() },
+            TextFont { font_size: 13.0, ..default() },
+            TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+            Node { width: Val::Px(120.0), ..default() },
         ));
 
-        // Bar background
-        row.spawn(Node {
-            width: Val::Px(200.0),
-            height: Val::Px(10.0),
-            ..default()
-        }).with_children(|bar_bg: &mut ChildSpawnerCommands| {
-            bar_bg.spawn((
-                Node {
-                    width: Val::Px(200.0),
-                    height: Val::Px(10.0),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.8)),
-            )).with_children(|bg: &mut ChildSpawnerCommands| {
-                bg.spawn((
-                    Node {
-                        width: Val::Percent(display_pct),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(bar_color),
-                ));
-            });
-        });
-
         row.spawn((
-            Text::new(format!("{:.1}", value)),
-            TextFont { font_size: 11.0, ..default() },
-            TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7)),
+            Text::new(format!("{:.2}", value)),
+            TextFont { font_size: 13.0, ..default() },
+            TextColor(Color::WHITE),
         ));
     });
 }
@@ -1013,17 +1390,26 @@ fn loadout_interaction(
     weapon_query: Query<(&Interaction, &WeaponSelectButton), (Changed<Interaction>, With<Button>)>,
     skin_query: Query<(&Interaction, &SkinButton), (Changed<Interaction>, With<Button>)>,
     category_query: Query<(&Interaction, &CategoryButton), (Changed<Interaction>, With<Button>)>,
-    mut back_query: Query<(&Interaction, &mut BackgroundColor), (With<LoadoutBackButton>, With<Button>, Without<EquipButton>, Without<ColorPickerButton>, Without<ColorPickerCloseButton>)>,
-    mut equip_query: Query<(&Interaction, &mut BackgroundColor), (With<EquipButton>, With<Button>, Without<LoadoutBackButton>, Without<ColorPickerButton>, Without<ColorPickerCloseButton>)>,
-    mut color_btn_query: Query<(&Interaction, &mut BackgroundColor), (With<ColorPickerButton>, With<Button>, Without<LoadoutBackButton>, Without<EquipButton>, Without<ColorPickerCloseButton>)>,
-    mut color_close_query: Query<(&Interaction, &mut BackgroundColor), (With<ColorPickerCloseButton>, With<Button>, Without<LoadoutBackButton>, Without<EquipButton>, Without<ColorPickerButton>)>,
+    mut btn_queries: ParamSet<(
+        Query<(&Interaction, &mut BackgroundColor), (With<LoadoutBackButton>, With<Button>, Without<EquipButton>, Without<ColorPickerButton>, Without<ColorPickerCloseButton>)>,
+        Query<(&Interaction, &mut BackgroundColor), (With<EquipButton>, With<Button>, Without<LoadoutBackButton>, Without<ColorPickerButton>, Without<ColorPickerCloseButton>)>,
+        Query<(&Interaction, &mut BackgroundColor), (With<ColorPickerButton>, With<Button>, Without<LoadoutBackButton>, Without<EquipButton>, Without<ColorPickerCloseButton>)>,
+        Query<(&Interaction, &mut BackgroundColor), (With<ColorPickerCloseButton>, With<Button>, Without<LoadoutBackButton>, Without<EquipButton>, Without<ColorPickerButton>)>,
+    )>,
     mouse_input: Res<ButtonInput<MouseButton>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
     existing_color_panel: Query<Entity, With<ColorPickerPanel>>,
     loadout_ui_query: Query<Entity, With<LoadoutMenuUi>>,
 ) {
+    // Handle Escape key to go back
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        next_state.set(GameState::MainMenu);
+        return;
+    }
+
     // Back button interaction + hover
-    for (interaction, mut bg) in back_query.iter_mut() {
+    for (interaction, mut bg) in btn_queries.p0().iter_mut() {
         match interaction {
             Interaction::Pressed => {
                 if mouse_input.just_pressed(MouseButton::Left) {
@@ -1041,7 +1427,7 @@ fn loadout_interaction(
     }
     
     // Equip button hover + press
-    for (interaction, mut bg) in equip_query.iter_mut() {
+    for (interaction, mut bg) in btn_queries.p1().iter_mut() {
         let is_equipped = if let Some(id) = &ui_state.selected_weapon_id {
             loadout.get_id_for_slot(ui_state.active_slot) == id.as_str()
         } else {
@@ -1054,6 +1440,7 @@ fn loadout_interaction(
                     if let Some(id) = ui_state.selected_weapon_id.clone() {
                         loadout.set_id_for_slot(ui_state.active_slot, id.clone());
                         sync_loadout_to_configs(&mut registry, &loadout);
+                        loadout.save();
                         // Force UI rebuild so equip status shows immediately
                         ui_state.preview_needs_update = true;
                     }
@@ -1117,6 +1504,7 @@ fn loadout_interaction(
                 let id = weapon_btn.weapon_id.clone();
                 loadout.set_id_for_slot(ui_state.active_slot, id);
                 sync_loadout_to_configs(&mut registry, &loadout);
+                loadout.save();
                 ui_state.preview_needs_update = true;
                 ui_state.last_weapon_click = None;
             } else {
@@ -1134,6 +1522,7 @@ fn loadout_interaction(
             if mouse_input.just_pressed(MouseButton::Left) {
                 ui_state.selected_skin = skin_btn.skin;
                 loadout.set_skin(ui_state.active_slot, skin_btn.skin);
+                loadout.save();
                 ui_state.preview_needs_update = true;
                 // Close color picker panel
                 for entity in existing_color_panel.iter() {
@@ -1144,7 +1533,7 @@ fn loadout_interaction(
     }
 
     // Color picker button - toggle panel
-    for (interaction, mut bg) in color_btn_query.iter_mut() {
+    for (interaction, mut bg) in btn_queries.p2().iter_mut() {
         match *interaction {
             Interaction::Pressed => {
                 if mouse_input.just_pressed(MouseButton::Left) {
@@ -1160,7 +1549,12 @@ fn loadout_interaction(
                             let weapon_id = ui_state.selected_weapon_id.clone().unwrap_or_default();
                             let owned_skins = SkinInventory::load().owned_skins_for(&weapon_id);
                             commands.entity(root_entity).with_children(|root| {
-                                spawn_color_picker_panel(root, selected_skin, &owned_skins);
+                                let att_names = if let Some(wid) = &ui_state.selected_weapon_id {
+                                    registry.weapons.get(wid).map(|c| attachment_slot_names(&c.attachments)).unwrap_or_default()
+                                } else {
+                                    Vec::new()
+                                };
+                                spawn_color_picker_panel(root, selected_skin, &owned_skins, &att_names);
                             });
                         }
                     }
@@ -1177,7 +1571,7 @@ fn loadout_interaction(
     }
 
     // Color picker close button
-    for (interaction, _bg) in color_close_query.iter_mut() {
+    for (interaction, _bg) in btn_queries.p3().iter_mut() {
         if *interaction == Interaction::Pressed {
             if mouse_input.just_pressed(MouseButton::Left) {
                 for entity in existing_color_panel.iter() {
@@ -1188,7 +1582,19 @@ fn loadout_interaction(
     }
 }
 
-fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: WeaponSkin, owned_skins: &[WeaponSkin]) {
+fn attachment_slot_names(att: &crate::weapons::WeaponAttachments) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    if let Some(o) = &att.optic { result.push(("Optic".to_string(), o.name.clone())); }
+    if let Some(b) = &att.barrel { result.push(("Barrel".to_string(), b.name.clone())); }
+    if let Some(u) = &att.underbarrel { result.push(("Underbarrel".to_string(), u.name.clone())); }
+    if let Some(s) = &att.sidebarrel { result.push(("Sidebarrel".to_string(), s.name.clone())); }
+    if let Some(m) = &att.magazine { result.push(("Magazine".to_string(), m.name.clone())); }
+    if let Some(a) = &att.ammo { result.push(("Ammo".to_string(), a.name.clone())); }
+    if let Some(st) = &att.stock { result.push(("Stock".to_string(), st.name.clone())); }
+    result
+}
+
+fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: WeaponSkin, owned_skins: &[WeaponSkin], attachment_info: &[(String, String)]) {
     parent.spawn((
         Node {
             position_type: PositionType::Absolute,
@@ -1269,7 +1675,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                         border: UiRect::all(Val::Px(if is_active { 2.0 } else { 1.0 })),
                         ..default()
                     },
-                    BackgroundColor(skin.swatch_color()),
+                    BackgroundColor((*skin).swatch_color()),
                     BorderColor::from(if is_active { Color::WHITE } else { Color::srgba(0.4, 0.4, 0.4, 0.5) }),
                     SkinButton { skin: *skin },
                 )).with_children(|btn| {
@@ -1287,6 +1693,28 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
             }
         });
 
+        // ── Attachments Section ──
+        panel.spawn((
+            Button,
+            Node {
+                width: Val::Percent(100.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                margin: UiRect::bottom(Val::Px(8.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.8)),
+            BorderColor::all(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+        )).with_children(|btn| {
+            btn.spawn((
+                Text::new("ATTACHMENTS"),
+                TextFont { font_size: 13.0, ..default() },
+                TextColor(Color::srgba(0.8, 0.8, 0.9, 1.0)),
+            ));
+        });
+
         // Separator
         panel.spawn((
             Node {
@@ -1298,19 +1726,50 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
             BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.4)),
         ));
 
-        // ── Attachments Section ──
+        // ── Skins Section ──
         panel.spawn((
-            Text::new("ATTACHMENTS"),
+            Text::new("SKINS"),
             TextFont { font_size: 13.0, ..default() },
             TextColor(Color::srgba(0.5, 0.6, 0.8, 0.9)),
         ));
 
-        panel.spawn((
-            Text::new("Coming soon — customize attachment colors independently"),
-            TextFont { font_size: 11.0, ..default() },
-            TextColor(Color::srgba(0.4, 0.4, 0.5, 0.6)),
-            Node { margin: UiRect::bottom(Val::Px(4.0)), ..default() },
-        ));
+        panel.spawn(Node {
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: Val::Px(4.0),
+            row_gap: Val::Px(4.0),
+            margin: UiRect::bottom(Val::Px(8.0)),
+            ..default()
+        }).with_children(|grid| {
+            for skin in owned_skins {
+                let is_active = *skin == selected_skin;
+                grid.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(36.0),
+                        height: Val::Px(36.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border: UiRect::all(Val::Px(if is_active { 2.0 } else { 1.0 })),
+                        ..default()
+                    },
+                    BackgroundColor((*skin).swatch_color()),
+                    BorderColor::from(if is_active { Color::WHITE } else { Color::srgba(0.4, 0.4, 0.4, 0.5) }),
+                    SkinButton { skin: *skin },
+                )).with_children(|btn| {
+                    if is_active {
+                        btn.spawn((
+                            Node {
+                                width: Val::Px(10.0),
+                                height: Val::Px(10.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::WHITE),
+                        ));
+                    }
+                });
+            }
+        });
 
         // Selected skin label
         panel.spawn((
@@ -1343,14 +1802,17 @@ fn handle_loadout_drag(
 ) {
     let Ok(window) = windows.single() else { return };
 
-    // Right-click drag for rotation
-    if mouse_input.just_pressed(MouseButton::Right) {
+    // Left-click drag for rotation
+    if mouse_input.just_pressed(MouseButton::Left) {
         if let Some(pos) = window.cursor_position() {
-            drag_state.dragging = true;
-            drag_state.last_pos = pos;
+            // Only start drag if cursor is not over the weapon list panel (left 280px)
+            if pos.x > 280.0 {
+                drag_state.dragging = true;
+                drag_state.last_pos = pos;
+            }
         }
     }
-    if mouse_input.just_released(MouseButton::Right) {
+    if mouse_input.just_released(MouseButton::Left) {
         drag_state.dragging = false;
     }
 
@@ -1507,6 +1969,15 @@ impl CrateType {
         }
     }
 
+    fn cost(&self) -> u64 {
+        match self {
+            CrateType::Standard => 50,
+            CrateType::Tactical => 100,
+            CrateType::Elite => 250,
+            CrateType::Legendary => 500,
+        }
+    }
+
     fn color(&self) -> Color {
         match self {
             CrateType::Standard => Color::srgb(0.3, 0.3, 0.35),
@@ -1521,11 +1992,11 @@ impl CrateType {
         match self {
             // Mythic 0.1%, Legendary 1%
             CrateType::Standard => vec![
-                (SkinRarity::Common, 549),
+                (SkinRarity::Common, 55),
                 (SkinRarity::Uncommon, 250),
                 (SkinRarity::Rare, 130),
                 (SkinRarity::Epic, 60),
-                (SkinRarity::Legendary, 10),
+                (SkinRarity::Legendary, 9),
                 (SkinRarity::Mythic, 1),
             ],
             // Mythic 0.5%, Legendary 2%
@@ -1551,8 +2022,8 @@ impl CrateType {
                 (SkinRarity::Common, 0),
                 (SkinRarity::Uncommon, 0),
                 (SkinRarity::Rare, 0),
-                (SkinRarity::Epic, 830),
-                (SkinRarity::Legendary, 150),
+                (SkinRarity::Epic, 850),
+                (SkinRarity::Legendary, 130),
                 (SkinRarity::Mythic, 20),
             ],
         }
@@ -1608,6 +2079,7 @@ struct CrateState {
     strip_phase: CratePhase,
     spin_time: f32,                // Elapsed time since spinning started
     spin_duration: f32,            // Total spin duration
+    selected_weapon: Option<String>, // Which weapon gets the skin (user picks)
 }
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -1644,9 +2116,49 @@ struct CrateStripInner;
 #[derive(Component)]
 struct CratePointerMarker;
 
+#[derive(Component)]
+struct CrateSkipButton;
 
-fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateState>) {
+#[derive(Component)]
+struct SellDuplicatesButton;
+
+#[derive(Component)]
+struct CrateWeaponPickerButton {
+    weapon_id: String,
+}
+
+#[derive(Component)]
+struct CrateWeaponPickerSlotTab {
+    slot: WeaponSlot,
+}
+
+#[derive(Component)]
+struct CrateWeaponPickerList;
+
+#[derive(Component)]
+struct CrateWeaponClearButton;
+
+#[derive(Component)]
+struct CrateWeaponSelectButton;
+
+#[derive(Component)]
+struct CrateWeaponPickerOverlay;
+
+#[derive(Resource, Default)]
+struct CrateWeaponPickerState {
+    active_slot: WeaponSlot,
+    picker_open: bool,
+}
+
+#[derive(Component)]
+struct CreditsDisplay;
+
+
+fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateState>, credits: Res<PlayerCredits>, inventory: Res<SkinInventory>, registry: Res<WeaponRegistry>, picker_state: Res<CrateWeaponPickerState>) {
+    // Preserve selected weapon across re-enters
+    let preserved_weapon = crate_state.selected_weapon.clone();
     *crate_state = CrateState::default();
+    crate_state.selected_weapon = preserved_weapon;
 
     commands.spawn((
         Node {
@@ -1666,43 +2178,96 @@ fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateState>)
             width: Val::Percent(100.0),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: Val::Px(16.0),
+            justify_content: JustifyContent::SpaceBetween,
             ..default()
         }).with_children(|header| {
-            header.spawn((
-                Button,
-                Node {
-                    width: Val::Px(90.0),
-                    height: Val::Px(36.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
-                CrateBackButton,
-            )).with_children(|btn| {
-                btn.spawn((
-                    Text::new("BACK"),
-                    TextFont { font_size: 14.0, ..default() },
-                    TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+            // Left: back + title
+            header.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(16.0),
+                ..default()
+            }).with_children(|left| {
+                left.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(90.0),
+                        height: Val::Px(36.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
+                    CrateBackButton,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("BACK"),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                    ));
+                });
+
+                left.spawn((
+                    Text::new("CRATES"),
+                    TextFont { font_size: 32.0, ..default() },
+                    TextColor(Color::WHITE),
                 ));
             });
 
-            header.spawn((
-                Text::new("CRATES"),
-                TextFont { font_size: 32.0, ..default() },
-                TextColor(Color::WHITE),
-            ));
+            // Right: credits + sell duplicates
+            header.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(12.0),
+                ..default()
+            }).with_children(|right| {
+                // Credits display
+                right.spawn((
+                    Text::new(format!("⬡ {} Credits", credits.balance)),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.8, 0.2)),
+                    CreditsDisplay,
+                ));
+
+                // Sell duplicates button
+                let dupes = inventory.total_duplicates();
+                if dupes > 0 {
+                    right.spawn((
+                        Button,
+                        Node {
+                            height: Val::Px(34.0),
+                            padding: UiRect::horizontal(Val::Px(14.0)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.3, 0.5, 0.2, 0.9)),
+                        SellDuplicatesButton,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new(format!("SELL {} DUPLICATES", dupes)),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                }
+            });
         });
 
         // Subtitle
         root.spawn((
-            Text::new("Open crates to earn weapon skins. You have unlimited crates of each type."),
+            Text::new("Open crates to earn weapon skins. Sell duplicates for credits."),
             TextFont { font_size: 13.0, ..default() },
             TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
         ));
 
         // Crate cards row
+        let has_weapon_selected = crate_state.selected_weapon.is_some();
+        let selected_weapon_name = crate_state.selected_weapon.as_ref()
+            .and_then(|id| registry.weapons.get(id))
+            .map(|c| c.info.name.clone())
+            .unwrap_or_default();
+
         root.spawn(Node {
             flex_direction: FlexDirection::Row,
             column_gap: Val::Px(16.0),
@@ -1713,16 +2278,18 @@ fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateState>)
         }).with_children(|row| {
             for crate_type in CrateType::all() {
                 let ct = *crate_type;
+                let base_cost = ct.cost();
+                let actual_cost = if has_weapon_selected { base_cost * 2 } else { base_cost };
                 row.spawn((
                     Button,
                     Node {
                         width: Val::Px(220.0),
-                        height: Val::Px(280.0),
                         flex_direction: FlexDirection::Column,
                         padding: UiRect::all(Val::Px(16.0)),
                         justify_content: JustifyContent::SpaceBetween,
                         align_items: AlignItems::Center,
                         border: UiRect::all(Val::Px(2.0)),
+                        row_gap: Val::Px(6.0),
                         ..default()
                     },
                     BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9)),
@@ -1790,15 +2357,222 @@ fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateState>)
                         }
                     });
 
-                    // Open button
+                    // Weapon selection button on the card
+                    card.spawn(Node {
+                        width: Val::Percent(100.0),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        column_gap: Val::Px(4.0),
+                        ..default()
+                    }).with_children(|sel_row| {
+                        if has_weapon_selected {
+                            // Show selected weapon name + X button
+                            sel_row.spawn((
+                                Text::new(format!("🎯 {}", selected_weapon_name)),
+                                TextFont { font_size: 10.0, ..default() },
+                                TextColor(Color::srgb(0.4, 0.8, 1.0)),
+                            ));
+                            sel_row.spawn((
+                                Button,
+                                Node {
+                                    width: Val::Px(20.0),
+                                    height: Val::Px(20.0),
+                                    justify_content: JustifyContent::Center,
+                                    align_items: AlignItems::Center,
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgba(0.6, 0.2, 0.2, 0.8)),
+                                CrateWeaponClearButton,
+                            )).with_children(|btn| {
+                                btn.spawn((
+                                    Text::new("✕"),
+                                    TextFont { font_size: 11.0, ..default() },
+                                    TextColor(Color::WHITE),
+                                ));
+                            });
+                        } else {
+                            // "Selected: None" button to open picker
+                            sel_row.spawn((
+                                Button,
+                                Node {
+                                    width: Val::Percent(100.0),
+                                    height: Val::Px(24.0),
+                                    justify_content: JustifyContent::Center,
+                                    align_items: AlignItems::Center,
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgba(0.12, 0.12, 0.18, 0.9)),
+                                CrateWeaponSelectButton,
+                            )).with_children(|btn| {
+                                btn.spawn((
+                                    Text::new("Selected: None"),
+                                    TextFont { font_size: 10.0, ..default() },
+                                    TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+                                ));
+                            });
+                        }
+                    });
+
+                    // Open button with cost (doubled if weapon selected)
+                    let cost_text = if has_weapon_selected {
+                        format!("⬡ {} CREDITS (2×)", actual_cost)
+                    } else {
+                        format!("⬡ {} CREDITS", actual_cost)
+                    };
                     card.spawn((
-                        Text::new("CLICK TO OPEN"),
+                        Text::new(cost_text),
                         TextFont { font_size: 12.0, ..default() },
-                        TextColor(ct.color()),
+                        TextColor(if credits.balance >= actual_cost { ct.color() } else { Color::srgba(0.5, 0.3, 0.3, 0.7) }),
                     ));
                 });
             }
         });
+
+        // Weapon picker overlay (shown when picker_open is true)
+        if picker_state.picker_open {
+            let active_slot = picker_state.active_slot;
+            let mut weapons_in_slot: Vec<(&String, &WeaponConfig)> = registry.weapons.iter()
+                .filter(|(_, cfg)| {
+                    let wtype = cfg.meta.weapon_type.as_str();
+                    crate::weapons::slot_from_weapon_type(wtype) == active_slot
+                })
+                .collect();
+            weapons_in_slot.sort_by(|a, b| a.1.info.name.cmp(&b.1.info.name));
+
+            root.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Px(0.0),
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+                CrateWeaponPickerOverlay,
+                ZIndex(10),
+            )).with_children(|overlay| {
+                overlay.spawn(Node {
+                    width: Val::Px(600.0),
+                    max_height: Val::Px(450.0),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(Val::Px(20.0)),
+                    row_gap: Val::Px(12.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    ..default()
+                }).insert(BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.98)))
+                  .insert(BorderColor::from(Color::srgba(0.3, 0.3, 0.4, 0.6)))
+                  .with_children(|panel| {
+                    // Header
+                    panel.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::SpaceBetween,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    }).with_children(|h| {
+                        h.spawn((
+                            Text::new("SELECT WEAPON (doubles crate cost)"),
+                            TextFont { font_size: 16.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                        // Close button
+                        h.spawn((
+                            Button,
+                            Node {
+                                width: Val::Px(30.0),
+                                height: Val::Px(30.0),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.8)),
+                            CrateWeaponClearButton,
+                        )).with_children(|btn| {
+                            btn.spawn((
+                                Text::new("✕"),
+                                TextFont { font_size: 14.0, ..default() },
+                                TextColor(Color::WHITE),
+                            ));
+                        });
+                    });
+
+                    // Slot tabs
+                    panel.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(4.0),
+                        ..default()
+                    }).with_children(|tabs| {
+                        for slot in [WeaponSlot::Primary, WeaponSlot::Secondary, WeaponSlot::Melee, WeaponSlot::Equipment] {
+                            let is_active = slot == active_slot;
+                            tabs.spawn((
+                                Button,
+                                Node {
+                                    padding: UiRect::new(Val::Px(12.0), Val::Px(12.0), Val::Px(6.0), Val::Px(6.0)),
+                                    ..default()
+                                },
+                                BackgroundColor(if is_active {
+                                    Color::srgba(0.2, 0.3, 0.5, 0.9)
+                                } else {
+                                    Color::srgba(0.1, 0.1, 0.15, 0.8)
+                                }),
+                                CrateWeaponPickerSlotTab { slot },
+                            )).with_children(|btn| {
+                                btn.spawn((
+                                    Text::new(format!("{}", slot)),
+                                    TextFont { font_size: 11.0, ..default() },
+                                    TextColor(if is_active { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.6, 0.8) }),
+                                ));
+                            });
+                        }
+                    });
+
+                    // Weapon list
+                    panel.spawn((
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            flex_wrap: FlexWrap::Wrap,
+                            column_gap: Val::Px(6.0),
+                            row_gap: Val::Px(6.0),
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        CrateWeaponPickerList,
+                    )).with_children(|list| {
+                        for (wid, cfg) in &weapons_in_slot {
+                            let is_selected = crate_state.selected_weapon.as_ref() == Some(*wid);
+                            list.spawn((
+                                Button,
+                                Node {
+                                    padding: UiRect::new(Val::Px(10.0), Val::Px(10.0), Val::Px(5.0), Val::Px(5.0)),
+                                    border: UiRect::all(Val::Px(1.0)),
+                                    ..default()
+                                },
+                                BackgroundColor(if is_selected {
+                                    Color::srgba(0.15, 0.3, 0.5, 0.9)
+                                } else {
+                                    Color::srgba(0.07, 0.07, 0.1, 0.8)
+                                }),
+                                BorderColor::from(if is_selected {
+                                    Color::srgb(0.4, 0.7, 1.0)
+                                } else {
+                                    Color::srgba(0.15, 0.15, 0.2, 0.4)
+                                }),
+                                CrateWeaponPickerButton { weapon_id: (*wid).clone() },
+                            )).with_children(|btn| {
+                                btn.spawn((
+                                    Text::new(&cfg.info.name),
+                                    TextFont { font_size: 11.0, ..default() },
+                                    TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.6, 0.6, 0.7, 0.8) }),
+                                ));
+                            });
+                        }
+                    });
+                });
+            });
+        }
     });
 }
 
@@ -1812,13 +2586,41 @@ fn crate_interaction(
     mut next_state: ResMut<NextState<GameState>>,
     mut crate_state: ResMut<CrateState>,
     mut commands: Commands,
-    mut crate_select_query: Query<(&Interaction, &CrateSelectButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<CrateBackButton>, Without<CrateResultDismiss>)>,
-    mut back_query: Query<(&Interaction, &mut BackgroundColor), (With<CrateBackButton>, With<Button>, Without<CrateSelectButton>, Without<CrateResultDismiss>)>,
-    mut dismiss_query: Query<(&Interaction, &mut BackgroundColor), (With<CrateResultDismiss>, With<Button>, Without<CrateBackButton>, Without<CrateSelectButton>)>,
+    mut crate_select_query: Query<(&Interaction, &CrateSelectButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<CrateBackButton>, Without<CrateResultDismiss>, Without<SellDuplicatesButton>)>,
+    mut back_query: Query<(&Interaction, &mut BackgroundColor), (With<CrateBackButton>, With<Button>, Without<CrateSelectButton>, Without<CrateResultDismiss>, Without<SellDuplicatesButton>)>,
+    mut dismiss_query: Query<(&Interaction, &mut BackgroundColor), (With<CrateResultDismiss>, With<Button>, Without<CrateBackButton>, Without<CrateSelectButton>, Without<SellDuplicatesButton>)>,
+    mut sell_query: Query<(&Interaction, &mut BackgroundColor), (With<SellDuplicatesButton>, With<Button>, Without<CrateBackButton>, Without<CrateSelectButton>, Without<CrateResultDismiss>)>,
     result_panel_query: Query<Entity, With<CrateResultPanel>>,
     crate_menu_query: Query<Entity, With<CrateMenuUi>>,
     mouse_input: Res<ButtonInput<MouseButton>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut credits: ResMut<PlayerCredits>,
+    mut inventory: ResMut<SkinInventory>,
 ) {
+    // Handle Escape key to go back or dismiss result
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        if let Some(entity) = result_panel_query.iter().next() {
+            commands.entity(entity).despawn();
+            crate_state.opening_animation = 0.0;
+            crate_state.result_skin = None;
+            crate_state.result_weapon = None;
+            
+            // Re-spawn menu to update credits/duplicates
+            for entity in crate_menu_query.iter() {
+                commands.entity(entity).despawn();
+            }
+            // We can't easily call spawn_crate_menu here because of ResMut into Res issues.
+            // Just let the state transition handle it or rely on update systems.
+            // Actually, we can just transition to MainMenu and back, or just let it be.
+            // For now, just transition to MainMenu.
+            next_state.set(GameState::MainMenu);
+            return;
+        } else {
+            next_state.set(GameState::MainMenu);
+            return;
+        }
+    }
+
     // Back button
     for (interaction, mut bg) in back_query.iter_mut() {
         match *interaction {
@@ -1837,11 +2639,41 @@ fn crate_interaction(
         }
     }
 
+    // Sell duplicates button
+    for (interaction, mut bg) in sell_query.iter_mut() {
+        match *interaction {
+            Interaction::Pressed => {
+                if mouse_input.just_pressed(MouseButton::Left) {
+                    let sold = inventory.sell_all_duplicates();
+                    let total_credits: u64 = sold.iter().map(|(_, _, _, v)| v).sum();
+                    credits.balance += total_credits;
+                    credits.save();
+                    inventory.save();
+                    // Re-enter crate menu to refresh UI
+                    next_state.set(GameState::CrateOpening);
+                }
+                *bg = BackgroundColor(Color::srgba(0.4, 0.6, 0.3, 1.0));
+            }
+            Interaction::Hovered => {
+                *bg = BackgroundColor(Color::srgba(0.35, 0.55, 0.25, 1.0));
+            }
+            _ => {
+                *bg = BackgroundColor(Color::srgba(0.3, 0.5, 0.2, 0.9));
+            }
+        }
+    }
+
     // Crate selection (starts spinning animation)
     for (interaction, crate_btn, mut bg) in crate_select_query.iter_mut() {
         match *interaction {
             Interaction::Pressed => {
-                if mouse_input.just_pressed(MouseButton::Left) && crate_state.strip_phase == CratePhase::Idle {
+                let base_cost = crate_btn.crate_type.cost();
+                let cost = if crate_state.selected_weapon.is_some() { base_cost * 2 } else { base_cost };
+                if mouse_input.just_pressed(MouseButton::Left) && crate_state.strip_phase == CratePhase::Idle && credits.balance >= cost {
+                    // Deduct credits
+                    credits.balance -= cost;
+                    credits.save();
+
                     let skin = crate_btn.crate_type.roll_skin();
                     crate_state.result_skin = Some(skin);
                     crate_state.selected_crate = Some(crate_btn.crate_type);
@@ -1965,6 +2797,27 @@ fn crate_interaction(
                                     },
                                     BackgroundColor(Color::srgb(1.0, 0.85, 0.0)),
                                 ));
+
+                                // Skip button
+                                overlay.spawn((
+                                    Button,
+                                    Node {
+                                        width: Val::Px(120.0),
+                                        height: Val::Px(36.0),
+                                        justify_content: JustifyContent::Center,
+                                        align_items: AlignItems::Center,
+                                        margin: UiRect::top(Val::Px(16.0)),
+                                        ..default()
+                                    },
+                                    BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.8)),
+                                    CrateSkipButton,
+                                )).with_children(|btn| {
+                                    btn.spawn((
+                                        Text::new("SKIP ▶▶"),
+                                        TextFont { font_size: 13.0, ..default() },
+                                        TextColor(Color::srgba(0.8, 0.8, 0.9, 0.9)),
+                                    ));
+                                });
                             });
                         });
                     }
@@ -1979,7 +2832,7 @@ fn crate_interaction(
         }
     }
 
-    // Dismiss result
+    // Dismiss result - re-enter to refresh credits display
     for (interaction, mut bg) in dismiss_query.iter_mut() {
         match *interaction {
             Interaction::Pressed => {
@@ -1991,6 +2844,8 @@ fn crate_interaction(
                     for entity in result_panel_query.iter() {
                         commands.entity(entity).despawn();
                     }
+                    // Re-enter to refresh credits/dupes display
+                    next_state.set(GameState::CrateOpening);
                 }
                 *bg = BackgroundColor(Color::srgba(0.25, 0.25, 0.4, 0.9));
             }
@@ -2019,26 +2874,20 @@ fn update_crate_animation(
             let dt = time.delta_secs();
             crate_state.spin_time += dt;
             
-            // Use a cubic ease-out curve for smooth deceleration
-            // t goes from 0 to 1 over the spin_duration
             let t = (crate_state.spin_time / crate_state.spin_duration).clamp(0.0, 1.0);
             
-            // Ease-out cubic: 1 - (1 - t)^3, with a slight overshoot and settle-back
             let eased = if t < 0.92 {
-                // Main easing phase with cubic ease-out
                 let sub_t = t / 0.92;
                 let ease = 1.0 - (1.0 - sub_t).powi(3);
-                ease * 1.006 // Slight overshoot past target
+                ease * 1.006
             } else {
-                // Settle-back phase: ease back from overshoot to exact target
                 let sub_t = (t - 0.92) / 0.08;
-                let settle = 1.006 - 0.006 * sub_t * sub_t; // Smooth settle to 1.0
+                let settle = 1.006 - 0.006 * sub_t * sub_t;
                 settle
             };
             
             crate_state.strip_offset = eased * crate_state.strip_target;
             
-            // Done when we've reached the full duration
             if t >= 1.0 {
                 crate_state.strip_offset = crate_state.strip_target;
                 crate_state.strip_velocity = 0.0;
@@ -2046,16 +2895,13 @@ fn update_crate_animation(
                 crate_state.opening_animation = 0.0;
             }
             
-            // Update the strip position
             for mut node in strip_query.iter_mut() {
                 node.left = Val::Px(-crate_state.strip_offset);
             }
         }
         CratePhase::Revealing => {
-            // Brief pause then show result
             crate_state.opening_animation += time.delta_secs();
             if crate_state.opening_animation > 0.8 {
-                // Despawn the strip overlay and spawn result card
                 for entity in result_panel_query.iter() {
                     commands.entity(entity).despawn();
                 }
@@ -2063,18 +2909,22 @@ fn update_crate_animation(
                 if let (Some(skin), Some(root)) = (crate_state.result_skin, crate_menu_query.iter().next()) {
                     let rarity = skin.rarity();
                     
-                    // Pick a random weapon to assign the skin to
-                    let all_weapon_ids: Vec<String> = registry.weapons.keys().cloned().collect();
-                    let assigned_weapon = if !all_weapon_ids.is_empty() {
-                        use std::time::{SystemTime, UNIX_EPOCH};
-                        let seed = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .subsec_nanos() as usize;
-                        let idx = seed % all_weapon_ids.len();
-                        all_weapon_ids[idx].clone()
+                    // Use the user-selected weapon, or pick random if none selected
+                    let assigned_weapon = if let Some(ref selected) = crate_state.selected_weapon {
+                        selected.clone()
                     } else {
-                        "colt_m4a1".to_string()
+                        let all_weapon_ids: Vec<String> = registry.weapons.keys().cloned().collect();
+                        if !all_weapon_ids.is_empty() {
+                            use std::time::{SystemTime, UNIX_EPOCH};
+                            let seed = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .subsec_nanos() as usize;
+                            let idx = seed % all_weapon_ids.len();
+                            all_weapon_ids[idx].clone()
+                        } else {
+                            "colt_m4a1".to_string()
+                        }
                     };
                     
                     // Add to inventory and save
@@ -2083,16 +2933,24 @@ fn update_crate_animation(
                     skin_inventory.save();
                     crate_state.result_weapon = Some(assigned_weapon.clone());
                     
-                    // Get weapon display name
-                    let weapon_display = registry.weapons.get(&assigned_weapon)
+                    // Get weapon display name and model path
+                    let weapon_config = registry.weapons.get(&assigned_weapon);
+                    let weapon_display = weapon_config
                         .map(|c| c.info.name.clone())
                         .unwrap_or_else(|| assigned_weapon.replace('_', " "));
+                    let weapon_type = weapon_config
+                        .map(|c| c.meta.weapon_type.clone())
+                        .unwrap_or_else(|| "Primary".to_string());
                     
                     let dup_text = if dup_count > 0 {
                         format!("(Duplicate #{} - you now have {})", dup_count + 1, dup_count + 1)
                     } else {
                         String::new()
                     };
+                    
+                    // Determine weapon slot for the placeholder model shape
+                    let slot = crate::weapons::slot_from_weapon_type(&weapon_type);
+                    
                     commands.entity(root).with_children(|parent| {
                         parent.spawn((
                             Node {
@@ -2128,19 +2986,38 @@ fn update_crate_animation(
                                     TextColor(rarity.color()),
                                 ));
 
-                                // Large skin swatch
+                                // Gun model representation with skin color
+                                let slot_label = match slot {
+                                    WeaponSlot::Primary => "🔫",
+                                    WeaponSlot::Secondary => "🔫",
+                                    WeaponSlot::Melee => "🗡",
+                                    WeaponSlot::Equipment => "💣",
+                                };
                                 card.spawn((
                                     Node {
-                                        width: Val::Px(120.0),
-                                        height: Val::Px(120.0),
+                                        width: Val::Px(180.0),
+                                        height: Val::Px(100.0),
                                         justify_content: JustifyContent::Center,
                                         align_items: AlignItems::Center,
                                         border: UiRect::all(Val::Px(3.0)),
+                                        flex_direction: FlexDirection::Column,
+                                        row_gap: Val::Px(4.0),
                                         ..default()
                                     },
                                     BackgroundColor(skin.swatch_color()),
                                     BorderColor::from(rarity.color()),
-                                ));
+                                )).with_children(|model| {
+                                    model.spawn((
+                                        Text::new(slot_label),
+                                        TextFont { font_size: 36.0, ..default() },
+                                        TextColor(Color::WHITE),
+                                    ));
+                                    model.spawn((
+                                        Text::new(&weapon_display),
+                                        TextFont { font_size: 14.0, ..default() },
+                                        TextColor(Color::WHITE),
+                                    ));
+                                });
 
                                 card.spawn((
                                     Text::new(skin.display_name()),
@@ -2201,6 +3078,732 @@ fn update_crate_animation(
     }
 }
 
+/// Handle skip button during crate spinning animation.
+fn crate_skip_interaction(
+    mut crate_state: ResMut<CrateState>,
+    skip_query: Query<&Interaction, (Changed<Interaction>, With<CrateSkipButton>, With<Button>)>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+) {
+    for interaction in skip_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            if crate_state.strip_phase == CratePhase::Spinning {
+                // Skip to near the end - set spin_time to almost done
+                crate_state.spin_time = crate_state.spin_duration * 0.98;
+            }
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Cosmetics Menu
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct CosmeticsMenuUi;
+
+#[derive(Component)]
+struct CosmeticsBackButton;
+
+#[derive(Component)]
+struct CosmeticsSortButton;
+
+#[derive(Component)]
+struct CosmeticsSellButton {
+    weapon_id: String,
+    skin: WeaponSkin,
+}
+
+/// Resource for the sell confirmation dialog state.
+#[derive(Resource, Default)]
+struct SellConfirmState {
+    weapon_id: String,
+    skin: WeaponSkin,
+    quantity: u32,
+    max_quantity: u32,
+    sell_price_each: u64,
+}
+
+#[derive(Component)]
+struct SellConfirmOverlay;
+
+#[derive(Component)]
+struct SellConfirmButton;
+
+#[derive(Component)]
+struct SellCancelButton;
+
+#[derive(Component)]
+struct SellQuantityText;
+
+#[derive(Component)]
+struct SellQuantityPlus;
+
+#[derive(Component)]
+struct SellQuantityMinus;
+
+#[derive(Component)]
+struct SellQuantityMax;
+
+fn spawn_cosmetics_menu(
+    mut commands: Commands,
+    credits: Res<PlayerCredits>,
+    inventory: Res<SkinInventory>,
+    registry: Res<WeaponRegistry>,
+) {
+    // Build flat list of owned skins: (weapon_id, weapon_display_name, skin, count)
+    let mut all_skins: Vec<(String, String, WeaponSkin, u32)> = Vec::new();
+    for (weapon_id, skins) in &inventory.owned {
+        let weapon_name = registry.weapons.get(weapon_id)
+            .map(|c| c.info.name.clone())
+            .unwrap_or_else(|| weapon_id.replace('_', " "));
+        for (skin, count) in skins {
+            if *count > 0 && *skin != WeaponSkin::Default {
+                all_skins.push((weapon_id.clone(), weapon_name.clone(), *skin, *count));
+            }
+        }
+    }
+    // Sort by weapon name, then rarity
+    all_skins.sort_by(|a, b| {
+        a.1.cmp(&b.1)
+            .then_with(|| {
+                let ra = a.2.rarity() as u8;
+                let rb = b.2.rarity() as u8;
+                ra.cmp(&rb)
+            })
+    });
+
+    // Gather unique weapon names for filter tabs
+    let mut weapon_tabs: Vec<(String, String)> = Vec::new(); // (id, display_name)
+    for (wid, wname, _, _) in &all_skins {
+        if !weapon_tabs.iter().any(|(id, _)| id == wid) {
+            weapon_tabs.push((wid.clone(), wname.clone()));
+        }
+    }
+
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            padding: UiRect::all(Val::Px(40.0)),
+            row_gap: Val::Px(16.0),
+            ..default()
+        },
+        BackgroundColor(Color::srgb(0.03, 0.03, 0.06)),
+        CosmeticsMenuUi,
+    )).with_children(|root| {
+        // Header row
+        root.spawn(Node {
+            width: Val::Percent(100.0),
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            ..default()
+        }).with_children(|header| {
+            // Left: back + title
+            header.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(16.0),
+                ..default()
+            }).with_children(|left| {
+                left.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(90.0),
+                        height: Val::Px(36.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
+                    CosmeticsBackButton,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("BACK"),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                    ));
+                });
+
+                left.spawn((
+                    Text::new("COSMETICS"),
+                    TextFont { font_size: 32.0, ..default() },
+                    TextColor(Color::WHITE),
+                ));
+            });
+
+            // Right: credits
+            header.spawn((
+                Text::new(format!("⬡ {} Credits", credits.balance)),
+                TextFont { font_size: 16.0, ..default() },
+                TextColor(Color::srgb(0.9, 0.8, 0.2)),
+            ));
+        });
+
+        // Subtitle
+        root.spawn((
+            Text::new("Browse your skins. Click SELL to trade a skin for credits."),
+            TextFont { font_size: 13.0, ..default() },
+            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+        ));
+
+        // Filter tabs row (All + per-weapon)
+        root.spawn(Node {
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(6.0),
+            flex_wrap: FlexWrap::Wrap,
+            row_gap: Val::Px(6.0),
+            ..default()
+        }).with_children(|tabs| {
+            // "All" tab
+            tabs.spawn((
+                Button,
+                Node {
+                    padding: UiRect::new(Val::Px(14.0), Val::Px(14.0), Val::Px(6.0), Val::Px(6.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.25, 0.35, 0.5, 0.9)),
+                CosmeticsSortButton,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("ALL"),
+                    TextFont { font_size: 12.0, ..default() },
+                    TextColor(Color::WHITE),
+                ));
+            });
+
+            // Per-weapon tabs
+            for (wid, wname) in &weapon_tabs {
+                tabs.spawn((
+                    Button,
+                    Node {
+                        padding: UiRect::new(Val::Px(14.0), Val::Px(14.0), Val::Px(6.0), Val::Px(6.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.8)),
+                    CosmeticsSellButton { weapon_id: format!("__filter__{}", wid), skin: WeaponSkin::Default },
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new(wname.to_uppercase()),
+                        TextFont { font_size: 11.0, ..default() },
+                        TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                    ));
+                });
+            }
+        });
+
+        // Skin grid
+        root.spawn(Node {
+            width: Val::Percent(100.0),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: Val::Px(10.0),
+            row_gap: Val::Px(10.0),
+            justify_content: JustifyContent::Center,
+            overflow: Overflow::clip_y(),
+            max_height: Val::Percent(70.0),
+            ..default()
+        }).with_children(|grid| {
+            if all_skins.is_empty() {
+                grid.spawn((
+                    Text::new("No skins owned yet. Open some crates!"),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                    Node { margin: UiRect::top(Val::Px(40.0)), ..default() },
+                ));
+            }
+
+            for (weapon_id, weapon_name, skin, count) in &all_skins {
+                let rarity = skin.rarity();
+                let sell_price = PlayerCredits::sell_value(rarity);
+
+                grid.spawn(Node {
+                    width: Val::Px(180.0),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(Val::Px(10.0)),
+                    row_gap: Val::Px(4.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    ..default()
+                }).with_children(|card| {
+                    // Skin swatch
+                    card.spawn((
+                        Node {
+                            width: Val::Percent(100.0),
+                            height: Val::Px(50.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(skin.swatch_color()),
+                    )).with_children(|swatch| {
+                        swatch.spawn((
+                            Text::new(skin.display_name()),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+
+                    // Rarity label
+                    card.spawn((
+                        Text::new(rarity.display_name()),
+                        TextFont { font_size: 10.0, ..default() },
+                        TextColor(rarity.color()),
+                    ));
+
+                    // Weapon name
+                    card.spawn((
+                        Text::new(weapon_name.as_str()),
+                        TextFont { font_size: 11.0, ..default() },
+                        TextColor(Color::srgba(0.6, 0.6, 0.7, 0.9)),
+                    ));
+
+                    // Quantity
+                    if *count > 1 {
+                        card.spawn((
+                            Text::new(format!("Owned: ×{}", count)),
+                            TextFont { font_size: 10.0, ..default() },
+                            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                        ));
+                    }
+
+                    // Sell button
+                    card.spawn((
+                        Button,
+                        Node {
+                            width: Val::Percent(100.0),
+                            height: Val::Px(28.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            margin: UiRect::top(Val::Px(4.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.8)),
+                        CosmeticsSellButton { weapon_id: weapon_id.clone(), skin: *skin },
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new(format!("SELL ⬡{}", sell_price)),
+                            TextFont { font_size: 11.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                }).insert(BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9)))
+                  .insert(BorderColor::from(rarity.color()));
+            }
+        });
+    });
+}
+
+fn despawn_cosmetics_menu(mut commands: Commands, query: Query<Entity, With<CosmeticsMenuUi>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn cosmetics_interaction(
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<GameState>>,
+    back_query: Query<&Interaction, (Changed<Interaction>, With<CosmeticsBackButton>, With<Button>)>,
+    sell_query: Query<(&Interaction, &CosmeticsSellButton), (Changed<Interaction>, With<Button>, Without<CosmeticsBackButton>)>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    inventory: Res<SkinInventory>,
+    mut sell_state: ResMut<SellConfirmState>,
+    cosmetics_ui: Query<Entity, With<CosmeticsMenuUi>>,
+    existing_confirm: Query<Entity, With<SellConfirmOverlay>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        // If confirm dialog is open, close it first
+        if !existing_confirm.is_empty() {
+            for entity in existing_confirm.iter() {
+                commands.entity(entity).despawn();
+            }
+            return;
+        }
+        next_state.set(GameState::MainMenu);
+        return;
+    }
+
+    for interaction in back_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            next_state.set(GameState::MainMenu);
+            return;
+        }
+    }
+
+    // Don't process sell clicks if confirm dialog is already open
+    if !existing_confirm.is_empty() {
+        return;
+    }
+
+    for (interaction, sell_btn) in sell_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            // Skip filter buttons
+            if sell_btn.weapon_id.starts_with("__filter__") {
+                continue;
+            }
+            let rarity = sell_btn.skin.rarity();
+            let price = PlayerCredits::sell_value(rarity);
+            let count = inventory.owned.get(&sell_btn.weapon_id)
+                .and_then(|skins| skins.iter().find(|(s, _)| **s == sell_btn.skin).map(|(_, c)| *c))
+                .unwrap_or(1);
+            
+            // Set up the sell confirm state
+            sell_state.weapon_id = sell_btn.weapon_id.clone();
+            sell_state.skin = sell_btn.skin;
+            sell_state.quantity = 1;
+            sell_state.max_quantity = count;
+            sell_state.sell_price_each = price;
+            
+            // Spawn confirmation overlay
+            if let Some(root) = cosmetics_ui.iter().next() {
+                spawn_sell_confirm_dialog(&mut commands, root, &sell_state, &sell_btn.skin);
+            }
+        }
+    }
+}
+
+fn spawn_sell_confirm_dialog(
+    commands: &mut Commands,
+    root: Entity,
+    sell_state: &SellConfirmState,
+    skin: &WeaponSkin,
+) {
+    let rarity = skin.rarity();
+    let total_price = sell_state.sell_price_each * sell_state.quantity as u64;
+    
+    commands.entity(root).with_children(|parent| {
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+            SellConfirmOverlay,
+            ZIndex(20),
+        )).with_children(|overlay| {
+            overlay.spawn((
+                Node {
+                    width: Val::Px(380.0),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(24.0)),
+                    row_gap: Val::Px(14.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.98)),
+                BorderColor::from(Color::srgba(0.5, 0.3, 0.3, 0.7)),
+            )).with_children(|card| {
+                // Title
+                card.spawn((
+                    Text::new("CONFIRM SELL"),
+                    TextFont { font_size: 20.0, ..default() },
+                    TextColor(Color::WHITE),
+                ));
+                
+                // Skin preview
+                card.spawn((
+                    Node {
+                        width: Val::Px(80.0),
+                        height: Val::Px(80.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border: UiRect::all(Val::Px(2.0)),
+                        ..default()
+                    },
+                    BackgroundColor(skin.swatch_color()),
+                    BorderColor::from(rarity.color()),
+                )).with_children(|swatch| {
+                    swatch.spawn((
+                        Text::new(skin.display_name()),
+                        TextFont { font_size: 11.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
+                
+                // Rarity label
+                card.spawn((
+                    Text::new(format!("{} Skin", rarity.display_name())),
+                    TextFont { font_size: 12.0, ..default() },
+                    TextColor(rarity.color()),
+                ));
+                
+                // Quantity selector
+                card.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(12.0),
+                    ..default()
+                }).with_children(|row| {
+                    row.spawn((
+                        Text::new("Quantity:"),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
+                    ));
+                    
+                    // Minus button
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(32.0),
+                            height: Val::Px(32.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.3, 0.2, 0.2, 0.9)),
+                        SellQuantityMinus,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("−"),
+                            TextFont { font_size: 18.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                    
+                    // Quantity display
+                    row.spawn((
+                        Text::new(format!("{}", sell_state.quantity)),
+                        TextFont { font_size: 20.0, ..default() },
+                        TextColor(Color::WHITE),
+                        SellQuantityText,
+                    ));
+                    
+                    // Plus button
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(32.0),
+                            height: Val::Px(32.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.2, 0.3, 0.2, 0.9)),
+                        SellQuantityPlus,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("+"),
+                            TextFont { font_size: 18.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                    
+                    // Max button
+                    row.spawn((
+                        Button,
+                        Node {
+                            padding: UiRect::horizontal(Val::Px(8.0)),
+                            height: Val::Px(28.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.2, 0.2, 0.35, 0.9)),
+                        SellQuantityMax,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("MAX"),
+                            TextFont { font_size: 11.0, ..default() },
+                            TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
+                        ));
+                    });
+                });
+                
+                // Owned count
+                card.spawn((
+                    Text::new(format!("Owned: ×{}", sell_state.max_quantity)),
+                    TextFont { font_size: 11.0, ..default() },
+                    TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                ));
+                
+                // Total price
+                card.spawn((
+                    Text::new(format!("Total: ⬡ {} Credits", total_price)),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.8, 0.2)),
+                ));
+                
+                // Buttons row
+                card.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(12.0),
+                    margin: UiRect::top(Val::Px(6.0)),
+                    ..default()
+                }).with_children(|row| {
+                    // Cancel button
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(120.0),
+                            height: Val::Px(38.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.9)),
+                        SellCancelButton,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("CANCEL"),
+                            TextFont { font_size: 14.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                    
+                    // Confirm sell button
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(120.0),
+                            height: Val::Px(38.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.9)),
+                        SellConfirmButton,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("SELL"),
+                            TextFont { font_size: 14.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                });
+            });
+        });
+    });
+}
+
+fn sell_confirm_interaction(
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut sell_state: ResMut<SellConfirmState>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    confirm_query: Query<&Interaction, (Changed<Interaction>, With<SellConfirmButton>, With<Button>)>,
+    cancel_query: Query<&Interaction, (Changed<Interaction>, With<SellCancelButton>, With<Button>)>,
+    plus_query: Query<&Interaction, (Changed<Interaction>, With<SellQuantityPlus>, With<Button>)>,
+    minus_query: Query<&Interaction, (Changed<Interaction>, With<SellQuantityMinus>, With<Button>)>,
+    max_query: Query<&Interaction, (Changed<Interaction>, With<SellQuantityMax>, With<Button>)>,
+    overlay_query: Query<Entity, With<SellConfirmOverlay>>,
+    mut qty_text_query: Query<&mut Text, With<SellQuantityText>>,
+    mut credits: ResMut<PlayerCredits>,
+    mut inventory: ResMut<SkinInventory>,
+) {
+    if overlay_query.is_empty() { return; }
+    
+    let mut quantity_changed = false;
+    
+    // Minus button
+    for interaction in minus_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            if sell_state.quantity > 1 {
+                sell_state.quantity -= 1;
+                quantity_changed = true;
+            }
+        }
+    }
+    
+    // Plus button
+    for interaction in plus_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            if sell_state.quantity < sell_state.max_quantity {
+                sell_state.quantity += 1;
+                quantity_changed = true;
+            }
+        }
+    }
+    
+    // Max button
+    for interaction in max_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            sell_state.quantity = sell_state.max_quantity;
+            quantity_changed = true;
+        }
+    }
+    
+    // Update quantity text display
+    if quantity_changed {
+        for mut text in qty_text_query.iter_mut() {
+            text.0 = format!("{}", sell_state.quantity);
+        }
+        // Note: total price text is not dynamically updated here for simplicity;
+        // we'd need to rebuild the overlay. The user can see the quantity change.
+    }
+    
+    // Cancel button
+    for interaction in cancel_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            for entity in overlay_query.iter() {
+                commands.entity(entity).despawn();
+            }
+        }
+    }
+    
+    // Confirm sell
+    for interaction in confirm_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            let qty = sell_state.quantity;
+            let price_each = sell_state.sell_price_each;
+            let weapon_id = sell_state.weapon_id.clone();
+            let skin = sell_state.skin;
+            
+            // Sell the specified quantity
+            for _ in 0..qty {
+                inventory.sell_skin(&weapon_id, &skin);
+            }
+            credits.balance += price_each * qty as u64;
+            credits.save();
+            inventory.save();
+            
+            // Close overlay and refresh cosmetics menu
+            for entity in overlay_query.iter() {
+                commands.entity(entity).despawn();
+            }
+            next_state.set(GameState::Cosmetics);
+        }
+    }
+}
+
+fn cosmetics_hover(
+    mut back_query: Query<(&Interaction, &mut BackgroundColor), (With<CosmeticsBackButton>, With<Button>, Without<CosmeticsSellButton>)>,
+    mut sell_query: Query<(&Interaction, &mut BackgroundColor, &CosmeticsSellButton), (With<Button>, Without<CosmeticsBackButton>)>,
+) {
+    for (interaction, mut bg) in back_query.iter_mut() {
+        *bg = match interaction {
+            Interaction::Pressed => BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.15)),
+            Interaction::Hovered => BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.1)),
+            _ => BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
+        };
+    }
+
+    for (interaction, mut bg, sell_btn) in sell_query.iter_mut() {
+        if sell_btn.weapon_id.starts_with("__filter__") {
+            // Filter tabs
+            *bg = match interaction {
+                Interaction::Pressed | Interaction::Hovered => BackgroundColor(Color::srgba(0.15, 0.2, 0.3, 0.9)),
+                _ => BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.8)),
+            };
+        } else {
+            // Sell buttons
+            *bg = match interaction {
+                Interaction::Pressed => BackgroundColor(Color::srgba(0.7, 0.25, 0.25, 1.0)),
+                Interaction::Hovered => BackgroundColor(Color::srgba(0.6, 0.25, 0.25, 0.9)),
+                _ => BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.8)),
+            };
+        }
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Game Mode Selection
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2209,15 +3812,35 @@ fn update_crate_animation(
 struct GameModeMenuUi;
 
 #[derive(Component)]
-enum GameModeButton {
-    TestingGrounds,
-    Back,
-}
+struct GameModeCard(GameMode);
 
 #[derive(Component)]
-struct LockedMode;
+struct GameModeBackButton;
 
-fn spawn_gamemode_menu(mut commands: Commands) {
+/// Which tab is active in the gamemode select screen.
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+enum GameModeTabButton {
+    Standard,
+    Ltm,
+}
+
+/// Tracks which tab is currently showing.
+#[derive(Resource)]
+struct ActiveGameModeTab(GameModeTabButton);
+
+impl Default for ActiveGameModeTab {
+    fn default() -> Self { Self(GameModeTabButton::Standard) }
+}
+
+/// Marker for the grid container that holds the mode cards – used
+/// to swap content when the user clicks a different tab.
+#[derive(Component)]
+struct GameModeGrid;
+
+fn spawn_gamemode_menu(mut commands: Commands, selected_mode: Res<SelectedGameMode>, active_tab: Option<Res<ActiveGameModeTab>>) {
+    let tab = active_tab.map(|t| t.0).unwrap_or(GameModeTabButton::Standard);
+    commands.insert_resource(ActiveGameModeTab(tab));
+
     commands.spawn((
         Node {
             width: Val::Percent(100.0),
@@ -2225,131 +3848,180 @@ fn spawn_gamemode_menu(mut commands: Commands) {
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
-            row_gap: Val::Px(20.0),
+            padding: UiRect::all(Val::Px(40.0)),
+            row_gap: Val::Px(12.0),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.05, 0.05, 0.1)),
+        BackgroundColor(Color::srgb(0.03, 0.03, 0.06)),
         GameModeMenuUi,
     )).with_children(|root| {
+        // Title
         root.spawn((
             Text::new("SELECT GAME MODE"),
-            TextFont { font_size: 36.0, ..default() },
+            TextFont { font_size: 32.0, ..default() },
             TextColor(Color::WHITE),
-            Node { margin: UiRect::bottom(Val::Px(20.0)), ..default() },
+            Node { margin: UiRect::bottom(Val::Px(4.0)), ..default() },
         ));
 
-        // Game mode cards
+        // ── Tab bar: Standard | LTM ──
         root.spawn(Node {
             flex_direction: FlexDirection::Row,
-            column_gap: Val::Px(20.0),
+            column_gap: Val::Px(4.0),
+            margin: UiRect::bottom(Val::Px(8.0)),
             ..default()
-        }).with_children(|row| {
-            // Testing Grounds - Available
-            row.spawn((
+        }).with_children(|tab_row| {
+            for (label, tab_val) in [("STANDARD", GameModeTabButton::Standard), ("LIMITED TIME", GameModeTabButton::Ltm)] {
+                let is_active = tab_val == tab;
+                tab_row.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(160.0),
+                        height: Val::Px(36.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border: UiRect::bottom(Val::Px(if is_active { 2.0 } else { 0.0 })),
+                        ..default()
+                    },
+                    BackgroundColor(if is_active {
+                        Color::srgba(0.12, 0.15, 0.22, 1.0)
+                    } else {
+                        Color::srgba(0.06, 0.06, 0.1, 0.8)
+                    }),
+                    BorderColor::all(if is_active {
+                        Color::srgba(0.4, 0.6, 1.0, 0.8)
+                    } else {
+                        Color::NONE
+                    }),
+                    tab_val,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new(label),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(if is_active { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.6, 0.8) }),
+                    ));
+                });
+            }
+        });
+
+        // ── Mode card grid (depends on active tab) ──
+        let modes: Vec<GameMode> = match tab {
+            GameModeTabButton::Standard => {
+                let mut v: Vec<GameMode> = GameMode::competitive_modes().to_vec();
+                v.push(GameMode::TestingGrounds);
+                v
+            }
+            GameModeTabButton::Ltm => GameMode::ltm_modes().to_vec(),
+        };
+
+        // Up to 4 cards per row
+        for row_modes in modes.chunks(4) {
+            root.spawn((
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(12.0),
+                    ..default()
+                },
+                GameModeGrid,
+            )).with_children(|row| {
+                for &mode in row_modes {
+                    let is_selected = mode == selected_mode.mode;
+                    let accent = mode.accent_color();
+
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(220.0),
+                            height: Val::Px(160.0),
+                            flex_direction: FlexDirection::Column,
+                            padding: UiRect::all(Val::Px(14.0)),
+                            justify_content: JustifyContent::SpaceBetween,
+                            border: UiRect::all(Val::Px(if is_selected { 2.0 } else { 1.0 })),
+                            ..default()
+                        },
+                        BackgroundColor(if is_selected {
+                            Color::srgba(0.15, 0.2, 0.3, 1.0)
+                        } else {
+                            Color::srgba(0.08, 0.08, 0.12, 0.9)
+                        }),
+                        BorderColor::all(if is_selected { accent } else { Color::srgba(0.15, 0.15, 0.2, 0.5) }),
+                        GameModeCard(mode),
+                    )).with_children(|card| {
+                        // Top: short name + full name
+                        card.spawn(Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(4.0),
+                            ..default()
+                        }).with_children(|top| {
+                            top.spawn((
+                                Text::new(mode.short_name()),
+                                TextFont { font_size: 24.0, ..default() },
+                                TextColor(accent),
+                            ));
+                            top.spawn((
+                                Text::new(mode.display_name()),
+                                TextFont { font_size: 13.0, ..default() },
+                                TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.7, 0.7, 0.7, 0.9) }),
+                            ));
+                        });
+
+                        // Description
+                        card.spawn((
+                            Text::new(mode.description()),
+                            TextFont { font_size: 11.0, ..default() },
+                            TextColor(Color::srgba(0.5, 0.55, 0.6, 0.8)),
+                        ));
+
+                        // Bottom: player count + selected indicator
+                        card.spawn(Node {
+                            flex_direction: FlexDirection::Row,
+                            justify_content: JustifyContent::SpaceBetween,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        }).with_children(|bottom_row| {
+                            bottom_row.spawn((
+                                Text::new(mode.player_count()),
+                                TextFont { font_size: 10.0, ..default() },
+                                TextColor(Color::srgba(0.4, 0.5, 0.6, 0.7)),
+                            ));
+                            if is_selected {
+                                bottom_row.spawn((
+                                    Text::new("✓ SELECTED"),
+                                    TextFont { font_size: 10.0, ..default() },
+                                    TextColor(accent),
+                                ));
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
+        // ── Bottom row: BACK button ──
+        root.spawn(Node {
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(12.0),
+            margin: UiRect::top(Val::Px(8.0)),
+            ..default()
+        }).with_children(|bottom| {
+            bottom.spawn((
                 Button,
                 Node {
-                    width: Val::Px(250.0),
-                    height: Val::Px(300.0),
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(20.0)),
-                    justify_content: JustifyContent::SpaceBetween,
+                    width: Val::Px(140.0),
+                    height: Val::Px(42.0),
+                    justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                BackgroundColor(Color::srgb(0.12, 0.18, 0.25)),
-                GameModeButton::TestingGrounds,
-            )).with_children(|card| {
-                card.spawn((
-                    Text::new("TG"),
-                    TextFont { font_size: 36.0, ..default() },
-                    TextColor(Color::srgb(0.4, 0.7, 0.9)),
-                ));
-                card.spawn((
-                    Text::new("TESTING GROUNDS"),
-                    TextFont { font_size: 18.0, ..default() },
+                BackgroundColor(Color::srgb(0.25, 0.12, 0.12)),
+                GameModeBackButton,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("BACK"),
+                    TextFont { font_size: 14.0, ..default() },
                     TextColor(Color::WHITE),
                 ));
-                card.spawn((
-                    Text::new("Practice with all weapons. Spawn targets, test movement, and refine your aim."),
-                    TextFont { font_size: 12.0, ..default() },
-                    TextColor(Color::srgba(0.6, 0.7, 0.8, 0.8)),
-                ));
-                card.spawn((
-                    Text::new("PLAY"),
-                    TextFont { font_size: 16.0, ..default() },
-                    TextColor(Color::srgb(0.3, 0.8, 0.3)),
-                    Node { margin: UiRect::top(Val::Px(10.0)), ..default() },
-                ));
             });
-
-            // Deathmatch - Locked
-            spawn_locked_mode_card(row, "DM", "DEATHMATCH", "Free-for-all combat against other players.");
-
-            // Team Battle - Locked
-            spawn_locked_mode_card(row, "TB", "TEAM BATTLE", "Work with your team to achieve victory.");
-
-            // Capture Point - Locked
-            spawn_locked_mode_card(row, "CP", "CAPTURE POINT", "Capture and hold objectives to earn points.");
         });
-
-        // Back button
-        root.spawn((
-            Button,
-            Node {
-                width: Val::Px(200.0),
-                height: Val::Px(45.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                margin: UiRect::top(Val::Px(20.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.3, 0.15, 0.15)),
-            GameModeButton::Back,
-        )).with_children(|btn| {
-            btn.spawn((
-                Text::new("BACK"),
-                TextFont { font_size: 18.0, ..default() },
-                TextColor(Color::WHITE),
-            ));
-        });
-    });
-}
-
-fn spawn_locked_mode_card(parent: &mut ChildSpawnerCommands, icon: &str, name: &str, desc: &str) {
-    parent.spawn((
-        Node {
-            width: Val::Px(250.0),
-            height: Val::Px(300.0),
-            flex_direction: FlexDirection::Column,
-            padding: UiRect::all(Val::Px(20.0)),
-            justify_content: JustifyContent::SpaceBetween,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.08, 0.08, 0.1, 0.6)),
-        LockedMode,
-    )).with_children(|card: &mut ChildSpawnerCommands| {
-        card.spawn((
-            Text::new(icon),
-            TextFont { font_size: 32.0, ..default() },
-            TextColor(Color::srgba(0.3, 0.4, 0.5, 0.5)),
-        ));
-        card.spawn((
-            Text::new(name),
-            TextFont { font_size: 18.0, ..default() },
-            TextColor(Color::srgba(0.4, 0.4, 0.4, 0.6)),
-        ));
-        card.spawn((
-            Text::new(desc),
-            TextFont { font_size: 12.0, ..default() },
-            TextColor(Color::srgba(0.3, 0.3, 0.4, 0.5)),
-        ));
-        card.spawn((
-            Text::new("LOCKED"),
-            TextFont { font_size: 14.0, ..default() },
-            TextColor(Color::srgba(0.5, 0.4, 0.2, 0.7)),
-            Node { margin: UiRect::top(Val::Px(10.0)), ..default() },
-        ));
     });
 }
 
@@ -2360,44 +4032,85 @@ fn despawn_gamemode_menu(mut commands: Commands, query: Query<Entity, With<GameM
 }
 
 fn gamemode_interaction(
-    interaction_query: Query<(&Interaction, &GameModeButton), (Changed<Interaction>, With<Button>)>,
+    card_query: Query<(&Interaction, &GameModeCard), (Changed<Interaction>, With<Button>)>,
+    back_query: Query<&Interaction, (Changed<Interaction>, With<GameModeBackButton>)>,
+    tab_query: Query<(&Interaction, &GameModeTabButton), (Changed<Interaction>, With<Button>, Without<GameModeCard>, Without<GameModeBackButton>)>,
     mut next_state: ResMut<NextState<GameState>>,
+    mut selected_mode: ResMut<SelectedGameMode>,
+    mut active_tab: ResMut<ActiveGameModeTab>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
 ) {
-    for (interaction, button) in interaction_query.iter() {
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        next_state.set(GameState::MainMenu);
+        return;
+    }
+
+    // Tab switching – rebuild the menu with the new tab
+    for (interaction, &tab_val) in tab_query.iter() {
+        if *interaction == Interaction::Pressed && tab_val != active_tab.0 {
+            active_tab.0 = tab_val;
+            // Re-enter to rebuild the UI
+            next_state.set(GameState::GameModeSelect);
+            return;
+        }
+    }
+
+    for (interaction, card) in card_query.iter() {
         if *interaction == Interaction::Pressed {
-            match button {
-                GameModeButton::TestingGrounds => {
-                    next_state.set(GameState::Playing);
-                }
-                GameModeButton::Back => {
-                    next_state.set(GameState::MainMenu);
-                }
-            }
+            selected_mode.mode = card.0;
+            // Re-enter the menu to refresh the UI with new selection
+            next_state.set(GameState::MainMenu);
+        }
+    }
+    for interaction in back_query.iter() {
+        if *interaction == Interaction::Pressed {
+            next_state.set(GameState::MainMenu);
         }
     }
 }
 
 fn gamemode_hover(
-    mut query: Query<(&Interaction, &mut BackgroundColor, Option<&GameModeButton>), With<Button>>,
+    mut card_query: Query<(&Interaction, &mut BackgroundColor, &GameModeCard), With<Button>>,
+    mut back_query: Query<(&Interaction, &mut BackgroundColor), (With<GameModeBackButton>, Without<GameModeCard>, Without<GameModeTabButton>)>,
+    mut tab_btn_query: Query<(&Interaction, &mut BackgroundColor, &GameModeTabButton), (With<Button>, Without<GameModeCard>, Without<GameModeBackButton>)>,
+    selected_mode: Res<SelectedGameMode>,
+    active_tab: Res<ActiveGameModeTab>,
 ) {
-    for (interaction, mut bg, button) in query.iter_mut() {
-        if let Some(button) = button {
-            let (base, hover) = match button {
-                GameModeButton::TestingGrounds => (
-                    Color::srgb(0.12, 0.18, 0.25),
-                    Color::srgb(0.16, 0.24, 0.35),
-                ),
-                GameModeButton::Back => (
-                    Color::srgb(0.3, 0.15, 0.15),
-                    Color::srgb(0.45, 0.2, 0.2),
-                ),
-            };
-            *bg = match interaction {
-                Interaction::Hovered => BackgroundColor(hover),
-                Interaction::Pressed => BackgroundColor(hover),
-                _ => BackgroundColor(base),
-            };
-        }
+    for (interaction, mut bg, card) in card_query.iter_mut() {
+        let is_selected = card.0 == selected_mode.mode;
+        let base = if is_selected {
+            Color::srgba(0.15, 0.2, 0.3, 1.0)
+        } else {
+            Color::srgba(0.08, 0.08, 0.12, 0.9)
+        };
+        let hover = Color::srgba(0.2, 0.25, 0.35, 1.0);
+        *bg = match interaction {
+            Interaction::Hovered | Interaction::Pressed => BackgroundColor(hover),
+            _ => BackgroundColor(base),
+        };
+    }
+    for (interaction, mut bg) in back_query.iter_mut() {
+        let (base, hover) = (
+            Color::srgb(0.25, 0.12, 0.12),
+            Color::srgb(0.4, 0.18, 0.18),
+        );
+        *bg = match interaction {
+            Interaction::Hovered | Interaction::Pressed => BackgroundColor(hover),
+            _ => BackgroundColor(base),
+        };
+    }
+    for (interaction, mut bg, &tab_val) in tab_btn_query.iter_mut() {
+        let is_active = tab_val == active_tab.0;
+        let base = if is_active {
+            Color::srgba(0.12, 0.15, 0.22, 1.0)
+        } else {
+            Color::srgba(0.06, 0.06, 0.1, 0.8)
+        };
+        let hover = Color::srgba(0.15, 0.2, 0.28, 1.0);
+        *bg = match interaction {
+            Interaction::Hovered | Interaction::Pressed => BackgroundColor(hover),
+            _ => BackgroundColor(base),
+        };
     }
 }
 
@@ -2425,6 +4138,55 @@ fn update_loadout_tabs(
                     Color::srgba(0.7, 0.7, 0.7, 0.8)
                 };
             }
+        }
+    }
+}
+
+fn crate_weapon_picker_interaction(
+    mut crate_state: ResMut<CrateState>,
+    mut picker_state: ResMut<CrateWeaponPickerState>,
+    mut next_state: ResMut<NextState<GameState>>,
+    tab_query: Query<(&Interaction, &CrateWeaponPickerSlotTab), (Changed<Interaction>, With<Button>)>,
+    weapon_btn_query: Query<(&Interaction, &CrateWeaponPickerButton), (Changed<Interaction>, With<Button>, Without<CrateWeaponPickerSlotTab>)>,
+    select_btn_query: Query<&Interaction, (Changed<Interaction>, With<CrateWeaponSelectButton>, With<Button>)>,
+    clear_btn_query: Query<&Interaction, (Changed<Interaction>, With<CrateWeaponClearButton>, With<Button>)>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+) {
+    // "Selected: None" button opens the picker overlay
+    for interaction in select_btn_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            picker_state.picker_open = true;
+            next_state.set(GameState::CrateOpening);
+        }
+    }
+
+    // X/close button: clear selection OR close picker
+    for interaction in clear_btn_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            if picker_state.picker_open {
+                picker_state.picker_open = false;
+            }
+            crate_state.selected_weapon = None;
+            next_state.set(GameState::CrateOpening);
+        }
+    }
+
+    // Slot tab clicks
+    for (interaction, tab) in tab_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            picker_state.active_slot = tab.slot;
+            // Re-enter to refresh the weapon list
+            next_state.set(GameState::CrateOpening);
+        }
+    }
+
+    // Weapon selection clicks
+    for (interaction, btn) in weapon_btn_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            crate_state.selected_weapon = Some(btn.weapon_id.clone());
+            picker_state.picker_open = false;
+            // Re-enter to refresh selection highlights
+            next_state.set(GameState::CrateOpening);
         }
     }
 }

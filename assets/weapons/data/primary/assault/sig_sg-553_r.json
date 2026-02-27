@@ -1,0 +1,36 @@
+{
+  "info": {
+    "name": "SIG SG-553",
+    "description": "A Swiss precision assault rifle with exceptional accuracy and build quality.",
+    "manufacturer": "SIG Sauer",
+    "year_introduced": 2008
+  },
+  "meta": {
+    "weapon_type": "Assault Rifle",
+    "category": "assault",
+    "artist": "D_U",
+    "model_path": "weapons/models/primary/assault/sig_sg-553_r.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.2, -0.7],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.2
+  },
+  "attributes": {
+    "fire_rate": 0.08,
+    "reload_speed": 2.5,
+    "accuracy": 0.92,
+    "mobility": 0.65,
+    "stability": 0.85,
+    "horizontal_recoil": 0.4,
+    "vertical_recoil": 1.4,
+    "ads_speed": 0.6,
+    "equip_speed": 0.3,
+    "fire_modes": ["Auto", "Semi", "III Burst"]
+  },
+  "attachments": {
+    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
+    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [4.0, 0.0, 0.0] } },
+    "magazine": { "name": "30 Round Mag", "capacity": 30, "carry_capacity": 120, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": "5.56 NATO", "damage": 26.0, "penetration": 0.5, "velocity": 900.0 }
+  }
+}

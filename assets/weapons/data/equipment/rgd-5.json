@@ -9,6 +9,7 @@
   "meta": {
     "weapon_type": "Grenade",
     "category": "grenade",
+    "artist": "D_U",
     "model_path": "weapons/models/equipment/grenade/rgd-5.glb#Scene0",
     "icon_path": "weapons/icons/rgd-5.png",
     "position_offset": [0.2, -0.15, -0.4],

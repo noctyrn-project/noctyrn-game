@@ -8,6 +8,7 @@
   "meta": {
     "weapon_type": "1 Handed Sharp",
     "category": "blade",
+    "artist": "D_U",
     "model_path": "weapons/models/melee/blade/mx-8054.glb#Scene0",
     "icon_path": "",
     "position_offset": [0.3, -0.1, -0.6],

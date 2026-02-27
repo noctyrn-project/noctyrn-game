@@ -77,4 +77,4 @@ A unified packaging script is provided in `scripts/package.sh` that handles buil
 The script creates zip files in the `dist/` directory with timestamped names (e.g., `fearlyss_linux_v0.1.0_25-12-15@20:11.zip`).
 
 # Model credits
-Most gun models are from [Sketchfab] from creates like favoritelike69, D_U, and others, and are licensed under CC-BY-4.0
+Most gun models are from [Sketchfab] from creates like favoritelike69, D_U, TastyTony, GoldbergR, notcplkerry, and others, are licensed under CC-BY-4.0

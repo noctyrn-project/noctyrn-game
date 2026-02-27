@@ -7,6 +7,8 @@
     "type": "Grenade"
   },
   "meta": {
+    "weapon_type": "Example Type",
+    "artist": "Artist Name",
     "model_path": "weapons/models/equipment/example_equipment.glb#Scene0",
     "icon_path": "weapons/icons/example_equipment.png",
     "position_offset": [0.2, -0.15, -0.4],

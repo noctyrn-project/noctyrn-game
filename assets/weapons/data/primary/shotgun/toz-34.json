@@ -1,0 +1,39 @@
+{
+  "info": {
+    "name": "TOZ-34",
+    "description": "A Soviet over-under double-barrel shotgun, devastating at close range.",
+    "manufacturer": "Tula Arms Plant",
+    "year_introduced": 1964
+  },
+  "meta": {
+    "weapon_type": "Shotgun",
+    "category": "shotgun",
+    "artist": "D_U",
+    "model_path": "weapons/models/primary/shotgun/toz-34.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.2, -0.7],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.2
+  },
+  "attributes": {
+    "fire_rate": 0.5,
+    "reload_speed": 3.0,
+    "accuracy": 0.6,
+    "mobility": 0.7,
+    "stability": 0.5,
+    "horizontal_recoil": 2.0,
+    "vertical_recoil": 5.0,
+    "ads_speed": 0.55,
+    "equip_speed": 0.35,
+    "fire_modes": ["Semi"],
+    "pellet_count": 10,
+    "spread_cone": 5.5,
+    "shell_reload_time": 0.0
+  },
+  "attachments": {
+    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
+    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [3.5, 0.0, 0.0] } },
+    "magazine": { "name": "2 Shell Break", "capacity": 2, "carry_capacity": 20, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": "12 Gauge", "damage": 100.0, "penetration": 0.35, "velocity": 430.0 }
+  }
+}

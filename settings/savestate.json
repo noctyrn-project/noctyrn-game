@@ -1,0 +1,71 @@
+{
+  "credits": {
+    "balance": 99991599
+  },
+  "inventory": {
+    "owned": {
+      "axe": {},
+      "cjrb_chord": {
+        "ChromeForge": 1
+      },
+      "colt_m1911_a1": {
+        "CamoWoodland": 1
+      },
+      "fn_p90": {
+        "ChromeForge": 1
+      },
+      "fn_scar_h_std": {
+        "SolidGold": 1
+      },
+      "hk416": {
+        "SolidGreen": 1,
+        "VoidWalker": 1
+      },
+      "imi_uzi": {
+        "NeonPink": 1
+      },
+      "ingram_mac_10": {
+        "DragonScale": 1
+      },
+      "intratec_tec-9": {
+        "NeonPink": 1
+      },
+      "km2000": {
+        "NeonPink": 1
+      },
+      "msbs_grot_bayonet": {
+        "DragonScale": 1
+      },
+      "remington_870": {
+        "DragonScale": 1,
+        "NeonPink": 1
+      },
+      "rpd-44": {
+        "ArcticWhite": 1
+      },
+      "saiga-12_ex._30": {
+        "DragonScale": 1,
+        "NeonPink": 1
+      },
+      "sig_sg-553_r": {
+        "CamoDesert": 1
+      },
+      "toz-34": {
+        "NeonPink": 1
+      }
+    }
+  },
+  "loadout": {
+    "equipment": "rgd-5",
+    "melee": "msbs_grot_bayonet",
+    "primary": "hk416",
+    "secondary": "g17",
+    "skins": {
+      "Primary": "Default"
+    }
+  },
+  "progression": {
+    "level": 5,
+    "xp": 2350
+  }
+}

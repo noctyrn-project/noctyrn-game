@@ -8,6 +8,7 @@
   "meta": {
     "weapon_type": "Special",
     "category": "other",
+    "artist": "D_U",
     "model_path": "weapons/models/equipment/other/cerevo_dominator_paralyzer.glb#Scene0",
     "icon_path": "",
     "position_offset": [0.2, -0.15, -0.4],

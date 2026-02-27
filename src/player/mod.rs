@@ -2,8 +2,10 @@ use bevy::prelude::*;
 use bevy::window::CursorOptions;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::app::AppExit;
+use bevy::ecs::relationship::Relationship;
+use bevy::camera::visibility::RenderLayers;
 use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout, WeaponConfig, sync_loadout_to_configs, slot_from_weapon_type};
-use crate::gameplay::{Health, PlayerBody, Regenerating};
+use crate::gameplay::{Health, PlayerBody, Regenerating, TurretProjectile, NeedsTeamSpawn};
 use crate::ui_config::UiConfig;
 use crate::gameplay::DeathEvent;
 use crate::ui_settings::{spawn_settings_menu, update_settings_menu, handle_settings_interaction, handle_slider_drag, SettingsState};
@@ -17,12 +19,29 @@ mod camera;
 mod inventory;
 pub mod shooting;
 
-use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation, CrouchHeight, advance_physics, interpolate_rendered_transform};
+use movement::{
+    CrouchHeight,
+    GroundedState, MovementState, JumpState, SlideState, MovementConfig, MovementSet,
+    detect_ground, transition_movement_state, handle_jump, apply_acceleration,
+    apply_slide_physics, apply_friction, apply_gravity, integrate_velocity,
+    resolve_collisions, interpolate_rendered_transform,
+};
 use input::{AccumulatedInput, accumulate_input, clear_input, load_keybinds, PlayerToggleState};
 pub use input::{Keybinds, save_keybinds};
-use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov};
+use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching, SwitchState};
-use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil};
+use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil, Projectile, MuzzleFlash, Grenade, ExplosionParticle};
+
+pub use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation};
+
+/// Tag component for the main (world) camera. Used to distinguish from weapon camera.
+#[derive(Component)]
+pub struct MainCamera;
+
+/// Marker for entities that should render on the weapon layer (layer 1).
+/// Propagated automatically to children of WeaponModel entities.
+#[derive(Component)]
+pub struct WeaponLayerEntity;
 
 #[derive(Resource, Default)]
 pub struct DebugSettings {
@@ -34,6 +53,33 @@ pub struct DebugSettings {
 /// Resource to track whether the in-game weapon terminal overlay is open.
 #[derive(Resource, Default)]
 pub struct WeaponTerminalOpen(pub bool);
+
+/// Resource to track whether the pause menu overlay is visible.
+/// When true, the overlay is shown but the game keeps running underneath.
+#[derive(Resource, Default)]
+pub struct PauseMenuOpen(pub bool);
+
+/// Resource to track camera perspective mode (1st vs 3rd person).
+#[derive(Resource)]
+pub struct CameraMode {
+    pub third_person: bool,
+    pub distance: f32,
+    pub height_offset: f32,
+}
+
+impl Default for CameraMode {
+    fn default() -> Self {
+        Self {
+            third_person: false,
+            distance: 4.0,
+            height_offset: 1.5,
+        }
+    }
+}
+
+/// Tag component for the player's visible pill-shaped model.
+#[derive(Component)]
+pub struct PlayerModel;
 
 #[derive(Component)]
 pub struct WeaponTerminalUi;
@@ -78,6 +124,7 @@ pub enum GameState {
     LoadoutSelect,
     CrateOpening,
     GameModeSelect,
+    Cosmetics,
     Playing,
     Paused,
 }
@@ -92,20 +139,45 @@ impl Plugin for Player {
         app.init_resource::<RemappingState>();
         app.init_resource::<SettingsState>();
         app.init_resource::<WeaponTerminalOpen>();
+        app.init_resource::<CameraMode>();
+        app.init_resource::<PauseMenuOpen>();
+        app.init_resource::<CameraSway>();
         
         app.add_systems(Startup, load_keybinds);
         app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed));
-        app.add_systems(OnExit(GameState::Playing), despawn_gameplay_ui);
-        app.add_systems(OnEnter(GameState::Paused), spawn_pause_menu);
-        app.add_systems(OnExit(GameState::Paused), despawn_pause_menu);
+        app.add_systems(OnExit(GameState::Playing), (despawn_gameplay_ui, cleanup_pause_menu_on_exit));
         app.add_systems(Update, grab_cursor);
-        app.add_systems(Update, (toggle_pause, toggle_stats, update_stats_ui, debug_input, sync_settings, update_fov).run_if(in_state(GameState::Playing).or(in_state(GameState::Paused))));
-        app.add_systems(Update, (pause_menu_action, keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::Paused)));
+        app.add_systems(Update, (toggle_pause, update_stats_ui, debug_input, sync_settings, update_fov, toggle_camera_mode, animate_player_model).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, (manage_pause_overlay, pause_menu_action, keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::Playing)));
         app.add_systems(Update, (keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::MainMenu)));
 
         app.add_systems(PreUpdate, clear_fixed_timestep_flag);
         app.add_systems(FixedPreUpdate, set_fixed_time_step_flag);
-        app.add_systems(FixedUpdate, advance_physics.run_if(in_state(GameState::Playing)));
+        // Configure movement pipeline ordering within FixedUpdate
+        app.configure_sets(FixedUpdate, (
+            MovementSet::GroundDetection,
+            MovementSet::StateTransitions,
+            MovementSet::Jump,
+            MovementSet::Acceleration,
+            MovementSet::Sliding,
+            MovementSet::Friction,
+            MovementSet::Gravity,
+            MovementSet::Integration,
+            MovementSet::Collision,
+        ).chain());
+
+        // Register each movement system in its ordered set
+        app.add_systems(FixedUpdate, (
+            detect_ground.in_set(MovementSet::GroundDetection),
+            transition_movement_state.in_set(MovementSet::StateTransitions),
+            handle_jump.in_set(MovementSet::Jump),
+            apply_acceleration.in_set(MovementSet::Acceleration),
+            apply_slide_physics.in_set(MovementSet::Sliding),
+            apply_friction.in_set(MovementSet::Friction),
+            apply_gravity.in_set(MovementSet::Gravity),
+            integrate_velocity.in_set(MovementSet::Integration),
+            resolve_collisions.in_set(MovementSet::Collision),
+        ).run_if(in_state(GameState::Playing)));
         
         app.add_systems(Update, (
             handle_weapon_switching, 
@@ -118,6 +190,8 @@ impl Plugin for Player {
         ).run_if(in_state(GameState::Playing)));
 
         app.add_systems(Update, handle_camera_recoil.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, (apply_camera_sway, apply_camera_shake, apply_lean).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, ensure_weapon_render_layers.run_if(in_state(GameState::Playing)));
         
         app.add_systems(Update, (
             shooting::handle_explosion_particles,
@@ -154,11 +228,12 @@ impl Plugin for Player {
                     free_cam_movement,
                 )
                     .chain()
-                    .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
+                    .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop)
+                    .run_if(in_state(GameState::Playing)),
             ),
         );
 
-        app.add_systems(Update, sync_settings.run_if(in_state(GameState::Playing).or(in_state(GameState::Paused))));
+        app.add_systems(Update, sync_settings.run_if(in_state(GameState::Playing)));
     }
 }
 
@@ -185,14 +260,39 @@ fn spawn_player(
     asset_server: Res<AssetServer>,
     weapon_registry: Res<WeaponRegistry>,
     loadout: Res<PlayerLoadout>,
+    game_settings: Res<GameSettings>,
 ) {
-    // Spawn Camera
+    // Spawn Camera with settings-based FOV
     let camera_entity = commands.spawn((
         Camera3d::default(),
+        MainCamera,
         CameraSensitivity::default(),
         CameraRecoil::default(),
         Transform::from_xyz(0.0, 0.0, 0.0), // Initial pos, will be updated by translate_camera
+        Projection::Perspective(PerspectiveProjection {
+            fov: game_settings.graphics.fov.to_radians(),
+            ..default()
+        }),
     )).id();
+
+    // Weapon camera: renders only layer 1 (weapons) on top of the world.
+    // Clears depth but not colour so weapons never clip into walls.
+    let weapon_cam = commands.spawn((
+        Camera3d::default(),
+        Camera {
+            order: 1,
+            clear_color: ClearColorConfig::None,
+            ..default()
+        },
+        Projection::Perspective(PerspectiveProjection {
+            fov: game_settings.graphics.fov.to_radians(),
+            near: 0.01,
+            ..default()
+        }),
+        RenderLayers::layer(1),
+        Transform::default(),
+    )).id();
+    commands.entity(camera_entity).add_child(weapon_cam);
 
     // Spawn initial weapon with loadout skin
     let skin = loadout.get_skin(WeaponSlot::Primary);
@@ -210,7 +310,7 @@ fn spawn_player(
     let mut initial_recoil = crate::weapons::WeaponRecoil::default();
     initial_recoil.switch_offset = Vec3::new(0.0, -0.5, 0.0);
     initial_recoil.switch_rotation = Vec3::new(-1.0, 0.0, 0.0);
-    commands.entity(weapon_entity).insert((WeaponModel, initial_recoil));
+    commands.entity(weapon_entity).insert((WeaponModel, initial_recoil, WeaponLayerEntity, RenderLayers::layer(1)));
     commands.entity(camera_entity).add_child(weapon_entity);
     
     // Start in Equipping state so the weapon animates up and firing is blocked
@@ -219,21 +319,49 @@ fn spawn_player(
     initial_inventory.switch_timer = Timer::from_seconds(0.4, TimerMode::Once);
 
     let initial_pos = Vec3::new(0.0, 2.0, 0.0);
-    commands.spawn((
+    let player_entity = commands.spawn((
         Name::new("Player"),
-        Transform::from_translation(initial_pos).with_scale(Vec3::splat(0.3)),
+        Transform::from_translation(initial_pos).with_scale(Vec3::splat(1.0)),
+        Visibility::default(),
         AccumulatedInput::default(),
         PlayerToggleState::default(),
         Velocity::default(),
         PhysicalTranslation(initial_pos),
         PreviousPhysicalTranslation(initial_pos),
         CrouchHeight::default(),
+        GroundedState::default(),
+        MovementState::default(),
+        JumpState::default(),
+        SlideState::default(),
+        movement::LeanState::default(),
+    )).insert((
+        MovementConfig::default(),
         initial_inventory,
         AmmoStatus::default(),
         Health { current: 100.0, max: 100.0 },
         Regenerating::default(),
         PlayerBody,
-    ));
+        NeedsTeamSpawn,
+    )).id();
+
+    // Spawn pill-shaped player model as a child (capsule mesh)
+    let pill_mesh = meshes.add(Capsule3d::new(0.4, 1.8));
+    let pill_material = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.3, 0.5, 0.7, 0.8),
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    commands.entity(player_entity).with_children(|parent| {
+        parent.spawn((
+            Mesh3d(pill_mesh),
+            MeshMaterial3d(pill_material),
+            // Offset so capsule center aligns with body center
+            Transform::from_xyz(0.0, 1.3, 0.0),
+            PlayerModel,
+            // Hidden in 1st person by default
+            Visibility::Hidden,
+        ));
+    });
 }
 
 fn spawn_ammo_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
@@ -277,6 +405,7 @@ fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
             height: Val::Px(0.0),
             ..default()
         },
+        GameplayUi,
         // Parent node for crosshair
     )).with_children(|parent| {
         // Dot
@@ -465,12 +594,10 @@ fn update_kill_feed(
 struct PauseMenuUi;
 
 #[derive(Component)]
-struct PauseCamera;
-
-#[derive(Component)]
 enum PauseMenuButton {
     Resume,
     Settings,
+    Reset,
     MainMenu,
     Quit,
 }
@@ -481,24 +608,34 @@ pub struct GameplayUi;
 fn despawn_gameplay_ui(
     mut commands: Commands,
     query: Query<Entity, Or<(With<AmmoUi>, With<CrosshairTop>, With<CrosshairBottom>, With<CrosshairLeft>, With<CrosshairRight>, With<KillFeedContainer>, With<StatsUi>, With<GameplayUi>)>>,
+    health_ui_query: Query<Entity, Or<(With<crate::gameplay::PlayerHealthUi>, With<crate::gameplay::PlayerHealthBar>, With<crate::gameplay::DeathScreen>)>>,
     camera_query: Query<Entity, With<Camera>>,
     player_query: Query<Entity, With<PlayerBody>>,
+    projectile_query: Query<Entity, With<Projectile>>,
+    flash_query: Query<Entity, With<MuzzleFlash>>,
+    grenade_query: Query<Entity, With<Grenade>>,
+    weapon_model_query: Query<Entity, With<WeaponModel>>,
+    explosion_query: Query<Entity, With<ExplosionParticle>>,
+    turret_proj_query: Query<Entity, With<TurretProjectile>>,
 ) {
-    for entity in query.iter() {
-        commands.entity(entity).despawn();
-    }
-    for entity in camera_query.iter() {
-        commands.entity(entity).despawn();
-    }
-    for entity in player_query.iter() {
-        commands.entity(entity).despawn();
+    for entity in query.iter()
+        .chain(health_ui_query.iter())
+        .chain(camera_query.iter())
+        .chain(player_query.iter())
+        .chain(projectile_query.iter())
+        .chain(flash_query.iter())
+        .chain(grenade_query.iter())
+        .chain(weapon_model_query.iter())
+        .chain(explosion_query.iter())
+        .chain(turret_proj_query.iter())
+    {
+        if let Ok(mut cmds) = commands.get_entity(entity) {
+            cmds.despawn();
+        }
     }
 }
 
-fn spawn_pause_menu(mut commands: Commands) {
-    // Spawn a Camera2d for the pause menu UI since the menu camera is despawned during Playing
-    commands.spawn((Camera2d, PauseCamera, Camera { order: 10, ..default() }));
-
+fn spawn_pause_menu(commands: &mut Commands) {
     commands
         .spawn((
             Node {
@@ -510,7 +647,8 @@ fn spawn_pause_menu(mut commands: Commands) {
                 row_gap: Val::Px(10.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+            GlobalZIndex(200),
             PauseMenuUi,
         ))
         .with_children(|parent| {
@@ -524,6 +662,7 @@ fn spawn_pause_menu(mut commands: Commands) {
             for (label, button, color) in [
                 ("Resume", PauseMenuButton::Resume, Color::srgb(0.3, 0.3, 0.3)),
                 ("Settings", PauseMenuButton::Settings, Color::srgb(0.3, 0.3, 0.3)),
+                ("Reset", PauseMenuButton::Reset, Color::srgb(0.3, 0.35, 0.5)),
                 ("Main Menu", PauseMenuButton::MainMenu, Color::srgb(0.4, 0.3, 0.1)),
                 ("Quit", PauseMenuButton::Quit, Color::srgb(0.5, 0.1, 0.1)),
             ] {
@@ -549,20 +688,52 @@ fn spawn_pause_menu(mut commands: Commands) {
         });
 }
 
-fn despawn_pause_menu(
-    mut commands: Commands, 
+/// Clean up pause menu when leaving the Playing state entirely (e.g. going to main menu)
+fn cleanup_pause_menu_on_exit(
+    mut commands: Commands,
     query: Query<Entity, With<PauseMenuUi>>,
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
-    pause_cam_query: Query<Entity, With<PauseCamera>>,
+    mut pause_open: ResMut<PauseMenuOpen>,
 ) {
+    pause_open.0 = false;
     for entity in query.iter() {
         commands.entity(entity).despawn();
     }
     for entity in settings_query.iter() {
         commands.entity(entity).despawn();
     }
-    for entity in pause_cam_query.iter() {
-        commands.entity(entity).despawn();
+}
+
+/// Manages spawning/despawning the pause overlay based on PauseMenuOpen resource
+fn manage_pause_overlay(
+    mut commands: Commands,
+    pause_open: Res<PauseMenuOpen>,
+    mut existing_ui: Query<(Entity, &mut Visibility), With<PauseMenuUi>>,
+    settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
+) {
+    let settings_open = !settings_query.is_empty();
+
+    // Hide pause menu UI when settings overlay is open
+    for (_entity, mut vis) in existing_ui.iter_mut() {
+        *vis = if settings_open { Visibility::Hidden } else { Visibility::Inherited };
+    }
+
+    if !pause_open.is_changed() {
+        return;
+    }
+    if pause_open.0 {
+        // Spawn pause overlay if not already present
+        if existing_ui.is_empty() {
+            spawn_pause_menu(&mut commands);
+        }
+    } else {
+        // Despawn pause overlay
+        for (entity, _) in existing_ui.iter() {
+            commands.entity(entity).despawn();
+        }
+        for entity in settings_query.iter() {
+            commands.entity(entity).despawn();
+        }
     }
 }
 
@@ -572,12 +743,16 @@ fn pause_menu_action(
     mut exit: MessageWriter<AppExit>,
     mut commands: Commands,
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
+    mut pause_open: ResMut<PauseMenuOpen>,
+    mut player_query: Query<(&mut Health, &mut PhysicalTranslation, &mut Velocity), With<PlayerBody>>,
 ) {
+    if !pause_open.0 { return; }
+
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
             match button {
                 PauseMenuButton::Resume => {
-                    next_state.set(GameState::Playing);
+                    pause_open.0 = false;
                 }
                 PauseMenuButton::Settings => {
                     if let Some(entity) = settings_query.iter().next() {
@@ -586,7 +761,17 @@ fn pause_menu_action(
                         spawn_settings_menu(&mut commands);
                     }
                 }
+                PauseMenuButton::Reset => {
+                    // Reset player position and health
+                    for (mut health, mut position, mut velocity) in player_query.iter_mut() {
+                        health.current = health.max;
+                        position.0 = Vec3::new(0.0, 2.0, 0.0);
+                        velocity.0 = Vec3::ZERO;
+                    }
+                    pause_open.0 = false;
+                }
                 PauseMenuButton::MainMenu => {
+                    pause_open.0 = false;
                     next_state.set(GameState::MainMenu);
                 }
                 PauseMenuButton::Quit => {
@@ -620,18 +805,72 @@ fn debug_input(
     }
 }
 
+fn toggle_camera_mode(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut camera_mode: ResMut<CameraMode>,
+    mut model_query: Query<&mut Visibility, With<PlayerModel>>,
+    mut weapon_query: Query<&mut Visibility, (With<inventory::WeaponModel>, Without<PlayerModel>)>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F5) {
+        camera_mode.third_person = !camera_mode.third_person;
+        println!("Camera Mode: {}", if camera_mode.third_person { "3rd Person" } else { "1st Person" });
+
+        // Show/hide player model and weapon model
+        for mut vis in model_query.iter_mut() {
+            *vis = if camera_mode.third_person { Visibility::Inherited } else { Visibility::Hidden };
+        }
+        for mut vis in weapon_query.iter_mut() {
+            *vis = if camera_mode.third_person { Visibility::Hidden } else { Visibility::Inherited };
+        }
+    }
+}
+
+/// Makes the pill model lean/tilt based on the player's movement state and lean.
+fn animate_player_model(
+    time: Res<Time>,
+    mut model_query: Query<&mut Transform, With<PlayerModel>>,
+    state_query: Query<(&MovementState, &Velocity, &movement::LeanState), With<PlayerBody>>,
+) {
+    let Ok((state, velocity, lean)) = state_query.single() else { return };
+
+    let target_pitch = match *state {
+        MovementState::Sprinting => -0.15,  // Lean forward when sprinting
+        MovementState::Crouching => -0.08,  // Slight lean forward when crouching
+        MovementState::Sliding => 0.25,     // Lean back when sliding
+        MovementState::Airborne => {
+            if velocity.y > 0.0 { -0.1 } else { 0.05 } // Forward on jump up, back on fall
+        }
+        MovementState::Prone => 1.4,        // Nearly horizontal
+        _ => 0.0,                            // Upright for idle/walking
+    };
+
+    // Slight roll based on horizontal velocity for strafing lean
+    let horizontal = Vec3::new(velocity.x, 0.0, velocity.z);
+    let speed = horizontal.length();
+    let strafe_roll = if speed > 1.0 {
+        let right_dot = velocity.x * 0.01;
+        (-right_dot * 0.05).clamp(-0.08, 0.08)
+    } else {
+        0.0
+    };
+
+    // Add lean tilt to model (from Q/E lean)
+    let lean_roll = lean.current;
+
+    let target_rot = Quat::from_euler(EulerRot::XZY, target_pitch, 0.0, strafe_roll + lean_roll);
+
+    for mut transform in model_query.iter_mut() {
+        transform.rotation = transform.rotation.slerp(target_rot, time.delta_secs() * 6.0);
+    }
+}
+
 fn toggle_pause(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     keybinds: Res<Keybinds>,
-    state: Res<State<GameState>>,
-    mut next_state: ResMut<NextState<GameState>>,
+    mut pause_open: ResMut<PauseMenuOpen>,
 ) {
     if keyboard_input.just_pressed(keybinds.pause) {
-        match state.get() {
-            GameState::Playing => next_state.set(GameState::Paused),
-            GameState::Paused => next_state.set(GameState::Playing),
-            _ => {}
-        }
+        pause_open.0 = !pause_open.0;
     }
 }
 
@@ -704,10 +943,11 @@ fn grab_cursor(
     mut cursors: Query<&mut CursorOptions>,
     state: Res<State<GameState>>,
     terminal_open: Res<WeaponTerminalOpen>,
+    pause_open: Res<PauseMenuOpen>,
 ) {
     if let Ok(mut cursor) = cursors.single_mut() {
         match state.get() {
-            GameState::Playing if !terminal_open.0 => {
+            GameState::Playing if !terminal_open.0 && !pause_open.0 => {
                 cursor.visible = false;
                 cursor.grab_mode = bevy::window::CursorGrabMode::Locked;
             }
@@ -769,6 +1009,26 @@ fn keybind_remapping_system(
     }
 }
 
+/// Propagate weapon render layer to all descendants of WeaponModel entities.
+/// Runs every frame; once all descendants are tagged the query is empty (free).
+fn ensure_weapon_render_layers(
+    mut commands: Commands,
+    weapon_query: Query<Entity, (With<WeaponModel>, Without<WeaponLayerEntity>)>,
+    untagged_children: Query<(Entity, &ChildOf), Without<WeaponLayerEntity>>,
+    weapon_parents: Query<(), With<WeaponLayerEntity>>,
+) {
+    // Tag any WeaponModel entity that doesn't have the marker yet
+    for entity in weapon_query.iter() {
+        commands.entity(entity).insert((WeaponLayerEntity, RenderLayers::layer(1)));
+    }
+    // Propagate one level of children per frame
+    for (entity, child_of) in untagged_children.iter() {
+        if weapon_parents.get(child_of.get()).is_ok() {
+            commands.entity(entity).insert((WeaponLayerEntity, RenderLayers::layer(1)));
+        }
+    }
+}
+
 fn draw_hitboxes(
     mut gizmos: Gizmos,
     enemy_query: Query<(&GlobalTransform, Option<&crate::gameplay::Turret>), With<crate::gameplay::Enemy>>,
@@ -780,12 +1040,15 @@ fn draw_hitboxes(
         return;
     }
 
-    // Draw all static colliders (green wireframe)
+    // Draw all static colliders (green wireframe) — respecting rotation
     for (transform, collider) in collider_query.iter() {
         let pos = transform.translation();
+        let rot = transform.to_scale_rotation_translation().1;
         let size = collider.half_extents * 2.0;
         gizmos.cube(
-            Transform::from_translation(pos).with_scale(size),
+            Transform::from_translation(pos)
+                .with_rotation(rot)
+                .with_scale(size),
             Color::srgba(0.0, 1.0, 0.0, 0.4),
         );
     }

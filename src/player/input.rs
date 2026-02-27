@@ -27,6 +27,10 @@ pub struct Keybinds {
     pub shoot: MouseButton,
     pub ads: MouseButton,
     pub reload: KeyCode,
+    pub prone: KeyCode,
+    pub lean_left: KeyCode,
+    pub lean_right: KeyCode,
+    pub scoreboard: KeyCode,
 }
 
 impl Default for Keybinds {
@@ -39,7 +43,7 @@ impl Default for Keybinds {
             jump: KeyCode::Space,
             sprint: KeyCode::ShiftLeft,
             crouch: KeyCode::ControlLeft,
-            interact: KeyCode::KeyE,
+            interact: KeyCode::KeyF,
             grenade: KeyCode::KeyG,
             melee: KeyCode::KeyV,
             stats: KeyCode::Tab,
@@ -47,6 +51,10 @@ impl Default for Keybinds {
             shoot: MouseButton::Left,
             ads: MouseButton::Right,
             reload: KeyCode::KeyR,
+            prone: KeyCode::KeyZ,
+            lean_left: KeyCode::KeyQ,
+            lean_right: KeyCode::KeyE,
+            scoreboard: KeyCode::Tab,
         }
     }
 }
@@ -93,6 +101,9 @@ pub struct AccumulatedInput {
     pub aim: bool,
     pub stats: bool,
     pub pause: bool,
+    pub prone: bool,
+    pub lean_left: bool,
+    pub lean_right: bool,
 }
 
 /// Handle keyboard input and accumulate it in the `AccumulatedInput` component.
@@ -102,10 +113,11 @@ pub fn accumulate_input(
     keybinds: Res<Keybinds>,
     game_settings: Res<GameSettings>,
     mut player: Single<(&mut AccumulatedInput, &mut PlayerToggleState)>,
-    camera: Single<&Transform, With<Camera>>,
+    camera: Single<&Transform, With<super::MainCamera>>,
     terminal_open: Res<super::WeaponTerminalOpen>,
+    pause_open: Res<super::PauseMenuOpen>,
 ) {
-    if terminal_open.0 { return; }
+    if terminal_open.0 || pause_open.0 { return; }
     let (mut input, mut toggle_state) = player.into_inner();
     let mut movement = Vec3::ZERO;
     if keyboard_input.pressed(keybinds.move_forward) {
@@ -180,6 +192,9 @@ pub fn accumulate_input(
     input.fire = mouse_input.pressed(keybinds.shoot);
     input.stats = keyboard_input.just_pressed(keybinds.stats);
     input.pause = keyboard_input.just_pressed(keybinds.pause);
+    input.prone = keyboard_input.just_pressed(keybinds.prone);
+    input.lean_left = keyboard_input.pressed(keybinds.lean_left);
+    input.lean_right = keyboard_input.pressed(keybinds.lean_right);
 }
 
 // Clear the input after it was processed in the fixed timestep.
@@ -203,6 +218,10 @@ impl Keybinds {
             "Stats" => self.stats = key,
             "Pause" => self.pause = key,
             "Reload" => self.reload = key,
+            "Prone" => self.prone = key,
+            "Lean Left" => self.lean_left = key,
+            "Lean Right" => self.lean_right = key,
+            "Scoreboard" => self.scoreboard = key,
             _ => warn!("Unknown keybind action: {}", action),
         }
     }
@@ -222,6 +241,10 @@ impl Keybinds {
             "Stats" => self.stats,
             "Pause" => self.pause,
             "Reload" => self.reload,
+            "Prone" => self.prone,
+            "Lean Left" => self.lean_left,
+            "Lean Right" => self.lean_right,
+            "Scoreboard" => self.scoreboard,
             _ => KeyCode::Unidentified(bevy::input::keyboard::NativeKeyCode::Unidentified),
         }
     }

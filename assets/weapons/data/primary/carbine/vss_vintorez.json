@@ -1,0 +1,36 @@
+{
+  "info": {
+    "name": "VSS Vintorez",
+    "description": "An integrally suppressed Russian carbine designed for covert operations.",
+    "manufacturer": "TsNIITochMash",
+    "year_introduced": 1987
+  },
+  "meta": {
+    "weapon_type": "Carbine",
+    "category": "carbine",
+    "artist": "D_U",
+    "model_path": "weapons/models/primary/carbine/vss_vintorez.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.3, -0.2, -0.7],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.2
+  },
+  "attributes": {
+    "fire_rate": 0.09,
+    "reload_speed": 2.8,
+    "accuracy": 0.85,
+    "mobility": 0.72,
+    "stability": 0.8,
+    "horizontal_recoil": 0.5,
+    "vertical_recoil": 1.5,
+    "ads_speed": 0.6,
+    "equip_speed": 0.3,
+    "fire_modes": ["Auto", "Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "PSO-1 Scope", "type": "Scope", "zoom_level": 4.0, "zoom_speed": 0.4, "sway_modifier": 0.1, "stability_modifier": 0.1, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.08, 0.2] } },
+    "barrel": { "name": "Integrated Suppressor", "range_modifier": -0.05, "accuracy_modifier": 0.05, "horizontal_recoil_modifier": -0.1, "vertical_recoil_modifier": -0.1, "special_effects": ["suppressed"], "meta": { "muzzle_flash_offset": [3.5, 0.0, 0.0] } },
+    "magazine": { "name": "10 Round Mag", "capacity": 10, "carry_capacity": 50, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": "9x39mm SP-5", "damage": 38.0, "penetration": 0.6, "velocity": 290.0 }
+  }
+}

@@ -349,6 +349,7 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
         toml::from_str(&content).unwrap_or_else(|_| InfoConfig {
             title: "Fearlyss".to_string(),
             version: "Unknown".to_string(),
+            disclaimer: String::new(),
             description: "Failed to load info.".to_string(),
             credits: vec![],
         })
@@ -356,6 +357,7 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
         InfoConfig {
             title: "Fearlyss".to_string(),
             version: "Unknown".to_string(),
+            disclaimer: String::new(),
             description: "Info file not found.".to_string(),
             credits: vec![],
         }
@@ -375,6 +377,31 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
             TextColor(Color::srgb(0.7, 0.7, 0.7)),
             Node { margin: UiRect::bottom(Val::Px(20.0)), ..default() },
         ));
+
+        // Disclaimer section
+        if !info.disclaimer.is_empty() {
+            parent.spawn((
+                Text::new("Disclaimer"),
+                TextFont { font_size: 22.0, ..default() },
+                TextColor(Color::srgb(0.9, 0.7, 0.2)),
+                Node { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
+            ));
+            parent.spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    padding: UiRect::all(Val::Px(12.0)),
+                    margin: UiRect::bottom(Val::Px(20.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.15, 0.12, 0.05, 0.5)),
+            )).with_children(|disc_box| {
+                disc_box.spawn((
+                    Text::new(&info.disclaimer),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgba(0.9, 0.85, 0.6, 0.9)),
+                ));
+            });
+        }
 
         parent.spawn((
             Text::new(&info.description),
@@ -418,6 +445,9 @@ fn spawn_keybinds_settings(commands: &mut Commands, parent: Entity, keybinds: &K
             ("Jump", keybinds.jump),
             ("Sprint", keybinds.sprint),
             ("Crouch", keybinds.crouch),
+            ("Prone", keybinds.prone),
+            ("Lean Left", keybinds.lean_left),
+            ("Lean Right", keybinds.lean_right),
             ("Reload", keybinds.reload),
             ("Interact", keybinds.interact),
             ("Grenade", keybinds.grenade),
@@ -754,6 +784,8 @@ pub fn handle_settings_interaction(
 struct InfoConfig {
     title: String,
     version: String,
+    #[serde(default)]
+    disclaimer: String,
     description: String,
     credits: Vec<String>,
 }

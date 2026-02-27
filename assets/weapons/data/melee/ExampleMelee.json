@@ -7,6 +7,7 @@
   },
   "meta": {
     "type": "1 Handed Sharp",
+    "artist": "Artist Name",
     "model_path": "weapons/models/melee/example_melee.glb#Scene0",
     "icon_path": "weapons/icons/example_melee.png",
     "position_offset": [0.3, -0.1, -0.6],

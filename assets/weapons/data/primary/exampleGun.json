@@ -7,6 +7,7 @@
   },
   "meta": {
     "weapon_type": "Primary",
+    "category": "assault",
     "model_path": "weapons/models/primary/example_gun.glb#Scene0",
     "position_offset": [0.3, -0.2, -0.7],
     "rotation_offset": [0.00, 1.57, 0.0],
@@ -136,6 +137,16 @@
             "position_offset": [-0.3, 0.0, -1.0],
             "rotation_offset": [0.0, 0.0, 0.0]
         }
+    }
+  },
+  "cosmetics": {
+    "charm": {
+        "name": "Default Charm",
+        "mesh_path": "cosmetics/charms/default_charm.glb#Scene0",
+        "position_offset": [0.1, -0.1, 0.5],
+        "rotation_offset": [0.0, 0.0, 0.0],
+        "scale": 1.0,
+        "special_effects": []
     }
   }
 }

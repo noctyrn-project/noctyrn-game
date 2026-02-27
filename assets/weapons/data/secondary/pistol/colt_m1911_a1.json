@@ -1,0 +1,36 @@
+{
+  "info": {
+    "name": "Colt M1911 A1",
+    "description": "The classic American service pistol, reliable and hard-hitting.",
+    "manufacturer": "Colt's Manufacturing",
+    "year_introduced": 1911
+  },
+  "meta": {
+    "weapon_type": "Pistol",
+    "category": "pistol",
+    "artist": "D_U",
+    "model_path": "weapons/models/secondary/pistol/colt_m1911_a1.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [0.25, -0.15, -0.5],
+    "rotation_offset": [0.0, 1.57, 0.0],
+    "scale": 0.1
+  },
+  "attributes": {
+    "fire_rate": 0.18,
+    "reload_speed": 1.6,
+    "accuracy": 0.88,
+    "mobility": 0.9,
+    "stability": 0.65,
+    "horizontal_recoil": 0.5,
+    "vertical_recoil": 0.8,
+    "ads_speed": 0.8,
+    "equip_speed": 0.25,
+    "fire_modes": ["Semi"]
+  },
+  "attachments": {
+    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.25, 0.08, 0.1] } },
+    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [2.0, 1.15, -0.6] } },
+    "magazine": { "name": "7 Round Mag", "capacity": 7, "carry_capacity": 35, "reload_speed_modifier": 0.0 },
+    "ammo": { "name": ".45 ACP", "damage": 30.0, "penetration": 0.35, "velocity": 260.0 }
+  }
+}

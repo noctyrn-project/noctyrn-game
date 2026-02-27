@@ -255,7 +255,7 @@ impl WeaponSkin {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum WeaponSlot {
     #[default]
     Primary,
@@ -373,6 +373,17 @@ pub struct WeaponAttributes {
     pub amount: u32,
     #[serde(default)]
     pub special_effects: Vec<String>,
+
+    // ── Shotgun-specific ──
+    /// Number of pellets per shot (0 = single projectile weapon)
+    #[serde(default)]
+    pub pellet_count: u32,
+    /// Spread cone angle in degrees for pellet scatter
+    #[serde(default)]
+    pub spread_cone: f32,
+    /// Time per shell for shell-by-shell reload (0 = magazine reload)
+    #[serde(default)]
+    pub shell_reload_time: f32,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -435,12 +446,67 @@ pub struct AmmoAttachment {
     pub meta: Option<AttachmentMeta>,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct UnderbarrelAttachment {
+    pub name: String,
+    #[serde(default)]
+    pub stability_modifier: f32,
+    #[serde(default)]
+    pub mobility_modifier: f32,
+    #[serde(default)]
+    pub horizontal_recoil_modifier: f32,
+    #[serde(default)]
+    pub vertical_recoil_modifier: f32,
+    #[serde(default)]
+    pub ads_speed_modifier: f32,
+    #[serde(default)]
+    pub equip_speed_modifier: f32,
+    #[serde(default)]
+    pub special_effects: Vec<String>,
+    pub meta: Option<AttachmentMeta>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SidebarrelAttachment {
+    pub name: String,
+    #[serde(default)]
+    pub stability_modifier: f32,
+    #[serde(default)]
+    pub mobility_modifier: f32,
+    #[serde(default)]
+    pub special_effects: Vec<String>,
+    pub meta: Option<AttachmentMeta>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct StockAttachment {
+    pub name: String,
+    #[serde(default)]
+    pub mobility_modifier: f32,
+    #[serde(default)]
+    pub stability_modifier: f32,
+    #[serde(default)]
+    pub horizontal_recoil_modifier: f32,
+    #[serde(default)]
+    pub vertical_recoil_modifier: f32,
+    #[serde(default)]
+    pub ads_speed_modifier: f32,
+    #[serde(default)]
+    pub equip_speed_modifier: f32,
+    #[serde(default)]
+    pub special_effects: Vec<String>,
+    pub meta: Option<AttachmentMeta>,
+}
+
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct WeaponAttachments {
     pub optic: Option<OpticAttachment>,
     pub barrel: Option<BarrelAttachment>,
+    pub underbarrel: Option<UnderbarrelAttachment>,
+    pub sidebarrel: Option<SidebarrelAttachment>,
     pub magazine: Option<MagazineAttachment>,
     pub ammo: Option<AmmoAttachment>,
+    pub stock: Option<StockAttachment>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -454,7 +520,7 @@ pub struct WeaponConfig {
 
 pub type WeaponId = String;
 
-#[derive(Resource, Clone, Debug)]
+#[derive(Resource, Clone, Debug, Serialize, Deserialize)]
 pub struct PlayerLoadout {
     pub primary: WeaponId,
     pub secondary: WeaponId,
@@ -501,14 +567,116 @@ impl PlayerLoadout {
     pub fn set_skin(&mut self, slot: WeaponSlot, skin: WeaponSkin) {
         self.skins.insert(slot, skin);
     }
+
+    pub fn save(&self) {
+        let path = "settings/savestate.json";
+        
+        // Load existing savestate or create new
+        let mut savestate: serde_json::Value = match std::fs::read_to_string(path) {
+            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
+            Err(_) => serde_json::json!({}),
+        };
+        
+        // Update loadout section
+        savestate["loadout"] = serde_json::to_value(self).unwrap();
+        
+        if let Ok(content) = serde_json::to_string_pretty(&savestate) {
+            let _ = std::fs::write(path, content);
+        }
+    }
+
+    pub fn load() -> Self {
+        let path = "settings/savestate.json";
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                if let Ok(savestate) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(loadout) = savestate.get("loadout") {
+                        return serde_json::from_value(loadout.clone()).unwrap_or_default();
+                    }
+                }
+                Self::default()
+            },
+            Err(_) => Self::default(),
+        }
+    }
 }
 
 /// Persistent inventory of skins owned per weapon, with duplicate counts.
-/// Stored as JSON at `settings/skin_inventory.json`.
+/// Stored as JSON at `settings/savestate.json`.
 /// Keys: weapon_id -> skin_name -> count
 #[derive(Resource, Clone, Debug, Serialize, Deserialize)]
 pub struct SkinInventory {
     pub owned: HashMap<String, HashMap<WeaponSkin, u32>>,
+}
+
+/// Persistent credits currency. Earned by selling duplicate skins.
+/// Stored at `settings/savestate.json`.
+#[derive(Resource, Clone, Debug, Serialize, Deserialize)]
+pub struct PlayerCredits {
+    pub balance: u64,
+}
+
+impl Default for PlayerCredits {
+    fn default() -> Self {
+        Self { balance: 500 } // Start with 500 credits
+    }
+}
+
+impl PlayerCredits {
+    pub fn save(&self) {
+        let path = "settings/savestate.json";
+        
+        // Load existing savestate or create new
+        let mut savestate: serde_json::Value = match std::fs::read_to_string(path) {
+            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
+            Err(_) => serde_json::json!({}),
+        };
+        
+        // Update credits section
+        savestate["credits"] = serde_json::to_value(self).unwrap();
+        
+        if let Ok(content) = serde_json::to_string_pretty(&savestate) {
+            let _ = std::fs::write(path, content);
+        }
+    }
+
+    pub fn load() -> Self {
+        let path = "settings/savestate.json";
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                if let Ok(savestate) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(credits) = savestate.get("credits") {
+                        return serde_json::from_value(credits.clone()).unwrap_or_default();
+                    }
+                }
+                Self::default()
+            },
+            Err(_) => Self::default(),
+        }
+    }
+
+    /// Credit value for selling a skin of a given rarity
+    pub fn sell_value(rarity: SkinRarity) -> u64 {
+        match rarity {
+            SkinRarity::Common => 10,
+            SkinRarity::Uncommon => 25,
+            SkinRarity::Rare => 50,
+            SkinRarity::Epic => 100,
+            SkinRarity::Legendary => 250,
+            SkinRarity::Mythic => 1000,
+        }
+    }
+
+    /// Cost to open each crate tier
+    pub fn crate_cost(crate_tier: u8) -> u64 {
+        match crate_tier {
+            0 => 50,   // Standard
+            1 => 100,  // Tactical
+            2 => 250,  // Elite
+            3 => 500,  // Legendary
+            _ => 50,
+        }
+    }
 }
 
 impl Default for SkinInventory {
@@ -566,19 +734,94 @@ impl SkinInventory {
             .unwrap_or(0)
     }
 
+    /// Sell one duplicate of a skin, returning true if successful.
+    /// Only sells if count > 1 (keeps at least one copy).
+    pub fn sell_duplicate(&mut self, weapon_id: &str, skin: &WeaponSkin) -> bool {
+        if let Some(skins) = self.owned.get_mut(weapon_id) {
+            if let Some(count) = skins.get_mut(skin) {
+                if *count > 1 {
+                    *count -= 1;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Sell a single copy of a skin, removing it entirely if count reaches 0.
+    /// Returns true if successful.
+    pub fn sell_skin(&mut self, weapon_id: &str, skin: &WeaponSkin) -> bool {
+        if let Some(skins) = self.owned.get_mut(weapon_id) {
+            if let Some(count) = skins.get_mut(skin) {
+                if *count > 0 {
+                    *count -= 1;
+                    if *count == 0 {
+                        skins.remove(skin);
+                    }
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Sell ALL duplicates (keeps 1 copy of each skin), returns total credits earned
+    pub fn sell_all_duplicates(&mut self) -> Vec<(String, WeaponSkin, u32, u64)> {
+        let mut sold = Vec::new();
+        for (weapon_id, skins) in self.owned.iter_mut() {
+            for (skin, count) in skins.iter_mut() {
+                if *count > 1 {
+                    let extras = *count - 1;
+                    let value = PlayerCredits::sell_value(skin.rarity()) * extras as u64;
+                    sold.push((weapon_id.clone(), *skin, extras, value));
+                    *count = 1;
+                }
+            }
+        }
+        sold
+    }
+
+    /// Total number of duplicate skins across all weapons
+    pub fn total_duplicates(&self) -> u32 {
+        let mut total = 0u32;
+        for skins in self.owned.values() {
+            for count in skins.values() {
+                if *count > 1 {
+                    total += count - 1;
+                }
+            }
+        }
+        total
+    }
+
     pub fn save(&self) {
-        let path = "settings/skin_inventory.json";
-        if let Ok(content) = serde_json::to_string_pretty(self) {
+        let path = "settings/savestate.json";
+        
+        // Load existing savestate or create new
+        let mut savestate: serde_json::Value = match std::fs::read_to_string(path) {
+            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
+            Err(_) => serde_json::json!({}),
+        };
+        
+        // Update inventory section
+        savestate["inventory"] = serde_json::to_value(self).unwrap();
+        
+        if let Ok(content) = serde_json::to_string_pretty(&savestate) {
             let _ = std::fs::write(path, content);
         }
     }
 
     pub fn load() -> Self {
-        let path = "settings/skin_inventory.json";
+        let path = "settings/savestate.json";
         match std::fs::read_to_string(path) {
             Ok(content) => {
-                serde_json::from_str(&content).unwrap_or_default()
-            }
+                if let Ok(savestate) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(inventory) = savestate.get("inventory") {
+                        return serde_json::from_value(inventory.clone()).unwrap_or_default();
+                    }
+                }
+                Self::default()
+            },
             Err(_) => Self::default(),
         }
     }
@@ -597,8 +840,9 @@ pub struct WeaponsPlugin;
 impl Plugin for WeaponsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WeaponRegistry>();
-        app.init_resource::<PlayerLoadout>();
+        app.insert_resource(PlayerLoadout::load());
         app.insert_resource(SkinInventory::load());
+        app.insert_resource(PlayerCredits::load());
         app.add_systems(PreStartup, load_all_weapon_configs);
         app.add_systems(Update, apply_weapon_skins);
     }
@@ -609,46 +853,60 @@ fn load_all_weapon_configs(
     loadout: Res<PlayerLoadout>,
 ) {
     let weapon_files: Vec<(&str, &str, WeaponSlot)> = vec![
-        ("hk416", include_str!("../../assets/weapons/data/primary/hk416.json"), WeaponSlot::Primary),
-        ("ak-12", include_str!("../../assets/weapons/data/primary/ak-12.json"), WeaponSlot::Primary),
-        ("ak-47", include_str!("../../assets/weapons/data/primary/ak-47.json"), WeaponSlot::Primary),
-        ("fn_scar_h_std", include_str!("../../assets/weapons/data/primary/fn_scar_h_std.json"), WeaponSlot::Primary),
-        ("fn_scar_l_std", include_str!("../../assets/weapons/data/primary/fn_scar_l_std.json"), WeaponSlot::Primary),
-        ("sig_sg-553_r", include_str!("../../assets/weapons/data/primary/sig_sg-553_r.json"), WeaponSlot::Primary),
-        ("aek-971", include_str!("../../assets/weapons/data/primary/aek-971.json"), WeaponSlot::Primary),
-        ("colt_m4a1", include_str!("../../assets/weapons/data/primary/colt_m4a1.json"), WeaponSlot::Primary),
-        ("colt_xm177_car-15", include_str!("../../assets/weapons/data/primary/colt_xm177_car-15.json"), WeaponSlot::Primary),
-        ("vss_vintorez", include_str!("../../assets/weapons/data/primary/vss_vintorez.json"), WeaponSlot::Primary),
-        ("bcm_mk_12_a5", include_str!("../../assets/weapons/data/primary/bcm_mk_12_a5.json"), WeaponSlot::Primary),
-        ("m60_machine_gun", include_str!("../../assets/weapons/data/primary/m60_machine_gun.json"), WeaponSlot::Primary),
-        ("rpd-44", include_str!("../../assets/weapons/data/primary/rpd-44.json"), WeaponSlot::Primary),
-        ("rpk_7.62", include_str!("../../assets/weapons/data/primary/rpk_7.62.json"), WeaponSlot::Primary),
-        ("fn_p90", include_str!("../../assets/weapons/data/primary/fn_p90.json"), WeaponSlot::Primary),
-        ("hk_mp7_a1", include_str!("../../assets/weapons/data/primary/hk_mp7_a1.json"), WeaponSlot::Primary),
-        ("imi_uzi", include_str!("../../assets/weapons/data/primary/imi_uzi.json"), WeaponSlot::Primary),
-        ("sig_sauer_mpx", include_str!("../../assets/weapons/data/primary/sig_sauer_mpx.json"), WeaponSlot::Primary),
-        ("m1_garand", include_str!("../../assets/weapons/data/primary/m1_garand.json"), WeaponSlot::Primary),
-        ("mosin_nagant_189130", include_str!("../../assets/weapons/data/primary/mosin_nagant_189130.json"), WeaponSlot::Primary),
-        ("fort-500", include_str!("../../assets/weapons/data/primary/fort-500.json"), WeaponSlot::Primary),
-        ("franchi_spas_12", include_str!("../../assets/weapons/data/primary/franchi_spas_12.json"), WeaponSlot::Primary),
-        ("remington_870", include_str!("../../assets/weapons/data/primary/remington_870.json"), WeaponSlot::Primary),
-        ("saiga-12_ex._30", include_str!("../../assets/weapons/data/primary/saiga-12_ex._30.json"), WeaponSlot::Primary),
-        ("toz-34", include_str!("../../assets/weapons/data/primary/toz-34.json"), WeaponSlot::Primary),
-        ("hk_mp5k", include_str!("../../assets/weapons/data/primary/hk_mp5k.json"), WeaponSlot::Primary),
-        ("hk_ump_45", include_str!("../../assets/weapons/data/primary/hk_ump_45.json"), WeaponSlot::Primary),
-        ("ppsh-41", include_str!("../../assets/weapons/data/primary/ppsh-41.json"), WeaponSlot::Primary),
-        ("tompson", include_str!("../../assets/weapons/data/primary/tompson.json"), WeaponSlot::Primary),
-        ("barrett_m82", include_str!("../../assets/weapons/data/primary/barrett_m82.json"), WeaponSlot::Primary),
-        ("pgm_hecate_ii", include_str!("../../assets/weapons/data/primary/pgm_hecate_ii.json"), WeaponSlot::Primary),
-        ("remington_700", include_str!("../../assets/weapons/data/primary/remington_700.json"), WeaponSlot::Primary),
-        ("zbroyar_z-008", include_str!("../../assets/weapons/data/primary/zbroyar_z-008.json"), WeaponSlot::Primary),
-        ("g17", include_str!("../../assets/weapons/data/secondary/g17.json"), WeaponSlot::Secondary),
-        ("ingram_mac_10", include_str!("../../assets/weapons/data/secondary/ingram_mac_10.json"), WeaponSlot::Secondary),
-        ("intratec_tec-9", include_str!("../../assets/weapons/data/secondary/intratec_tec-9.json"), WeaponSlot::Secondary),
-        ("cerevo_dominator_eliminator", include_str!("../../assets/weapons/data/secondary/cerevo_dominator_eliminator.json"), WeaponSlot::Secondary),
-        ("colt_m1911_a1", include_str!("../../assets/weapons/data/secondary/colt_m1911_a1.json"), WeaponSlot::Secondary),
-        ("colt_python", include_str!("../../assets/weapons/data/secondary/colt_python.json"), WeaponSlot::Secondary),
-        ("webley_mk_iv", include_str!("../../assets/weapons/data/secondary/webley_mk_iv.json"), WeaponSlot::Secondary),
+        // Primary - Assault Rifles
+        ("hk416", include_str!("../../assets/weapons/data/primary/assault/hk416.json"), WeaponSlot::Primary),
+        ("ak-12", include_str!("../../assets/weapons/data/primary/assault/ak-12.json"), WeaponSlot::Primary),
+        ("ak-47", include_str!("../../assets/weapons/data/primary/assault/ak-47.json"), WeaponSlot::Primary),
+        ("fn_scar_h_std", include_str!("../../assets/weapons/data/primary/assault/fn_scar_h_std.json"), WeaponSlot::Primary),
+        ("fn_scar_l_std", include_str!("../../assets/weapons/data/primary/assault/fn_scar_l_std.json"), WeaponSlot::Primary),
+        ("sig_sg-553_r", include_str!("../../assets/weapons/data/primary/assault/sig_sg-553_r.json"), WeaponSlot::Primary),
+        // Primary - Carbines
+        ("aek-971", include_str!("../../assets/weapons/data/primary/carbine/aek-971.json"), WeaponSlot::Primary),
+        ("colt_m4a1", include_str!("../../assets/weapons/data/primary/carbine/colt_m4a1.json"), WeaponSlot::Primary),
+        ("colt_xm177_car-15", include_str!("../../assets/weapons/data/primary/carbine/colt_xm177_car-15.json"), WeaponSlot::Primary),
+        ("vss_vintorez", include_str!("../../assets/weapons/data/primary/carbine/vss_vintorez.json"), WeaponSlot::Primary),
+        // Primary - DMRs
+        ("bcm_mk_12_a5", include_str!("../../assets/weapons/data/primary/dmr/bcm_mk_12_a5.json"), WeaponSlot::Primary),
+        // Primary - LMGs
+        ("m60_machine_gun", include_str!("../../assets/weapons/data/primary/lmg/m60_machine_gun.json"), WeaponSlot::Primary),
+        ("rpd-44", include_str!("../../assets/weapons/data/primary/lmg/rpd-44.json"), WeaponSlot::Primary),
+        ("rpk_7.62", include_str!("../../assets/weapons/data/primary/lmg/rpk_7.62.json"), WeaponSlot::Primary),
+        // Primary - PDWs
+        ("fn_p90", include_str!("../../assets/weapons/data/primary/pdw/fn_p90.json"), WeaponSlot::Primary),
+        ("hk_mp7_a1", include_str!("../../assets/weapons/data/primary/pdw/hk_mp7_a1.json"), WeaponSlot::Primary),
+        ("imi_uzi", include_str!("../../assets/weapons/data/primary/pdw/imi_uzi.json"), WeaponSlot::Primary),
+        ("sig_sauer_mpx", include_str!("../../assets/weapons/data/primary/pdw/sig_sauer_mpx.json"), WeaponSlot::Primary),
+        // Primary - Rifles
+        ("m1_garand", include_str!("../../assets/weapons/data/primary/rifle/m1_garand.json"), WeaponSlot::Primary),
+        ("mosin_nagant_189130", include_str!("../../assets/weapons/data/primary/rifle/mosin_nagant_189130.json"), WeaponSlot::Primary),
+        // Primary - Shotguns
+        ("fort-500", include_str!("../../assets/weapons/data/primary/shotgun/fort-500.json"), WeaponSlot::Primary),
+        ("franchi_spas_12", include_str!("../../assets/weapons/data/primary/shotgun/franchi_spas_12.json"), WeaponSlot::Primary),
+        ("remington_870", include_str!("../../assets/weapons/data/primary/shotgun/remington_870.json"), WeaponSlot::Primary),
+        ("saiga-12_ex._30", include_str!("../../assets/weapons/data/primary/shotgun/saiga-12_ex._30.json"), WeaponSlot::Primary),
+        ("toz-34", include_str!("../../assets/weapons/data/primary/shotgun/toz-34.json"), WeaponSlot::Primary),
+        // Primary - SMGs
+        ("hk_mp5k", include_str!("../../assets/weapons/data/primary/smg/hk_mp5k.json"), WeaponSlot::Primary),
+        ("hk_ump_45", include_str!("../../assets/weapons/data/primary/smg/hk_ump_45.json"), WeaponSlot::Primary),
+        ("ppsh-41", include_str!("../../assets/weapons/data/primary/smg/ppsh-41.json"), WeaponSlot::Primary),
+        ("tompson", include_str!("../../assets/weapons/data/primary/smg/tompson.json"), WeaponSlot::Primary),
+        // Primary - Snipers
+        ("barrett_m82", include_str!("../../assets/weapons/data/primary/sniper/barrett_m82.json"), WeaponSlot::Primary),
+        ("pgm_hecate_ii", include_str!("../../assets/weapons/data/primary/sniper/pgm_hecate_ii.json"), WeaponSlot::Primary),
+        ("remington_700", include_str!("../../assets/weapons/data/primary/sniper/remington_700.json"), WeaponSlot::Primary),
+        ("zbroyar_z-008", include_str!("../../assets/weapons/data/primary/sniper/zbroyar_z-008.json"), WeaponSlot::Primary),
+        // Secondary - Pistols
+        ("g17", include_str!("../../assets/weapons/data/secondary/pistol/g17.json"), WeaponSlot::Secondary),
+        ("colt_m1911_a1", include_str!("../../assets/weapons/data/secondary/pistol/colt_m1911_a1.json"), WeaponSlot::Secondary),
+        // Secondary - Machine Pistols
+        ("ingram_mac_10", include_str!("../../assets/weapons/data/secondary/mpistol/ingram_mac_10.json"), WeaponSlot::Secondary),
+        ("intratec_tec-9", include_str!("../../assets/weapons/data/secondary/mpistol/intratec_tec-9.json"), WeaponSlot::Secondary),
+        // Secondary - Other
+        ("cerevo_dominator_eliminator", include_str!("../../assets/weapons/data/secondary/other/cerevo_dominator_eliminator.json"), WeaponSlot::Secondary),
+        // Secondary - Revolvers
+        ("colt_python", include_str!("../../assets/weapons/data/secondary/revolver/colt_python.json"), WeaponSlot::Secondary),
+        ("webley_mk_iv", include_str!("../../assets/weapons/data/secondary/revolver/webley_mk_iv.json"), WeaponSlot::Secondary),
+        // Melee
         ("msbs_grot_bayonet", include_str!("../../assets/weapons/data/melee/msbs_grot_bayonet.json"), WeaponSlot::Melee),
         ("axe", include_str!("../../assets/weapons/data/melee/axe.json"), WeaponSlot::Melee),
         ("6x4_bayonet", include_str!("../../assets/weapons/data/melee/6x4_bayonet.json"), WeaponSlot::Melee),
@@ -661,6 +919,7 @@ fn load_all_weapon_configs(
         ("m9_bayonet", include_str!("../../assets/weapons/data/melee/m9_bayonet.json"), WeaponSlot::Melee),
         ("mx-8054", include_str!("../../assets/weapons/data/melee/mx-8054.json"), WeaponSlot::Melee),
         ("sks_bayonet", include_str!("../../assets/weapons/data/melee/sks_bayonet.json"), WeaponSlot::Melee),
+        // Equipment
         ("rgd-5", include_str!("../../assets/weapons/data/equipment/rgd-5.json"), WeaponSlot::Equipment),
         ("cerevo_dominator_paralyzer", include_str!("../../assets/weapons/data/equipment/cerevo_dominator_paralyzer.json"), WeaponSlot::Equipment),
     ];
@@ -776,7 +1035,7 @@ pub fn spawn_weapon_visual_skinned(
         let model_exists = !model_file.is_empty()
             && std::path::Path::new(&format!("assets/{}", model_file)).exists();
 
-        if model_exists {
+        let entity = if model_exists {
             commands.spawn((
                 SceneRoot(asset_server.load(&config.meta.model_path)),
                 transform,
@@ -794,7 +1053,12 @@ pub fn spawn_weapon_visual_skinned(
                 WeaponRecoil::default(),
                 WeaponSkinTag { skin, applied: true },
             )).id()
-        }
+        };
+
+        // Spawn gray attachment placeholder blocks
+        spawn_attachment_placeholders(commands, entity, config, meshes, materials);
+
+        entity
     } else {
         let (mesh, material) = weapon_fallback_mesh(slot, skin, meshes, materials);
         let transform = Transform::from_xyz(0.5, -0.5, -1.0);
@@ -807,6 +1071,105 @@ pub fn spawn_weapon_visual_skinned(
             WeaponRecoil::default(),
             WeaponSkinTag { skin, applied: true },
         )).id()
+    }
+}
+
+/// Tag component for attachment placeholder blocks.
+#[derive(Component)]
+pub struct AttachmentPlaceholder {
+    pub slot_name: String,
+}
+
+/// Spawn gray placeholder blocks at each attachment's meta position_offset.
+/// Falls back to computed positions from other meta fields when position_offset is absent.
+fn spawn_attachment_placeholders(
+    commands: &mut Commands,
+    weapon_entity: Entity,
+    config: &WeaponConfig,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) {
+    let gray_mat = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.4, 0.4, 0.45, 0.6),
+        alpha_mode: AlphaMode::Blend,
+        metallic: 0.3,
+        perceptual_roughness: 0.6,
+        ..default()
+    });
+
+    let attachments = &config.attachments;
+
+    // Helper closure to spawn a block at a position
+    let mut spawn_block = |commands: &mut Commands, name: &str, pos: [f32; 3], size: Vec3| {
+        let child = commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
+            MeshMaterial3d(gray_mat.clone()),
+            Transform::from_translation(Vec3::from(pos)),
+            AttachmentPlaceholder { slot_name: name.to_string() },
+        )).id();
+        commands.entity(weapon_entity).add_child(child);
+    };
+
+    // Optic - fallback to aim_offset (raised slightly)
+    if let Some(optic) = &attachments.optic {
+        if let Some(meta) = &optic.meta {
+            let pos = meta.position_offset.unwrap_or_else(|| {
+                if let Some(aim) = meta.aim_offset {
+                    [aim[0], aim[1] + 0.05, aim[2]]
+                } else {
+                    [0.0, 0.08, 0.1]
+                }
+            });
+            spawn_block(commands, "Optic", pos, Vec3::new(0.15, 0.1, 0.15));
+        }
+    }
+
+    // Barrel - fallback to muzzle_flash_offset (shifted back slightly)
+    if let Some(barrel) = &attachments.barrel {
+        if let Some(meta) = &barrel.meta {
+            let pos = meta.position_offset.unwrap_or_else(|| {
+                if let Some(mf) = meta.muzzle_flash_offset {
+                    [mf[0] * 0.7, mf[1], mf[2]]
+                } else {
+                    [0.0, 0.0, -0.3]
+                }
+            });
+            spawn_block(commands, "Barrel", pos, Vec3::new(0.08, 0.08, 0.3));
+        }
+    }
+
+    // Underbarrel - fallback to below weapon center
+    if let Some(ub) = &attachments.underbarrel {
+        if let Some(meta) = &ub.meta {
+            let pos = meta.position_offset.unwrap_or([0.0, -0.06, 0.1]);
+            spawn_block(commands, "Underbarrel", pos, Vec3::new(0.1, 0.08, 0.2));
+        }
+    }
+
+    // Sidebarrel - fallback to side of weapon
+    if let Some(sb) = &attachments.sidebarrel {
+        if let Some(meta) = &sb.meta {
+            let pos = meta.position_offset.unwrap_or([0.06, 0.0, 0.0]);
+            spawn_block(commands, "Sidebarrel", pos, Vec3::new(0.06, 0.06, 0.15));
+        }
+    }
+
+    // Magazine - fallback to below weapon center
+    if let Some(mag) = &attachments.magazine {
+        let pos = if let Some(meta) = &mag.meta {
+            meta.position_offset.unwrap_or([0.0, -0.1, 0.0])
+        } else {
+            [0.0, -0.1, 0.0]
+        };
+        spawn_block(commands, "Magazine", pos, Vec3::new(0.08, 0.15, 0.1));
+    }
+
+    // Stock - fallback to rear of weapon
+    if let Some(stock) = &attachments.stock {
+        if let Some(meta) = &stock.meta {
+            let pos = meta.position_offset.unwrap_or([-0.3, 0.0, 0.0]);
+            spawn_block(commands, "Stock", pos, Vec3::new(0.1, 0.1, 0.25));
+        }
     }
 }
 

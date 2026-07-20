@@ -6452,6 +6452,7 @@ fn lobby_invite_input_system(
     mut char_events: MessageReader<KeyboardInput>,
     invite_input_query: Query<Entity, With<LobbyInviteInput>>,
     mut invite_text_query: Query<&mut Text, With<LobbyInviteInputText>>,
+    tcp_client: Res<crate::net::tcp::TcpClient>,
 ) {
     // Check if we need to spawn the invite input bar
     let has_focus = !invite_text.text.is_empty() || !invite_input_query.is_empty();
@@ -6538,15 +6539,20 @@ fn lobby_invite_input_system(
                 next_state.set(GameState::Lobby);
             }
             KeyCode::Enter => {
-                // Send invite via the SendInvite button (handled in lobby_interaction)
-                // We'll trigger it by re-entering, but the button click handles sending.
                 if !invite_text.text.is_empty() {
-                    // The interaction system will handle the SendInvite click.
-                    // For now, clear and re-enter.
                     let target = invite_text.text.trim().to_string();
                     if !target.is_empty() {
-                        let tcp = crate::net::tcp::TcpClient::default(); // placeholder – handled better via SendInvite button
-                        let _ = target;
+                        if tcp_client.is_connected() {
+                            let msg = noctyrn_shared::protocol::ClientMessage::PartyInvite {
+                                username: target,
+                            };
+                            let tcp = tcp_client.clone();
+                            tokio::spawn(async move {
+                                let _ = tcp.send(&msg).await;
+                            });
+                        }
+                        invite_text.text.clear();
+                        next_state.set(GameState::Lobby);
                     }
                 }
             }

@@ -1,15 +1,23 @@
 {
   "credits": {
-    "balance": 99991599
+    "balance": 99985949
   },
   "inventory": {
     "owned": {
       "axe": {},
+      "barrett_m82": {
+        "NeonPink": 1
+      },
       "cjrb_chord": {
-        "ChromeForge": 1
+        "ChromeForge": 1,
+        "NeonPink": 1
       },
       "colt_m1911_a1": {
-        "CamoWoodland": 1
+        "CamoWoodland": 1,
+        "DragonScale": 1
+      },
+      "colt_xm177_car-15": {
+        "SolidWhite": 1
       },
       "fn_p90": {
         "ChromeForge": 1
@@ -17,7 +25,14 @@
       "fn_scar_h_std": {
         "SolidGold": 1
       },
+      "fort-500": {
+        "DragonScale": 1
+      },
+      "franchi_spas_12": {
+        "SolidGreen": 1
+      },
       "hk416": {
+        "DragonScale": 1,
         "SolidGreen": 1,
         "VoidWalker": 1
       },
@@ -31,14 +46,29 @@
         "NeonPink": 1
       },
       "km2000": {
+        "NeonPink": 2
+      },
+      "m1_garand": {
+        "DragonScale": 1
+      },
+      "m968_bayonet": {
         "NeonPink": 1
       },
+      "mosin_nagant_189130": {
+        "DragonScale": 1
+      },
       "msbs_grot_bayonet": {
+        "DragonScale": 1
+      },
+      "ppsh-41": {
         "DragonScale": 1
       },
       "remington_870": {
         "DragonScale": 1,
         "NeonPink": 1
+      },
+      "rgd-5": {
+        "DragonScale": 1
       },
       "rpd-44": {
         "ArcticWhite": 1
@@ -59,7 +89,7 @@
     "equipment": "rgd-5",
     "melee": "msbs_grot_bayonet",
     "primary": "hk416",
-    "secondary": "g17",
+    "secondary": "intratec_tec-9",
     "skins": {
       "Primary": "Default"
     }

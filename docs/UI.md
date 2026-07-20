@@ -1,6 +1,6 @@
 # UI Customization Guide
 
-The UI in Fearlyss is fully customizable via the `settings/ui.toml` file. This allows you to tweak the appearance of the crosshair, health bar, ammo display, and kill feed.
+The UI in Noctyrn is fully customizable via the `settings/ui.toml` file. This allows you to tweak the appearance of the crosshair, health bar, ammo display, and kill feed.
 
 ## Configuration File: `settings/ui.toml`
 

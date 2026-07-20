@@ -347,7 +347,7 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
     let path = "assets/info.toml";
     let info = if let Ok(content) = fs::read_to_string(path) {
         toml::from_str(&content).unwrap_or_else(|_| InfoConfig {
-            title: "Fearlyss".to_string(),
+            title: "Noctyrn".to_string(),
             version: "Unknown".to_string(),
             disclaimer: String::new(),
             description: "Failed to load info.".to_string(),
@@ -355,7 +355,7 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
         })
     } else {
         InfoConfig {
-            title: "Fearlyss".to_string(),
+            title: "Noctyrn".to_string(),
             version: "Unknown".to_string(),
             disclaimer: String::new(),
             description: "Info file not found.".to_string(),

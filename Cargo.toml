@@ -1,16 +1,19 @@
 [package]
-name = "fearlyss"
+name = "noctyrn"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 # bevy = { version = "0.18", features = ["dynamic_linking", "serialize"] }
 bevy = { version = "0.18", features = ["serialize"] }
+noctyrn-shared = { path = "../noctyrn-shared" }
 rand = "0.9.2"
+reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "net", "sync", "macros"] }
 toml = "0.8"
-uuid = { version = "1.12", features = ["v4"] }
+uuid = { version = "1.12", features = ["v4", "serde"] }
 
 [features]
 # When developing locally we want dynamic linking (smaller edit-compile iteration for Bevy internals).

@@ -1,5 +1,5 @@
 {
-  description = "Fearlyss FPS Game - Bevy Engine";
+  description = "Noctyrn - Tactical FPS Game Client (Bevy 0.18)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -19,6 +19,7 @@
         };
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "rust-analyzer" ];
+          targets = [ "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" ];
         };
       in
       {
@@ -28,10 +29,11 @@
             pkg-config
             cmake
             mold
+            zip
           ];
 
           buildInputs = with pkgs; [
-            # Bevy dependencies
+            # Bevy engine dependencies
             udev
             alsa-lib
             vulkan-loader
@@ -42,9 +44,17 @@
             wayland
             libxkbcommon
 
-            # Additional
+            # Networking (reqwest / TLS)
             openssl
           ];
+
+          # Windows cross-compilation helper
+          NOCTYRN_WINDOWS_DEPS = with pkgs.pkgsCross.mingwW64; [
+            stdenv.cc
+            windows.pthreads
+          ];
+
+          NOCTYRN_WINDOWS_LDPATH = "${pkgs.pkgsCross.mingwW64.windows.pthreads}/lib";
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
 

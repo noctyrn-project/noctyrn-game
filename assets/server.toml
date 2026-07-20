@@ -1,0 +1,20 @@
+# Noctyrn server connection config
+#
+# Edit this file to point to whatever server you want to play on.
+# For local testing leave the addresses as 127.0.0.1.
+# For online play, replace the IP with your server's public IP or domain name.
+#
+# Example (home server):
+#   http_url = "http://203.0.113.42:8080"
+#   tcp_addr = "203.0.113.42:7878"
+#   udp_addr  = "203.0.113.42:7877"
+#
+# Example (domain name, once you have one):
+#   http_url = "https://game.noctyrn.com"
+#   tcp_addr = "game.noctyrn.com:7878"
+#   udp_addr  = "game.noctyrn.com:7877"
+
+[server]
+http_url = "http://noctyrn.gitanelyon.dev:8080"
+tcp_addr  = "noctyrn.gitanelyon.dev:7878"
+udp_addr  = "noctyrn.gitanelyon.dev:7877"

@@ -10,6 +10,7 @@ mod ui_config;
 mod settings;
 mod ui_settings;
 mod menu;
+mod net;
 
 fn main() {
     App::new()
@@ -19,6 +20,7 @@ fn main() {
         .add_plugins(player::Player)
         .add_plugins(world::World)
         .add_plugins(gameplay::GameplayPlugin)
+        .add_plugins(net::NetworkPlugin)
         .insert_resource(ui_config::load_ui_config())
         .insert_resource(settings::load_game_settings())
         .run();

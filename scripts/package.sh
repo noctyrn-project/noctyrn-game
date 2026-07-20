@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Unified packaging script for fearlyss
+# Unified packaging script for noctyrn
 # Builds release binaries for Windows and/or Linux, strips if requested, and creates zip artifacts
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -99,10 +99,38 @@ build_platform() {
   if [ "$platform" = "Windows" ]; then
     log "Adding Windows target..."
     rustup target add "$target" 2>/dev/null || true
+    log "Configuring Windows cross-compilation environment..."
+    export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="x86_64-w64-mingw32-gcc"
+    export CC_x86_64_pc_windows_gnu="x86_64-w64-mingw32-gcc"
+    export CXX_x86_64_pc_windows_gnu="x86_64-w64-mingw32-g++"
+    # Ensure MinGW binaries are in PATH and libraries are in LDFLAGS if provided by Nix
+    # Use NOCTYRN_* envvars (set by flake.nix) if available. Older name STREAK_*
+    # was a typo and may be present on some systems — support both for compatibility.
+    if [ -n "${NOCTYRN_WINDOWS_DEPS:-}" ]; then
+      for dep in $NOCTYRN_WINDOWS_DEPS; do
+        export PATH="$dep/bin:$PATH"
+      done
+    elif [ -n "${STREAK_WINDOWS_DEPS:-}" ]; then
+      for dep in $STREAK_WINDOWS_DEPS; do
+        export PATH="$dep/bin:$PATH"
+      done
+    fi
+
+    if [ -n "${NOCTYRN_WINDOWS_LDPATH:-}" ]; then
+      export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="-L native=$NOCTYRN_WINDOWS_LDPATH"
+    elif [ -n "${STREAK_WINDOWS_LDPATH:-}" ]; then
+      export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="-L native=$STREAK_WINDOWS_LDPATH"
+    fi
     log "Building with cargo..."
   fi
   
-  cargo build --release ${target:+--target "$target"} --no-default-features
+  if [ "$platform" = "Linux" ]; then
+    # Unset cross-compilation variables that might have been set by the Nix shell
+    # to ensure a clean native build.
+    (unset CC CXX LD AR; cargo build --release --no-default-features)
+  else
+    cargo build --release ${target:+--target "$target"} --no-default-features
+  fi
   
   local build_end=$(date +%s)
   local dist_dir="dist/${platform,,}"
@@ -151,7 +179,7 @@ build_platform() {
   
   # Create zip
   local version=$(cargo pkgid | sed 's/.*#//')
-  local zip_name="fearlyss_${platform,,}_v${version}_$(date +%y-%m-%d@%H:%M).zip"
+  local zip_name="noctyrn_${platform,,}_v${version}_$(date +%y-%m-%d@%H:%M).zip"
   (cd dist && zip -q -r "$zip_name" "${platform,,}")
   
   local pkg_end=$(date +%s)
@@ -172,8 +200,8 @@ OVERALL_START=$(date +%s)
 
 [ "$CLEAN_DIST" -eq 1 ] && { log "Cleaning dist directory..."; rm -rf dist/*; }
 
-[ "$BUILD_LINUX" -eq 1 ] && build_platform "Linux" "" "target/release" "fearlyss"
-[ "$BUILD_WINDOWS" -eq 1 ] && build_platform "Windows" "x86_64-pc-windows-gnu" "target/x86_64-pc-windows-gnu/release" "fearlyss.exe"
+[ "$BUILD_LINUX" -eq 1 ] && build_platform "Linux" "" "target/release" "noctyrn"
+[ "$BUILD_WINDOWS" -eq 1 ] && build_platform "Windows" "x86_64-pc-windows-gnu" "target/x86_64-pc-windows-gnu/release" "noctyrn.exe"
 
 OVERALL_END=$(date +%s)
 OVERALL_TIME=$((OVERALL_END - OVERALL_START))

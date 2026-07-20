@@ -121,12 +121,27 @@ pub struct Player;
 pub enum GameState {
     #[default]
     MainMenu,
+    Login,
+    Profile,
+    Friends,
+    Lobby,
+    Matchmaking,
     LoadoutSelect,
     CrateOpening,
     GameModeSelect,
     Cosmetics,
     Playing,
     Paused,
+}
+
+/// Marker component for the local player entity in multiplayer.
+#[derive(Component)]
+pub struct LocalPlayer;
+
+/// Marker component for remote player entities in multiplayer.
+#[derive(Component)]
+pub struct RemotePlayer {
+    pub server_id: uuid::Uuid,
 }
 
 impl Plugin for Player {

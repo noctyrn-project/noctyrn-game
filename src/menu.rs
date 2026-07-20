@@ -1,7 +1,11 @@
 use bevy::prelude::*;
 use bevy::app::AppExit;
+use bevy::input::keyboard::KeyboardInput;
 use crate::player::GameState;
 use crate::weapons::{WeaponRegistry, WeaponSlot, PlayerLoadout, WeaponConfig, sync_loadout_to_configs, WeaponSkin, WeaponSkinTag, SkinRarity, SkinInventory, PlayerCredits};
+use crate::net::{ConnectionState, ServerConfig, TokioRuntime, NetworkEvent, CachedProfile, CachedFriends, PartyState};
+use crate::net::http::{PendingRequests, spawn_http_request};
+use crate::net::tcp::TcpClient;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Game Modes
@@ -206,7 +210,41 @@ impl Plugin for MenuPlugin {
         app.add_systems(OnEnter(GameState::Cosmetics), (ensure_menu_camera, spawn_cosmetics_menu));
         app.add_systems(OnExit(GameState::Cosmetics), despawn_cosmetics_menu);
         app.add_systems(Update, (cosmetics_interaction, cosmetics_hover, sell_confirm_interaction).run_if(in_state(GameState::Cosmetics)));
+
+        // Login screen
+        app.init_resource::<LoginUiState>();
+        app.add_systems(OnEnter(GameState::Login), (ensure_menu_camera, spawn_login_screen));
+        app.add_systems(OnExit(GameState::Login), despawn_login_screen);
+        app.add_systems(Update, (login_interaction, login_text_input, login_handle_network_events).run_if(in_state(GameState::Login)));
+
+        // Profile screen
+        app.add_systems(OnEnter(GameState::Profile), (ensure_menu_camera, spawn_profile_screen, request_profile_data));
+        app.add_systems(OnExit(GameState::Profile), despawn_profile_screen);
+        app.add_systems(Update, (profile_interaction, profile_update_data).run_if(in_state(GameState::Profile)));
+
+        // Friends screen
+        app.init_resource::<FriendsUiState>();
+        app.add_systems(OnEnter(GameState::Friends), (ensure_menu_camera, spawn_friends_screen, request_friends_data));
+        app.add_systems(OnExit(GameState::Friends), despawn_friends_screen);
+        app.add_systems(Update, (friends_interaction, friends_text_input, friends_update_data, friends_handle_network_events).run_if(in_state(GameState::Friends)));
+
+        // Lobby screen
+        app.init_resource::<LobbyState>();
+        app.init_resource::<LobbyInviteText>();
+        app.add_systems(OnEnter(GameState::Lobby), (ensure_menu_camera, spawn_lobby_screen, lobby_on_enter));
+        app.add_systems(OnExit(GameState::Lobby), despawn_lobby_screen);
+        app.add_systems(Update, (lobby_interaction, lobby_update, lobby_invite_input_system).run_if(in_state(GameState::Lobby)));
+
+        // Matchmaking screen
+        app.init_resource::<MatchmakingTimer>();
+        app.add_systems(OnEnter(GameState::Matchmaking), (ensure_menu_camera, spawn_matchmaking_screen));
+        app.add_systems(OnExit(GameState::Matchmaking), despawn_matchmaking_screen);
+        app.add_systems(Update, (matchmaking_interaction, matchmaking_update).run_if(in_state(GameState::Matchmaking)));
+
         app.add_systems(OnEnter(GameState::Playing), despawn_menu_camera);
+
+        // Global party invite overlay (runs in all states)
+        app.add_systems(Update, party_invite_overlay_system);
     }
 }
 
@@ -396,6 +434,8 @@ enum MainMenuButton {
     Loadout,
     Crates,
     Cosmetics,
+    Profile,
+    Friends,
     Settings,
     Quit,
 }
@@ -429,7 +469,7 @@ fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMode>,
                 ..default()
             }).with_children(|top| {
                 top.spawn((
-                    Text::new("FEARLYSS"),
+                    Text::new("NOCTYRN"),
                     TextFont { font_size: 84.0, ..default() },
                     TextColor(Color::srgb(0.9, 0.1, 0.1)),
                 ));
@@ -483,6 +523,8 @@ fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMode>,
                     ("LOADOUT", MainMenuButton::Loadout, Color::WHITE),
                     ("CRATES", MainMenuButton::Crates, Color::srgba(0.9, 0.7, 0.2, 0.9)),
                     ("COSMETICS", MainMenuButton::Cosmetics, Color::srgba(0.2, 0.8, 0.4, 0.9)),
+                    ("PROFILE", MainMenuButton::Profile, Color::srgba(0.4, 0.6, 1.0, 0.9)),
+                    ("FRIENDS", MainMenuButton::Friends, Color::srgba(0.6, 0.4, 0.9, 0.9)),
                     ("SETTINGS", MainMenuButton::Settings, Color::srgba(0.7, 0.7, 0.7, 0.9)),
                     ("QUIT", MainMenuButton::Quit, Color::srgba(0.6, 0.4, 0.4, 0.8)),
                 ] {
@@ -575,6 +617,11 @@ fn main_menu_interaction(
     mut commands: Commands,
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    party_state: Res<PartyState>,
+    tcp_client: Res<TcpClient>,
+    rt: Res<TokioRuntime>,
+    selected_mode: Res<SelectedGameMode>,
+    conn_state: Res<ConnectionState>,
 ) {
     // Handle Escape key to toggle settings or quit
     if keyboard_input.just_pressed(KeyCode::Escape) {
@@ -590,7 +637,23 @@ fn main_menu_interaction(
         if *interaction == Interaction::Pressed {
             match button {
                 MainMenuButton::Play => {
-                    next_state.set(GameState::Playing);
+                    if party_state.party.is_some() {
+                        next_state.set(GameState::Lobby);
+                    } else if tcp_client.is_connected() {
+                        // Solo: queue for match immediately
+                        let msg = noctyrn_shared::protocol::ClientMessage::QueueForMatch {
+                            game_mode: to_shared_gamemode(selected_mode.mode),
+                        };
+                        let tcp = tcp_client.clone();
+                        let rt = rt.0.clone();
+                        rt.spawn(async move {
+                            let _ = tcp.send(&msg).await;
+                        });
+                        next_state.set(GameState::Matchmaking);
+                    } else {
+                        // Not connected – start local game as fallback
+                        next_state.set(GameState::Playing);
+                    }
                 }
                 MainMenuButton::GameModeSelect => {
                     next_state.set(GameState::GameModeSelect);
@@ -603,6 +666,12 @@ fn main_menu_interaction(
                 }
                 MainMenuButton::Cosmetics => {
                     next_state.set(GameState::Cosmetics);
+                }
+                MainMenuButton::Profile => {
+                    next_state.set(GameState::Profile);
+                }
+                MainMenuButton::Friends => {
+                    next_state.set(GameState::Friends);
                 }
                 MainMenuButton::Settings => {
                     if let Some(entity) = settings_query.iter().next() {
@@ -630,6 +699,8 @@ fn main_menu_hover(
             MainMenuButton::Loadout => (Color::WHITE, Color::srgb(0.7, 0.85, 1.0)),
             MainMenuButton::Crates => (Color::srgba(0.9, 0.7, 0.2, 0.9), Color::srgb(1.0, 0.85, 0.3)),
             MainMenuButton::Cosmetics => (Color::srgba(0.2, 0.8, 0.4, 0.9), Color::srgb(0.4, 1.0, 0.6)),
+            MainMenuButton::Profile => (Color::srgba(0.4, 0.6, 1.0, 0.9), Color::srgb(0.6, 0.8, 1.0)),
+            MainMenuButton::Friends => (Color::srgba(0.6, 0.4, 0.9, 0.9), Color::srgb(0.8, 0.6, 1.0)),
             MainMenuButton::Settings => (Color::srgba(0.7, 0.7, 0.7, 0.9), Color::WHITE),
             MainMenuButton::Quit => (Color::srgba(0.6, 0.4, 0.4, 0.8), Color::srgb(1.0, 0.5, 0.5)),
         };
@@ -4189,4 +4260,2658 @@ fn crate_weapon_picker_interaction(
             next_state.set(GameState::CrateOpening);
         }
     }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Login / Register Screen
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct LoginScreenUi;
+
+#[derive(Component, Clone)]
+enum LoginButton {
+    Login,
+    Register,
+    SwitchToLogin,
+    SwitchToRegister,
+    Back,
+}
+
+#[derive(Component)]
+struct LoginTextInput {
+    field: LoginField,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoginField {
+    Email,
+    Password,
+    Username,
+    ConfirmPassword,
+}
+
+#[derive(Component)]
+struct LoginErrorText;
+
+#[derive(Component)]
+struct LoginFieldText(LoginField);
+
+#[derive(Resource)]
+struct LoginUiState {
+    mode: LoginMode,
+    email: String,
+    password: String,
+    username: String,
+    confirm_password: String,
+    error_message: Option<String>,
+    loading: bool,
+    focused_field: Option<LoginField>,
+}
+
+impl Default for LoginUiState {
+    fn default() -> Self {
+        Self {
+            mode: LoginMode::Login,
+            email: String::new(),
+            password: String::new(),
+            username: String::new(),
+            confirm_password: String::new(),
+            error_message: None,
+            loading: false,
+            focused_field: Some(LoginField::Email),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum LoginMode {
+    #[default]
+    Login,
+    Register,
+}
+
+fn spawn_login_screen(mut commands: Commands, login_state: Res<LoginUiState>) {
+    let is_register = login_state.mode == LoginMode::Register;
+
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.02, 0.02, 0.04, 0.95)),
+        LoginScreenUi,
+    )).with_children(|root| {
+        // Centered card
+        root.spawn((
+            Node {
+                width: Val::Px(400.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(30.0)),
+                row_gap: Val::Px(16.0),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.95)),
+            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+        )).with_children(|card| {
+            // Title
+            card.spawn((
+                Text::new(if is_register { "CREATE ACCOUNT" } else { "LOGIN" }),
+                TextFont { font_size: 28.0, ..default() },
+                TextColor(Color::WHITE),
+                Node { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
+            ));
+
+            // Tab buttons row
+            card.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(4.0),
+                margin: UiRect::bottom(Val::Px(8.0)),
+                ..default()
+            }).with_children(|tabs| {
+                // Login tab
+                tabs.spawn((
+                    Button,
+                    Node {
+                        width: Val::Percent(50.0),
+                        height: Val::Px(36.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(if !is_register {
+                        Color::srgba(0.2, 0.4, 0.2, 0.8)
+                    } else {
+                        Color::srgba(0.15, 0.15, 0.2, 0.8)
+                    }),
+                    LoginButton::SwitchToLogin,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("LOGIN"),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(if !is_register {
+                            Color::WHITE
+                        } else {
+                            Color::srgba(0.5, 0.5, 0.5, 0.8)
+                        }),
+                    ));
+                });
+
+                // Register tab
+                tabs.spawn((
+                    Button,
+                    Node {
+                        width: Val::Percent(50.0),
+                        height: Val::Px(36.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(if is_register {
+                        Color::srgba(0.2, 0.4, 0.2, 0.8)
+                    } else {
+                        Color::srgba(0.15, 0.15, 0.2, 0.8)
+                    }),
+                    LoginButton::SwitchToRegister,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("REGISTER"),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(if is_register {
+                            Color::WHITE
+                        } else {
+                            Color::srgba(0.5, 0.5, 0.5, 0.8)
+                        }),
+                    ));
+                });
+            });
+
+            // Username field (register only)
+            if is_register {
+                spawn_login_input_field(card, "USERNAME", LoginField::Username, &login_state.username, false, login_state.focused_field == Some(LoginField::Username));
+            }
+
+            // Email field
+            spawn_login_input_field(card, "EMAIL", LoginField::Email, &login_state.email, false, login_state.focused_field == Some(LoginField::Email));
+
+            // Password field
+            spawn_login_input_field(card, "PASSWORD", LoginField::Password, &login_state.password, true, login_state.focused_field == Some(LoginField::Password));
+
+            // Confirm password (register only)
+            if is_register {
+                spawn_login_input_field(card, "CONFIRM PASSWORD", LoginField::ConfirmPassword, &login_state.confirm_password, true, login_state.focused_field == Some(LoginField::ConfirmPassword));
+            }
+
+            // Submit button
+            card.spawn((
+                Button,
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(44.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    margin: UiRect::top(Val::Px(8.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                if is_register { LoginButton::Register } else { LoginButton::Login },
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new(if login_state.loading {
+                        "LOADING..."
+                    } else if is_register {
+                        "CREATE ACCOUNT"
+                    } else {
+                        "LOGIN"
+                    }),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::WHITE),
+                ));
+            });
+
+            // Error text area
+            card.spawn((
+                Text::new(login_state.error_message.as_deref().unwrap_or("")),
+                TextFont { font_size: 13.0, ..default() },
+                TextColor(Color::srgb(0.9, 0.2, 0.2)),
+                LoginErrorText,
+            ));
+
+            // Back button
+            card.spawn((
+                Button,
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(36.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    margin: UiRect::top(Val::Px(4.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.8)),
+                LoginButton::Back,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("BACK"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                ));
+            });
+        });
+    });
+}
+
+fn spawn_login_input_field(
+    parent: &mut ChildSpawnerCommands,
+    label: &str,
+    field: LoginField,
+    current_value: &str,
+    is_password: bool,
+    is_focused: bool,
+) {
+    parent.spawn(Node {
+        flex_direction: FlexDirection::Column,
+        row_gap: Val::Px(4.0),
+        ..default()
+    }).with_children(|container| {
+        // Label
+        container.spawn((
+            Text::new(label),
+            TextFont { font_size: 11.0, ..default() },
+            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.9)),
+        ));
+
+        // Input box
+        let display_text = if is_password {
+            "*".repeat(current_value.len())
+        } else {
+            current_value.to_string()
+        };
+        let display_with_cursor = if is_focused {
+            format!("{}|", display_text)
+        } else {
+            if display_text.is_empty() {
+                " ".to_string()
+            } else {
+                display_text
+            }
+        };
+
+        container.spawn((
+            Button,
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Px(36.0),
+                padding: UiRect::horizontal(Val::Px(10.0)),
+                align_items: AlignItems::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.9)),
+            BorderColor::all(if is_focused {
+                Color::srgba(0.3, 0.6, 0.3, 0.8)
+            } else {
+                Color::srgba(0.25, 0.25, 0.3, 0.6)
+            }),
+            LoginTextInput { field },
+        )).with_children(|input| {
+            input.spawn((
+                Text::new(display_with_cursor),
+                TextFont { font_size: 14.0, ..default() },
+                TextColor(Color::srgba(0.85, 0.85, 0.85, 0.95)),
+                LoginFieldText(field),
+            ));
+        });
+    });
+}
+
+fn despawn_login_screen(mut commands: Commands, query: Query<Entity, With<LoginScreenUi>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn login_interaction(
+    interaction_query: Query<(&Interaction, &LoginButton), (Changed<Interaction>, With<Button>)>,
+    input_query: Query<(&Interaction, &LoginTextInput), (Changed<Interaction>, With<Button>)>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut login_state: ResMut<LoginUiState>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+) {
+    // Handle input field focus
+    for (interaction, text_input) in input_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            login_state.focused_field = Some(text_input.field);
+        }
+    }
+
+    for (interaction, button) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            match button {
+                LoginButton::Login => {
+                    if !login_state.loading {
+                        login_state.loading = true;
+                        login_state.error_message = None;
+                        let base_url = server_config.http_url.clone();
+                        let email = login_state.email.clone();
+                        let password = login_state.password.clone();
+                        spawn_http_request(
+                            &rt,
+                            &pending,
+                            crate::net::http::async_login(base_url, email, password),
+                        );
+                    }
+                }
+                LoginButton::Register => {
+                    if !login_state.loading {
+                        if login_state.password != login_state.confirm_password {
+                            login_state.error_message = Some("Passwords do not match".to_string());
+                            return;
+                        }
+                        if login_state.username.is_empty() {
+                            login_state.error_message = Some("Username is required".to_string());
+                            return;
+                        }
+                        login_state.loading = true;
+                        login_state.error_message = None;
+                        let base_url = server_config.http_url.clone();
+                        let username = login_state.username.clone();
+                        let email = login_state.email.clone();
+                        let password = login_state.password.clone();
+                        spawn_http_request(
+                            &rt,
+                            &pending,
+                            crate::net::http::async_register(base_url, username, email, password),
+                        );
+                    }
+                }
+                LoginButton::SwitchToLogin => {
+                    if login_state.mode != LoginMode::Login {
+                        login_state.mode = LoginMode::Login;
+                        login_state.error_message = None;
+                        next_state.set(GameState::Login);
+                    }
+                }
+                LoginButton::SwitchToRegister => {
+                    if login_state.mode != LoginMode::Register {
+                        login_state.mode = LoginMode::Register;
+                        login_state.error_message = None;
+                        next_state.set(GameState::Login);
+                    }
+                }
+                LoginButton::Back => {
+                    *login_state = LoginUiState::default();
+                    next_state.set(GameState::MainMenu);
+                }
+            }
+        }
+    }
+}
+
+fn login_text_input(
+    mut login_state: ResMut<LoginUiState>,
+    mut char_events: MessageReader<KeyboardInput>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut text_query: Query<(&mut Text, &LoginFieldText)>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
+) {
+    let Some(focused) = login_state.focused_field else {
+        char_events.clear();
+        return;
+    };
+
+    for event in char_events.read() {
+        if !event.state.is_pressed() {
+            continue;
+        }
+
+        match event.key_code {
+            KeyCode::Tab => {
+                // Cycle focus through fields
+                let fields = if login_state.mode == LoginMode::Register {
+                    vec![LoginField::Username, LoginField::Email, LoginField::Password, LoginField::ConfirmPassword]
+                } else {
+                    vec![LoginField::Email, LoginField::Password]
+                };
+                if let Some(idx) = fields.iter().position(|f| *f == focused) {
+                    let next = (idx + 1) % fields.len();
+                    login_state.focused_field = Some(fields[next]);
+                }
+            }
+            KeyCode::Enter => {
+                // Submit
+                if !login_state.loading {
+                    match login_state.mode {
+                        LoginMode::Login => {
+                            login_state.loading = true;
+                            login_state.error_message = None;
+                            let base_url = server_config.http_url.clone();
+                            let email = login_state.email.clone();
+                            let password = login_state.password.clone();
+                            spawn_http_request(
+                                &rt,
+                                &pending,
+                                crate::net::http::async_login(base_url, email, password),
+                            );
+                        }
+                        LoginMode::Register => {
+                            if login_state.password != login_state.confirm_password {
+                                login_state.error_message = Some("Passwords do not match".to_string());
+                                continue;
+                            }
+                            if login_state.username.is_empty() {
+                                login_state.error_message = Some("Username is required".to_string());
+                                continue;
+                            }
+                            login_state.loading = true;
+                            login_state.error_message = None;
+                            let base_url = server_config.http_url.clone();
+                            let username = login_state.username.clone();
+                            let email = login_state.email.clone();
+                            let password = login_state.password.clone();
+                            spawn_http_request(
+                                &rt,
+                                &pending,
+                                crate::net::http::async_register(base_url, username, email, password),
+                            );
+                        }
+                    }
+                    // Re-enter to refresh UI
+                    next_state.set(GameState::Login);
+                }
+            }
+            KeyCode::Backspace => {
+                let field_str = match focused {
+                    LoginField::Email => &mut login_state.email,
+                    LoginField::Password => &mut login_state.password,
+                    LoginField::Username => &mut login_state.username,
+                    LoginField::ConfirmPassword => &mut login_state.confirm_password,
+                };
+                field_str.pop();
+            }
+            KeyCode::Escape => {
+                login_state.focused_field = None;
+            }
+            _ => {
+                // Try to get a character from the logical key text
+                if let bevy::input::keyboard::Key::Character(ref ch) = event.logical_key {
+                    let field_str = match focused {
+                        LoginField::Email => &mut login_state.email,
+                        LoginField::Password => &mut login_state.password,
+                        LoginField::Username => &mut login_state.username,
+                        LoginField::ConfirmPassword => &mut login_state.confirm_password,
+                    };
+                    field_str.push_str(ch.as_str());
+                }
+            }
+        }
+    }
+
+    // Update displayed text
+    for (mut text, field_text) in text_query.iter_mut() {
+        let (value, is_password) = match field_text.0 {
+            LoginField::Email => (&login_state.email, false),
+            LoginField::Password => (&login_state.password, true),
+            LoginField::Username => (&login_state.username, false),
+            LoginField::ConfirmPassword => (&login_state.confirm_password, true),
+        };
+        let display = if is_password {
+            "*".repeat(value.len())
+        } else {
+            value.clone()
+        };
+        let is_focused = login_state.focused_field == Some(field_text.0);
+        **text = if is_focused {
+            format!("{}|", display)
+        } else if display.is_empty() {
+            " ".to_string()
+        } else {
+            display
+        };
+    }
+}
+
+fn login_handle_network_events(
+    mut events: MessageReader<NetworkEvent>,
+    mut login_state: ResMut<LoginUiState>,
+    mut conn_state: ResMut<ConnectionState>,
+    mut next_state: ResMut<NextState<GameState>>,
+    tcp_client: Res<TcpClient>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
+) {
+    for event in events.read() {
+        match event {
+            NetworkEvent::LoginSuccess { token, user_id, username } => {
+                *conn_state = ConnectionState::Connected {
+                    token: token.clone(),
+                    user_id: *user_id,
+                    username: username.clone(),
+                };
+                login_state.loading = false;
+                login_state.error_message = None;
+
+                // Connect TCP for real-time communication.
+                let addr = server_config.tcp_addr.clone();
+                let t = token.clone();
+                let client = tcp_client.clone();
+                let rt_clone = TokioRuntime(rt.0.clone());
+                let pending_clone = pending.clone();
+                rt.0.spawn(async move {
+                    match client.connect_and_auth(&addr, &t, &rt_clone, &pending_clone).await {
+                        Ok(()) => info!("TCP connected and authenticated"),
+                        Err(e) => warn!("TCP connection failed: {e}"),
+                    }
+                });
+
+                next_state.set(GameState::Profile);
+            }
+            NetworkEvent::RegisterSuccess { token, user_id, username } => {
+                *conn_state = ConnectionState::Connected {
+                    token: token.clone(),
+                    user_id: *user_id,
+                    username: username.clone(),
+                };
+                login_state.loading = false;
+                login_state.error_message = None;
+
+                // Connect TCP for real-time communication.
+                let addr = server_config.tcp_addr.clone();
+                let t = token.clone();
+                let client = tcp_client.clone();
+                let rt_clone = TokioRuntime(rt.0.clone());
+                let pending_clone = pending.clone();
+                rt.0.spawn(async move {
+                    match client.connect_and_auth(&addr, &t, &rt_clone, &pending_clone).await {
+                        Ok(()) => info!("TCP connected and authenticated"),
+                        Err(e) => warn!("TCP connection failed: {e}"),
+                    }
+                });
+
+                next_state.set(GameState::Profile);
+            }
+            NetworkEvent::LoginError { message } => {
+                login_state.loading = false;
+                login_state.error_message = Some(message.clone());
+                next_state.set(GameState::Login);
+            }
+            NetworkEvent::RegisterError { message } => {
+                login_state.loading = false;
+                login_state.error_message = Some(message.clone());
+                next_state.set(GameState::Login);
+            }
+            NetworkEvent::ConnectionError { message } => {
+                login_state.loading = false;
+                login_state.error_message = Some(message.clone());
+                next_state.set(GameState::Login);
+            }
+            _ => {}
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Profile Screen
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct ProfileScreenUi;
+
+#[derive(Component, Clone)]
+enum ProfileButton {
+    Back,
+    Logout,
+    GoToLogin,
+}
+
+#[derive(Component)]
+struct ProfileStatText(String);
+
+#[derive(Component)]
+struct ProfileUsernameText;
+
+#[derive(Component)]
+struct ProfileLevelText;
+
+#[derive(Component)]
+struct ProfileXpBar;
+
+#[derive(Component)]
+struct ProfileMemberSinceText;
+
+fn spawn_profile_screen(
+    mut commands: Commands,
+    conn_state: Res<ConnectionState>,
+    cached_profile: Res<CachedProfile>,
+) {
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(50.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.02, 0.02, 0.04, 0.95)),
+        ProfileScreenUi,
+    )).with_children(|root| {
+        if !conn_state.is_connected() {
+            // Not logged in
+            root.spawn(Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(20.0),
+                ..default()
+            }).with_children(|center| {
+                center.spawn((
+                    Text::new("You must be logged in to view your profile"),
+                    TextFont { font_size: 18.0, ..default() },
+                    TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                ));
+                center.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(200.0),
+                        height: Val::Px(44.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                    ProfileButton::GoToLogin,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("LOGIN"),
+                        TextFont { font_size: 16.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
+            });
+            return;
+        }
+
+        // Title
+        root.spawn((
+            Text::new("PLAYER PROFILE"),
+            TextFont { font_size: 32.0, ..default() },
+            TextColor(Color::WHITE),
+            Node { margin: UiRect::bottom(Val::Px(24.0)), ..default() },
+        ));
+
+        // Content row: left info + right stats
+        root.spawn(Node {
+            width: Val::Percent(100.0),
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(40.0),
+            flex_grow: 1.0,
+            ..default()
+        }).with_children(|content| {
+            // Left side - player info
+            content.spawn(Node {
+                width: Val::Px(300.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(16.0),
+                ..default()
+            }).with_children(|left| {
+                let profile = cached_profile.profile.as_ref();
+                let username = profile.map(|p| p.username.as_str()).unwrap_or(
+                    conn_state.username().unwrap_or("Unknown")
+                );
+
+                // Username
+                left.spawn((
+                    Text::new(username),
+                    TextFont { font_size: 36.0, ..default() },
+                    TextColor(Color::srgb(0.4, 0.7, 1.0)),
+                    ProfileUsernameText,
+                ));
+
+                // Level
+                let level = profile.map(|p| p.level).unwrap_or(1);
+                let xp = profile.map(|p| p.xp).unwrap_or(0);
+                let xp_for_next = level * 1000; // Simple XP formula
+
+                left.spawn((
+                    Text::new(format!("Level {}", level)),
+                    TextFont { font_size: 20.0, ..default() },
+                    TextColor(Color::srgba(0.8, 0.8, 0.3, 0.9)),
+                    ProfileLevelText,
+                ));
+
+                // XP bar
+                left.spawn(Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(8.0),
+                    border: UiRect::all(Val::Px(1.0)),
+                    ..default()
+                }).with_children(|bar_bg| {
+                    bar_bg.spawn((
+                        Node {
+                            width: Val::Percent((xp as f32 / xp_for_next.max(1) as f32 * 100.0).min(100.0)),
+                            height: Val::Percent(100.0),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.3, 0.7, 0.3)),
+                        ProfileXpBar,
+                    ));
+                });
+
+                left.spawn((
+                    Text::new(format!("{} / {} XP", xp, xp_for_next)),
+                    TextFont { font_size: 12.0, ..default() },
+                    TextColor(Color::srgba(0.5, 0.5, 0.5, 0.8)),
+                ));
+
+                // Member since
+                let created = profile.map(|p| p.created_at.as_str()).unwrap_or("--");
+                let display_date = if created.len() >= 10 { &created[..10] } else { created };
+                left.spawn((
+                    Text::new(format!("Member since {}", display_date)),
+                    TextFont { font_size: 13.0, ..default() },
+                    TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7)),
+                    ProfileMemberSinceText,
+                ));
+            });
+
+            // Right side - stats grid
+            content.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(12.0),
+                flex_grow: 1.0,
+                ..default()
+            }).with_children(|right| {
+                let profile = cached_profile.profile.as_ref();
+
+                let kills = profile.map(|p| p.stats.total_kills).unwrap_or(0);
+                let deaths = profile.map(|p| p.stats.total_deaths).unwrap_or(0);
+                let kd = profile.map(|p| p.stats.kd_ratio()).unwrap_or(0.0);
+                let wins = profile.map(|p| p.stats.total_wins).unwrap_or(0);
+                let losses = profile.map(|p| p.stats.total_losses).unwrap_or(0);
+                let win_rate = profile.map(|p| p.stats.win_rate()).unwrap_or(0.0);
+                let matches = profile.map(|p| p.stats.total_matches).unwrap_or(0);
+                let playtime_s = profile.map(|p| p.stats.playtime_seconds).unwrap_or(0);
+                let currency = profile.map(|p| p.currency).unwrap_or(0);
+
+                // Row 1: Kills / Deaths / K/D
+                right.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(12.0),
+                    ..default()
+                }).with_children(|row| {
+                    spawn_profile_stat_box(row, "TOTAL KILLS", &kills.to_string(), "total_kills");
+                    spawn_profile_stat_box(row, "TOTAL DEATHS", &deaths.to_string(), "total_deaths");
+                    spawn_profile_stat_box(row, "K/D RATIO", &format!("{:.2}", kd), "kd_ratio");
+                });
+
+                // Row 2: Wins / Losses / Win Rate
+                right.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(12.0),
+                    ..default()
+                }).with_children(|row| {
+                    spawn_profile_stat_box(row, "TOTAL WINS", &wins.to_string(), "total_wins");
+                    spawn_profile_stat_box(row, "TOTAL LOSSES", &losses.to_string(), "total_losses");
+                    spawn_profile_stat_box(row, "WIN RATE", &format!("{:.1}%", win_rate), "win_rate");
+                });
+
+                // Row 3: Matches / Playtime
+                let hours = playtime_s / 3600;
+                let minutes = (playtime_s % 3600) / 60;
+                let playtime_display = if hours > 0 {
+                    format!("{}h {}m", hours, minutes)
+                } else {
+                    format!("{}m", minutes)
+                };
+
+                right.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(12.0),
+                    ..default()
+                }).with_children(|row| {
+                    spawn_profile_stat_box(row, "TOTAL MATCHES", &matches.to_string(), "total_matches");
+                    spawn_profile_stat_box(row, "PLAYTIME", &playtime_display, "playtime");
+                    spawn_profile_stat_box(row, "CURRENCY", &currency.to_string(), "currency");
+                });
+            });
+        });
+
+        // Bottom buttons
+        root.spawn(Node {
+            width: Val::Percent(100.0),
+            flex_direction: FlexDirection::Row,
+            justify_content: JustifyContent::SpaceBetween,
+            margin: UiRect::top(Val::Px(20.0)),
+            ..default()
+        }).with_children(|bottom| {
+            // Back button
+            bottom.spawn((
+                Button,
+                Node {
+                    width: Val::Px(140.0),
+                    height: Val::Px(40.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.8)),
+                ProfileButton::Back,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("BACK"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                ));
+            });
+
+            // Logout button
+            bottom.spawn((
+                Button,
+                Node {
+                    width: Val::Px(140.0),
+                    height: Val::Px(40.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                ProfileButton::Logout,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("LOGOUT"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.3, 0.3)),
+                ));
+            });
+        });
+    });
+}
+
+fn spawn_profile_stat_box(
+    parent: &mut ChildSpawnerCommands,
+    label: &str,
+    value: &str,
+    stat_key: &str,
+) {
+    parent.spawn((
+        Node {
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(14.0)),
+            min_width: Val::Px(140.0),
+            border: UiRect::all(Val::Px(1.0)),
+            flex_grow: 1.0,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9)),
+        BorderColor::all(Color::srgba(0.2, 0.2, 0.3, 0.4)),
+    )).with_children(|stat_box| {
+        stat_box.spawn((
+            Text::new(label),
+            TextFont { font_size: 10.0, ..default() },
+            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+        ));
+        stat_box.spawn((
+            Text::new(value),
+            TextFont { font_size: 22.0, ..default() },
+            TextColor(Color::WHITE),
+            Node { margin: UiRect::top(Val::Px(6.0)), ..default() },
+            ProfileStatText(stat_key.to_string()),
+        ));
+    });
+}
+
+fn despawn_profile_screen(mut commands: Commands, query: Query<Entity, With<ProfileScreenUi>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn request_profile_data(
+    conn_state: Res<ConnectionState>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
+) {
+    if let Some(token) = conn_state.token() {
+        let base_url = server_config.http_url.clone();
+        let token = token.to_string();
+        spawn_http_request(
+            &rt,
+            &pending,
+            crate::net::http::async_get_profile(base_url, token),
+        );
+    }
+}
+
+fn profile_interaction(
+    interaction_query: Query<(&Interaction, &ProfileButton), (Changed<Interaction>, With<Button>)>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut conn_state: ResMut<ConnectionState>,
+    mut cached_profile: ResMut<CachedProfile>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+) {
+    for (interaction, button) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            match button {
+                ProfileButton::Back => {
+                    next_state.set(GameState::MainMenu);
+                }
+                ProfileButton::Logout => {
+                    *conn_state = ConnectionState::Disconnected;
+                    *cached_profile = CachedProfile::default();
+                    next_state.set(GameState::MainMenu);
+                }
+                ProfileButton::GoToLogin => {
+                    next_state.set(GameState::Login);
+                }
+            }
+        }
+    }
+}
+
+fn profile_update_data(
+    mut events: MessageReader<NetworkEvent>,
+    mut cached_profile: ResMut<CachedProfile>,
+    mut stat_query: Query<(&mut Text, &ProfileStatText)>,
+    mut username_query: Query<&mut Text, (With<ProfileUsernameText>, Without<ProfileStatText>, Without<ProfileLevelText>, Without<ProfileMemberSinceText>)>,
+    mut level_query: Query<&mut Text, (With<ProfileLevelText>, Without<ProfileStatText>, Without<ProfileUsernameText>, Without<ProfileMemberSinceText>)>,
+    mut member_query: Query<&mut Text, (With<ProfileMemberSinceText>, Without<ProfileStatText>, Without<ProfileUsernameText>, Without<ProfileLevelText>)>,
+) {
+    for event in events.read() {
+        match event {
+            NetworkEvent::ProfileLoaded { profile } => {
+                cached_profile.loaded = true;
+                cached_profile.profile = Some(profile.clone());
+
+                // Update username
+                for mut text in username_query.iter_mut() {
+                    **text = profile.username.clone();
+                }
+
+                // Update level
+                for mut text in level_query.iter_mut() {
+                    **text = format!("Level {}", profile.level);
+                }
+
+                // Update member since
+                for mut text in member_query.iter_mut() {
+                    let display_date = if profile.created_at.len() >= 10 {
+                        &profile.created_at[..10]
+                    } else {
+                        &profile.created_at
+                    };
+                    **text = format!("Member since {}", display_date);
+                }
+
+                // Update stat texts
+                for (mut text, stat) in stat_query.iter_mut() {
+                    let value = match stat.0.as_str() {
+                        "total_kills" => profile.stats.total_kills.to_string(),
+                        "total_deaths" => profile.stats.total_deaths.to_string(),
+                        "kd_ratio" => format!("{:.2}", profile.stats.kd_ratio()),
+                        "total_wins" => profile.stats.total_wins.to_string(),
+                        "total_losses" => profile.stats.total_losses.to_string(),
+                        "win_rate" => format!("{:.1}%", profile.stats.win_rate()),
+                        "total_matches" => profile.stats.total_matches.to_string(),
+                        "playtime" => {
+                            let h = profile.stats.playtime_seconds / 3600;
+                            let m = (profile.stats.playtime_seconds % 3600) / 60;
+                            if h > 0 { format!("{}h {}m", h, m) } else { format!("{}m", m) }
+                        }
+                        "currency" => profile.currency.to_string(),
+                        _ => continue,
+                    };
+                    **text = value;
+                }
+            }
+            NetworkEvent::ProfileError { message } => {
+                warn!("Profile load error: {}", message);
+            }
+            _ => {}
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Friends Screen
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct FriendsScreenUi;
+
+#[derive(Component, Clone)]
+enum FriendsButton {
+    Back,
+    AddFriend,
+    AcceptRequest(uuid::Uuid),
+    DeclineRequest(uuid::Uuid),
+    RemoveFriend(uuid::Uuid),
+    GoToLogin,
+    InviteToParty(String),
+}
+
+#[derive(Component)]
+struct FriendAddInput;
+
+#[derive(Component)]
+struct FriendsListContainer;
+
+#[derive(Component)]
+struct FriendRequestsContainer;
+
+#[derive(Component)]
+struct FriendsStatusText;
+
+#[derive(Component)]
+struct FriendAddFieldText;
+
+#[derive(Resource)]
+struct FriendsUiState {
+    add_username: String,
+    status_message: Option<String>,
+    focused: bool,
+}
+
+impl Default for FriendsUiState {
+    fn default() -> Self {
+        Self {
+            add_username: String::new(),
+            status_message: None,
+            focused: false,
+        }
+    }
+}
+
+fn spawn_friends_screen(
+    mut commands: Commands,
+    conn_state: Res<ConnectionState>,
+    cached_friends: Res<CachedFriends>,
+    friends_state: Res<FriendsUiState>,
+) {
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(50.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.02, 0.02, 0.04, 0.95)),
+        FriendsScreenUi,
+    )).with_children(|root| {
+        if !conn_state.is_connected() {
+            root.spawn(Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(20.0),
+                ..default()
+            }).with_children(|center| {
+                center.spawn((
+                    Text::new("You must be logged in to manage friends"),
+                    TextFont { font_size: 18.0, ..default() },
+                    TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                ));
+                center.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(200.0),
+                        height: Val::Px(44.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                    FriendsButton::GoToLogin,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("LOGIN"),
+                        TextFont { font_size: 16.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                });
+            });
+            return;
+        }
+
+        // Title
+        root.spawn((
+            Text::new("FRIENDS"),
+            TextFont { font_size: 32.0, ..default() },
+            TextColor(Color::WHITE),
+            Node { margin: UiRect::bottom(Val::Px(20.0)), ..default() },
+        ));
+
+        // Add friend bar
+        root.spawn(Node {
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(8.0),
+            margin: UiRect::bottom(Val::Px(8.0)),
+            ..default()
+        }).with_children(|bar| {
+            // Text input
+            let display_text = if friends_state.focused {
+                format!("{}|", friends_state.add_username)
+            } else if friends_state.add_username.is_empty() {
+                "Enter username...".to_string()
+            } else {
+                friends_state.add_username.clone()
+            };
+
+            bar.spawn((
+                Button,
+                Node {
+                    width: Val::Px(280.0),
+                    height: Val::Px(36.0),
+                    padding: UiRect::horizontal(Val::Px(10.0)),
+                    align_items: AlignItems::Center,
+                    border: UiRect::all(Val::Px(1.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.9)),
+                BorderColor::all(if friends_state.focused {
+                    Color::srgba(0.3, 0.6, 0.3, 0.8)
+                } else {
+                    Color::srgba(0.25, 0.25, 0.3, 0.6)
+                }),
+                FriendAddInput,
+            )).with_children(|input| {
+                input.spawn((
+                    Text::new(display_text),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(if friends_state.focused || !friends_state.add_username.is_empty() {
+                        Color::srgba(0.85, 0.85, 0.85, 0.95)
+                    } else {
+                        Color::srgba(0.4, 0.4, 0.4, 0.6)
+                    }),
+                    FriendAddFieldText,
+                ));
+            });
+
+            // Add button
+            bar.spawn((
+                Button,
+                Node {
+                    width: Val::Px(80.0),
+                    height: Val::Px(36.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                FriendsButton::AddFriend,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("ADD"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::WHITE),
+                ));
+            });
+        });
+
+        // Status text
+        root.spawn((
+            Text::new(friends_state.status_message.as_deref().unwrap_or("")),
+            TextFont { font_size: 13.0, ..default() },
+            TextColor(Color::srgb(0.3, 0.8, 0.3)),
+            FriendsStatusText,
+            Node { margin: UiRect::bottom(Val::Px(12.0)), ..default() },
+        ));
+
+        // Friends list (scrollable)
+        root.spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
+                flex_grow: 1.0,
+                overflow: Overflow::scroll_y(),
+                ..default()
+            },
+            FriendsListContainer,
+        )).with_children(|list| {
+            if cached_friends.friends.is_empty() && cached_friends.loaded {
+                list.spawn((
+                    Text::new("No friends yet. Add someone above!"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7)),
+                ));
+            }
+
+            for friend in &cached_friends.friends {
+                list.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(10.0),
+                    padding: UiRect::all(Val::Px(8.0)),
+                    ..default()
+                }).with_children(|row| {
+                    // Online indicator
+                    row.spawn((
+                        Node {
+                            width: Val::Px(8.0),
+                            height: Val::Px(8.0),
+                            ..default()
+                        },
+                        BackgroundColor(if friend.online {
+                            Color::srgb(0.2, 0.8, 0.2)
+                        } else {
+                            Color::srgba(0.4, 0.4, 0.4, 0.5)
+                        }),
+                    ));
+
+                    // Username + level
+                    row.spawn((
+                        Text::new(format!("{} (Level {})", friend.username, friend.level)),
+                        TextFont { font_size: 15.0, ..default() },
+                        TextColor(Color::srgba(0.85, 0.85, 0.85, 0.95)),
+                    ));
+
+                    // Spacer
+                    row.spawn(Node { flex_grow: 1.0, ..default() });
+
+                    // Invite to Party button
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(28.0),
+                            height: Val::Px(28.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.1, 0.3, 0.5, 0.6)),
+                        FriendsButton::InviteToParty(friend.username.clone()),
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("P"),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::srgb(0.3, 0.6, 0.9)),
+                        ));
+                    });
+
+                    // Remove button
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(28.0),
+                            height: Val::Px(28.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.6)),
+                        FriendsButton::RemoveFriend(friend.id),
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("X"),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::srgb(0.9, 0.3, 0.3)),
+                        ));
+                    });
+                });
+            }
+
+            // Pending requests section
+            let has_requests = !cached_friends.incoming_requests.is_empty() || !cached_friends.outgoing_requests.is_empty();
+            if has_requests {
+                list.spawn((
+                    Text::new("PENDING REQUESTS"),
+                    TextFont { font_size: 12.0, ..default() },
+                    TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                    Node { margin: UiRect::new(Val::Px(0.0), Val::Px(0.0), Val::Px(16.0), Val::Px(8.0)), ..default() },
+                ));
+            }
+
+            // Incoming requests
+            for req in &cached_friends.incoming_requests {
+                list.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(10.0),
+                    padding: UiRect::all(Val::Px(8.0)),
+                    ..default()
+                }).with_children(|row| {
+                    row.spawn((
+                        Text::new(format!("{} wants to be friends", req.from_username)),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(Color::srgba(0.8, 0.8, 0.5, 0.9)),
+                    ));
+
+                    row.spawn(Node { flex_grow: 1.0, ..default() });
+
+                    // Accept
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(70.0),
+                            height: Val::Px(28.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.1, 0.4, 0.1, 0.8)),
+                        FriendsButton::AcceptRequest(req.id),
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("Accept"),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::srgb(0.3, 0.9, 0.3)),
+                        ));
+                    });
+
+                    // Decline
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(70.0),
+                            height: Val::Px(28.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.4, 0.1, 0.1, 0.8)),
+                        FriendsButton::DeclineRequest(req.id),
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("Decline"),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::srgb(0.9, 0.3, 0.3)),
+                        ));
+                    });
+                });
+            }
+
+            // Outgoing requests
+            for req in &cached_friends.outgoing_requests {
+                list.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(8.0)),
+                    ..default()
+                }).with_children(|row| {
+                    row.spawn((
+                        Text::new(format!("Pending: {}...", req.to_username)),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7)),
+                    ));
+                });
+            }
+        });
+
+        // Back button
+        root.spawn((
+            Button,
+            Node {
+                width: Val::Px(140.0),
+                height: Val::Px(40.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                margin: UiRect::top(Val::Px(16.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.8)),
+            FriendsButton::Back,
+        )).with_children(|btn| {
+            btn.spawn((
+                Text::new("BACK"),
+                TextFont { font_size: 14.0, ..default() },
+                TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+            ));
+        });
+    });
+}
+
+fn despawn_friends_screen(mut commands: Commands, query: Query<Entity, With<FriendsScreenUi>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn request_friends_data(
+    conn_state: Res<ConnectionState>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
+) {
+    if let Some(token) = conn_state.token() {
+        let base_url = server_config.http_url.clone();
+        let token_str = token.to_string();
+        spawn_http_request(
+            &rt,
+            &pending,
+            crate::net::http::async_get_friends(base_url.clone(), token_str.clone()),
+        );
+        spawn_http_request(
+            &rt,
+            &pending,
+            crate::net::http::async_get_friend_requests(base_url, token_str),
+        );
+    }
+}
+
+fn friends_interaction(
+    interaction_query: Query<(&Interaction, &FriendsButton), (Changed<Interaction>, With<Button>)>,
+    input_query: Query<(&Interaction, &FriendAddInput), (Changed<Interaction>, With<Button>)>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut friends_state: ResMut<FriendsUiState>,
+    conn_state: Res<ConnectionState>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    tcp_client: Res<TcpClient>,
+    party_state: Res<PartyState>,
+) {
+    // Handle input focus
+    for (interaction, _) in input_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            friends_state.focused = true;
+        }
+    }
+
+    for (interaction, button) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            match button {
+                FriendsButton::Back => {
+                    *friends_state = FriendsUiState::default();
+                    next_state.set(GameState::MainMenu);
+                }
+                FriendsButton::GoToLogin => {
+                    next_state.set(GameState::Login);
+                }
+                FriendsButton::AddFriend => {
+                    if !friends_state.add_username.is_empty() {
+                        if let Some(token) = conn_state.token() {
+                            let base_url = server_config.http_url.clone();
+                            let token_str = token.to_string();
+                            let target = friends_state.add_username.clone();
+                            spawn_http_request(
+                                &rt,
+                                &pending,
+                                crate::net::http::async_send_friend_request(base_url, token_str, target),
+                            );
+                            friends_state.add_username.clear();
+                        }
+                    }
+                }
+                FriendsButton::AcceptRequest(request_id) => {
+                    if let Some(token) = conn_state.token() {
+                        let base_url = server_config.http_url.clone();
+                        let token_str = token.to_string();
+                        let id = *request_id;
+                        spawn_http_request(
+                            &rt,
+                            &pending,
+                            crate::net::http::async_accept_friend_request(base_url, token_str, id),
+                        );
+                    }
+                }
+                FriendsButton::DeclineRequest(request_id) => {
+                    if let Some(token) = conn_state.token() {
+                        let base_url = server_config.http_url.clone();
+                        let token_str = token.to_string();
+                        let id = *request_id;
+                        spawn_http_request(
+                            &rt,
+                            &pending,
+                            crate::net::http::async_decline_friend_request(base_url, token_str, id),
+                        );
+                    }
+                }
+                FriendsButton::RemoveFriend(friend_id) => {
+                    if let Some(token) = conn_state.token() {
+                        let base_url = server_config.http_url.clone();
+                        let token_str = token.to_string();
+                        let id = *friend_id;
+                        spawn_http_request(
+                            &rt,
+                            &pending,
+                            crate::net::http::async_remove_friend(base_url, token_str, id),
+                        );
+                    }
+                }
+                FriendsButton::InviteToParty(username) => {
+                    if tcp_client.is_connected() {
+                        let msg = noctyrn_shared::protocol::ClientMessage::PartyInvite {
+                            username: username.clone(),
+                        };
+                        let tcp = tcp_client.clone();
+                        let rt = rt.0.clone();
+                        rt.spawn(async move {
+                            if let Err(e) = tcp.send(&msg).await {
+                                warn!("Party invite send failed: {e}");
+                            }
+                        });
+                    } else {
+                        friends_state.status_message = Some("Not connected to server".to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // Accept party invite via keyboard shortcut (Y/N popup handled in overlay)
+    if party_state.pending_invite.is_some() {
+        if mouse_input.just_pressed(MouseButton::Left) {
+            // Check if user clicked on accept or decline UI button
+        }
+    }
+}
+
+fn friends_text_input(
+    mut friends_state: ResMut<FriendsUiState>,
+    mut char_events: MessageReader<KeyboardInput>,
+    mut text_query: Query<&mut Text, With<FriendAddFieldText>>,
+    conn_state: Res<ConnectionState>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
+) {
+    if !friends_state.focused {
+        char_events.clear();
+        return;
+    }
+
+    for event in char_events.read() {
+        if !event.state.is_pressed() {
+            continue;
+        }
+
+        match event.key_code {
+            KeyCode::Escape => {
+                friends_state.focused = false;
+            }
+            KeyCode::Backspace => {
+                friends_state.add_username.pop();
+            }
+            KeyCode::Enter => {
+                if !friends_state.add_username.is_empty() {
+                    if let Some(token) = conn_state.token() {
+                        let base_url = server_config.http_url.clone();
+                        let token_str = token.to_string();
+                        let target = friends_state.add_username.clone();
+                        spawn_http_request(
+                            &rt,
+                            &pending,
+                            crate::net::http::async_send_friend_request(base_url, token_str, target),
+                        );
+                        friends_state.add_username.clear();
+                    }
+                }
+            }
+            _ => {
+                if let bevy::input::keyboard::Key::Character(ref ch) = event.logical_key {
+                    friends_state.add_username.push_str(ch.as_str());
+                }
+            }
+        }
+    }
+
+    // Update displayed text
+    for mut text in text_query.iter_mut() {
+        if friends_state.focused {
+            **text = format!("{}|", friends_state.add_username);
+        } else if friends_state.add_username.is_empty() {
+            **text = "Enter username...".to_string();
+        } else {
+            **text = friends_state.add_username.clone();
+        }
+    }
+}
+
+fn friends_update_data(
+    mut events: MessageReader<NetworkEvent>,
+    mut cached_friends: ResMut<CachedFriends>,
+    mut friends_state: ResMut<FriendsUiState>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    let mut needs_refresh = false;
+
+    for event in events.read() {
+        match event {
+            NetworkEvent::FriendsLoaded { friends } => {
+                cached_friends.loaded = true;
+                cached_friends.friends = friends.clone();
+                needs_refresh = true;
+            }
+            NetworkEvent::FriendRequestsLoaded { incoming, outgoing } => {
+                cached_friends.incoming_requests = incoming.clone();
+                cached_friends.outgoing_requests = outgoing.clone();
+                needs_refresh = true;
+            }
+            NetworkEvent::FriendRequestSent => {
+                friends_state.status_message = Some("Friend request sent!".to_string());
+                needs_refresh = true;
+            }
+            NetworkEvent::FriendRequestAccepted => {
+                friends_state.status_message = Some("Friend request accepted!".to_string());
+                needs_refresh = true;
+            }
+            NetworkEvent::FriendRequestDeclined => {
+                friends_state.status_message = Some("Friend request declined.".to_string());
+                needs_refresh = true;
+            }
+            NetworkEvent::FriendRemoved => {
+                friends_state.status_message = Some("Friend removed.".to_string());
+                needs_refresh = true;
+            }
+            NetworkEvent::FriendError { message } => {
+                friends_state.status_message = Some(format!("Error: {}", message));
+            }
+            _ => {}
+        }
+    }
+
+    if needs_refresh {
+        // Re-enter Friends state to rebuild the UI with new data
+        next_state.set(GameState::Friends);
+    }
+}
+
+fn friends_handle_network_events(
+    mut events: MessageReader<NetworkEvent>,
+    mut friends_state: ResMut<FriendsUiState>,
+    mut party_state: ResMut<PartyState>,
+) {
+    for event in events.read() {
+        match event {
+            NetworkEvent::ConnectionError { message } => {
+                friends_state.status_message = Some(format!("Connection error: {}", message));
+            }
+            NetworkEvent::PartyError { message } => {
+                friends_state.status_message = Some(format!("Party: {message}"));
+            }
+            _ => {}
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Lobby Screen (Fortnite-style party lobby)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct LobbyScreenUi;
+
+#[derive(Component, Clone)]
+enum LobbyButton {
+    Play,
+    Ready,
+    Leave,
+    Invite,
+    SendInvite,
+}
+
+#[derive(Component)]
+struct LobbyPlayerList;
+
+#[derive(Component)]
+struct LobbyTitleText;
+
+#[derive(Component)]
+struct LobbyReadyButtonText;
+
+#[derive(Component)]
+struct LobbyPlayButtonText;
+
+#[derive(Component)]
+struct LobbyInviteInput;
+
+#[derive(Component)]
+struct LobbyInviteInputText;
+
+#[derive(Resource, Default)]
+struct LobbyState {
+    is_ready: bool,
+    lobby_data: Option<noctyrn_shared::lobby::LobbyState>,
+}
+
+#[derive(Resource, Default)]
+struct LobbyInviteText {
+    text: String,
+}
+
+fn spawn_lobby_screen(
+    mut commands: Commands,
+    party_state: Res<PartyState>,
+    conn_state: Res<ConnectionState>,
+    selected_mode: Res<SelectedGameMode>,
+    lobby_state: Res<LobbyState>,
+) {
+    let user_id = conn_state.user_id().unwrap_or_default();
+    let is_leader = party_state.party.as_ref().is_some_and(|p| p.is_leader(user_id));
+    let mode_name = selected_mode.mode.display_name();
+
+    // Gather party member entries (from PartyState before lobby, from LobbyState once created)
+    let members: Vec<(&str, bool, bool)> = if let Some(ref lobby) = lobby_state.lobby_data {
+        lobby.players.iter().map(|p| {
+            let is_ldr = party_state.party.as_ref().is_some_and(|party| party.is_leader(p.id));
+            (p.username.as_str(), p.ready, is_ldr)
+        }).collect()
+    } else if let Some(ref party) = party_state.party {
+        party.members.iter().map(|m| {
+            let is_ldr = party.is_leader(m.id);
+            (m.username.as_str(), false, is_ldr)
+        }).collect()
+    } else {
+        vec![]
+    };
+
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.02, 0.02, 0.04, 0.95)),
+        LobbyScreenUi,
+    )).with_children(|root| {
+        // ─── Party member panel (top-right) ───
+        root.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(24.0),
+                top: Val::Px(24.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(6.0),
+                min_width: Val::Px(240.0),
+                padding: UiRect::all(Val::Px(14.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.92)),
+            BorderColor::all(Color::srgba(0.25, 0.25, 0.35, 0.5)),
+        )).with_children(|panel| {
+            panel.spawn((
+                Text::new("PARTY"),
+                TextFont { font_size: 13.0, ..default() },
+                TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                Node { margin: UiRect::bottom(Val::Px(4.0)), ..default() },
+            ));
+
+            if members.is_empty() {
+                panel.spawn((
+                    Text::new("No party members"),
+                    TextFont { font_size: 13.0, ..default() },
+                    TextColor(Color::srgba(0.4, 0.4, 0.4, 0.6)),
+                ));
+            }
+
+            for (username, ready, leader) in &members {
+                panel.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(8.0),
+                    padding: UiRect::new(Val::Px(4.0), Val::Px(4.0), Val::Px(3.0), Val::Px(3.0)),
+                    ..default()
+                }).with_children(|row| {
+                    // Ready dot
+                    row.spawn((
+                        Node {
+                            width: Val::Px(8.0),
+                            height: Val::Px(8.0),
+                            ..default()
+                        },
+                        BackgroundColor(if *ready {
+                            Color::srgb(0.2, 0.8, 0.2)
+                        } else {
+                            Color::srgba(0.4, 0.4, 0.4, 0.5)
+                        }),
+                    ));
+                    // Username
+                    row.spawn((
+                        Text::new(*username),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(if *leader {
+                            Color::srgb(0.9, 0.7, 0.2)
+                        } else {
+                            Color::srgba(0.85, 0.85, 0.85, 0.95)
+                        }),
+                    ));
+                    // Leader crown
+                    if *leader {
+                        row.spawn((
+                            Text::new(" 👑"),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::srgb(0.9, 0.7, 0.2)),
+                        ));
+                    }
+                    // Ready label
+                    row.spawn(Node { flex_grow: 1.0, ..default() });
+                    row.spawn((
+                        Text::new(if *ready { "READY" } else { "NOT READY" }),
+                        TextFont { font_size: 11.0, ..default() },
+                        TextColor(if *ready {
+                            Color::srgb(0.3, 0.9, 0.3)
+                        } else {
+                            Color::srgba(0.5, 0.5, 0.5, 0.6)
+                        }),
+                    ));
+                });
+            }
+        });
+
+        // ─── CENTER CONTENT ───
+        root.spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(20.0),
+                ..default()
+            },
+            LobbyPlayerList,
+        )).with_children(|center| {
+            // Game mode title
+            center.spawn((
+                Text::new(mode_name),
+                TextFont { font_size: 36.0, ..default() },
+                TextColor(selected_mode.mode.accent_color()),
+                LobbyTitleText,
+            ));
+
+            center.spawn((
+                Text::new(if party_state.party.is_some() {
+                    "Waiting for party to be ready..."
+                } else {
+                    "Press PLAY to start matchmaking"
+                }),
+                TextFont { font_size: 14.0, ..default() },
+                TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7)),
+            ));
+        });
+
+        // ─── BOTTOM BUTTON BAR ───
+        root.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(32.0),
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::Center,
+                column_gap: Val::Px(16.0),
+                align_items: AlignItems::Center,
+                ..default()
+            },
+        )).with_children(|bar| {
+            // Leave
+            bar.spawn((
+                Button,
+                Node {
+                    width: Val::Px(130.0),
+                    height: Val::Px(44.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                LobbyButton::Leave,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("LEAVE"),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.3, 0.3)),
+                ));
+            });
+
+            // Invite
+            bar.spawn((
+                Button,
+                Node {
+                    width: Val::Px(130.0),
+                    height: Val::Px(44.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.8)),
+                LobbyButton::Invite,
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("INVITE"),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgba(0.7, 0.7, 0.9, 0.9)),
+                ));
+            });
+
+            // Play (leader) or Ready (non-leader)
+            if is_leader {
+                bar.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(180.0),
+                        height: Val::Px(52.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                    LobbyButton::Play,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("PLAY"),
+                        TextFont { font_size: 22.0, ..default() },
+                        TextColor(Color::WHITE),
+                        LobbyPlayButtonText,
+                    ));
+                });
+            } else {
+                bar.spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(180.0),
+                        height: Val::Px(52.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                    LobbyButton::Ready,
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new("READY"),
+                        TextFont { font_size: 22.0, ..default() },
+                        TextColor(Color::WHITE),
+                        LobbyReadyButtonText,
+                    ));
+                });
+            }
+        });
+    });
+}
+
+fn despawn_lobby_screen(
+    mut commands: Commands,
+    query: Query<Entity, With<LobbyScreenUi>>,
+    mut lobby_state: Option<ResMut<LobbyState>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+    if let Some(ref mut state) = lobby_state {
+        state.is_ready = false;
+        state.lobby_data = None;
+    }
+}
+
+/// Convert the local `menu::GameMode` to the shared type.
+fn to_shared_gamemode(mode: GameMode) -> noctyrn_shared::GameMode {
+    match mode {
+        GameMode::FreeForAll => noctyrn_shared::GameMode::FreeForAll,
+        GameMode::TeamDeathmatch => noctyrn_shared::GameMode::TeamDeathmatch,
+        GameMode::KillConfirmed => noctyrn_shared::GameMode::KillConfirmed,
+        GameMode::CaptureTheFlag => noctyrn_shared::GameMode::CaptureTheFlag,
+        GameMode::Assassins => noctyrn_shared::GameMode::Assassins,
+        GameMode::KingOfTheHill => noctyrn_shared::GameMode::KingOfTheHill,
+        GameMode::Hardpoint => noctyrn_shared::GameMode::Hardpoint,
+        GameMode::CapturePoint => noctyrn_shared::GameMode::CapturePoint,
+        GameMode::TestingGrounds => noctyrn_shared::GameMode::TestingGrounds,
+        GameMode::Juggernaut => noctyrn_shared::GameMode::Juggernaut,
+        GameMode::HighExplosives => noctyrn_shared::GameMode::HighExplosives,
+        GameMode::OneInTheChamber => noctyrn_shared::GameMode::OneInTheChamber,
+        GameMode::GunGame => noctyrn_shared::GameMode::GunGame,
+        GameMode::Infected => noctyrn_shared::GameMode::Infected,
+    }
+}
+
+/// On entering the lobby, only the party leader creates the lobby on the server.
+/// Only sends PartyCreateLobby if no lobby exists yet (lobby_data is None).
+fn lobby_on_enter(
+    tcp_client: Res<TcpClient>,
+    rt: Res<TokioRuntime>,
+    party_state: Res<PartyState>,
+    selected_mode: Res<SelectedGameMode>,
+    conn_state: Res<ConnectionState>,
+    lobby_state: Res<LobbyState>,
+) {
+    if !tcp_client.is_connected() {
+        return;
+    }
+
+    // If we already have lobby data, the lobby was already created – skip.
+    if lobby_state.lobby_data.is_some() {
+        return;
+    }
+
+    let user_id = match conn_state.user_id() {
+        Some(id) => id,
+        None => return,
+    };
+
+    // Only the party leader sends PartyCreateLobby.
+    if let Some(ref party) = party_state.party {
+        if party.is_leader(user_id) {
+            let mode = to_shared_gamemode(selected_mode.mode);
+            let msg = noctyrn_shared::protocol::ClientMessage::PartyCreateLobby {
+                game_mode: mode,
+            };
+            let tcp = tcp_client.clone();
+            let rt = rt.0.clone();
+            rt.spawn(async move {
+                if let Err(e) = tcp.send(&msg).await {
+                    warn!("PartyCreateLobby send failed: {e}");
+                }
+            });
+        }
+    }
+}
+
+fn lobby_interaction(
+    interaction_query: Query<(&Interaction, &LobbyButton), (Changed<Interaction>, With<Button>)>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut lobby_state: Option<ResMut<LobbyState>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    tcp_client: Res<TcpClient>,
+    rt: Res<TokioRuntime>,
+    selected_mode: Res<SelectedGameMode>,
+    mut invite_text: ResMut<LobbyInviteText>,
+    mut text_set: ParamSet<(
+        Query<&mut Text, With<LobbyReadyButtonText>>,
+        Query<&mut Text, With<LobbyPlayButtonText>>,
+    )>,
+) {
+    let rt = rt.0.clone();
+    for (interaction, button) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            match button {
+                LobbyButton::Leave => {
+                    if tcp_client.is_connected() {
+                        let msg = noctyrn_shared::protocol::ClientMessage::PartyLeave;
+                        let tcp = tcp_client.clone();
+                        let rt = rt.clone();
+                        rt.spawn(async move {
+                            let _ = tcp.send(&msg).await;
+                        });
+                    }
+                    next_state.set(GameState::MainMenu);
+                }
+                LobbyButton::Invite => {
+                    invite_text.text.clear();
+                    next_state.set(GameState::Lobby);
+                }
+                LobbyButton::Play => {
+                    if tcp_client.is_connected() {
+                        let mode = to_shared_gamemode(selected_mode.mode);
+                        let create_msg = noctyrn_shared::protocol::ClientMessage::PartyCreateLobby {
+                            game_mode: mode,
+                        };
+                        let search_msg = noctyrn_shared::protocol::ClientMessage::PartyStartSearch;
+                        let tcp = tcp_client.clone();
+                        let rt = rt.clone();
+                        rt.spawn(async move {
+                            let _ = tcp.send(&create_msg).await;
+                            let _ = tcp.send(&search_msg).await;
+                        });
+                    }
+                    next_state.set(GameState::Matchmaking);
+                }
+                LobbyButton::Ready => {
+                    let new_ready = if let Some(ref mut state) = lobby_state {
+                        state.is_ready = !state.is_ready;
+                        state.is_ready
+                    } else {
+                        return;
+                    };
+
+                    if tcp_client.is_connected() {
+                        let msg = noctyrn_shared::protocol::ClientMessage::SetReady {
+                            ready: new_ready,
+                        };
+                        let tcp = tcp_client.clone();
+                        let rt = rt.clone();
+                        rt.spawn(async move {
+                            let _ = tcp.send(&msg).await;
+                        });
+                    }
+
+                    for mut text in text_set.p0().iter_mut() {
+                        **text = if new_ready { "UNREADY".to_string() } else { "READY".to_string() };
+                    }
+                }
+                LobbyButton::SendInvite => {
+                    let target = invite_text.text.trim().to_string();
+                    if !target.is_empty() && tcp_client.is_connected() {
+                        let msg = noctyrn_shared::protocol::ClientMessage::PartyInvite {
+                            username: target,
+                        };
+                        let tcp = tcp_client.clone();
+                        let rt = rt.clone();
+                        rt.spawn(async move {
+                            let _ = tcp.send(&msg).await;
+                        });
+                        invite_text.text.clear();
+                        next_state.set(GameState::Lobby);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn lobby_update(
+    mut events: MessageReader<NetworkEvent>,
+    mut commands: Commands,
+    player_list_query: Query<Entity, With<LobbyPlayerList>>,
+    mut title_query: Query<&mut Text, With<LobbyTitleText>>,
+    mut lobby_state: Option<ResMut<LobbyState>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    for event in events.read() {
+        match event {
+            NetworkEvent::LobbyUpdate { lobby } => {
+                for mut text in title_query.iter_mut() {
+                    **text = format!("{}", lobby.game_mode.display_name());
+                }
+                for entity in player_list_query.iter() {
+                    commands.entity(entity).despawn();
+                }
+                if let Ok(list_entity) = player_list_query.single() {
+                    commands.entity(list_entity).despawn();
+                }
+                if let Some(ref mut state) = lobby_state {
+                    state.lobby_data = Some(lobby.clone());
+                }
+                next_state.set(GameState::Lobby);
+            }
+            NetworkEvent::PartyUpdate { party } => {
+                // Party state changed (member joined/left/ready), refresh UI
+                next_state.set(GameState::Lobby);
+            }
+            NetworkEvent::MatchFound { .. } => {
+                next_state.set(GameState::Playing);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Inline invite input bar in lobby – rendered when invite_text is non-empty after pressing INVITE.
+fn lobby_invite_input_system(
+    mut commands: Commands,
+    player_list_query: Query<Entity, With<LobbyPlayerList>>,
+    mut invite_text: ResMut<LobbyInviteText>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mut char_events: MessageReader<KeyboardInput>,
+    invite_input_query: Query<Entity, With<LobbyInviteInput>>,
+    mut invite_text_query: Query<&mut Text, With<LobbyInviteInputText>>,
+) {
+    // Check if we need to spawn the invite input bar
+    let has_focus = !invite_text.text.is_empty() || !invite_input_query.is_empty();
+
+    if !has_focus {
+        return;
+    }
+
+    // Spawn input bar if not already present
+    if invite_input_query.is_empty() {
+        // Find the LobbyPlayerList entity and attach the input bar to it
+        if let Ok(list_entity) = player_list_query.single() {
+            commands.entity(list_entity).with_children(|parent| {
+                parent.spawn((
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(8.0),
+                        margin: UiRect::top(Val::Px(12.0)),
+                        ..default()
+                    },
+                    LobbyInviteInput,
+                )).with_children(|row| {
+                    let display = if invite_text.text.is_empty() {
+                        "Enter username...".to_string()
+                    } else {
+                        format!("{}|", invite_text.text)
+                    };
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(220.0),
+                            height: Val::Px(36.0),
+                            padding: UiRect::horizontal(Val::Px(10.0)),
+                            align_items: AlignItems::Center,
+                            border: UiRect::all(Val::Px(1.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.9)),
+                        BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.6)),
+                    )).with_children(|input| {
+                        input.spawn((
+                            Text::new(display),
+                            TextFont { font_size: 14.0, ..default() },
+                            TextColor(Color::srgba(0.85, 0.85, 0.85, 0.95)),
+                            LobbyInviteInputText,
+                        ));
+                    });
+                    // Send button
+                    row.spawn((
+                        Button,
+                        Node {
+                            width: Val::Px(80.0),
+                            height: Val::Px(36.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                        LobbyButton::SendInvite,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new("SEND"),
+                            TextFont { font_size: 14.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                });
+            });
+        }
+    }
+
+    // Handle keyboard input
+    for event in char_events.read() {
+        if !event.state.is_pressed() {
+            continue;
+        }
+        match event.key_code {
+            KeyCode::Escape => {
+                invite_text.text.clear();
+                next_state.set(GameState::Lobby);
+            }
+            KeyCode::Backspace => {
+                invite_text.text.pop();
+                next_state.set(GameState::Lobby);
+            }
+            KeyCode::Enter => {
+                // Send invite via the SendInvite button (handled in lobby_interaction)
+                // We'll trigger it by re-entering, but the button click handles sending.
+                if !invite_text.text.is_empty() {
+                    // The interaction system will handle the SendInvite click.
+                    // For now, clear and re-enter.
+                    let target = invite_text.text.trim().to_string();
+                    if !target.is_empty() {
+                        let tcp = crate::net::tcp::TcpClient::default(); // placeholder – handled better via SendInvite button
+                        let _ = target;
+                    }
+                }
+            }
+            _ => {
+                if let bevy::input::keyboard::Key::Character(ref ch) = event.logical_key {
+                    invite_text.text.push_str(ch.as_str());
+                }
+            }
+        }
+    }
+
+    // Update displayed text
+    for mut text in invite_text_query.iter_mut() {
+        if invite_text.text.is_empty() {
+            **text = "Enter username...".to_string();
+        } else {
+            **text = format!("{}|", invite_text.text);
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Matchmaking Screen
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct MatchmakingScreenUi;
+
+#[derive(Component)]
+struct MatchmakingButton {
+    action: MatchmakingAction,
+}
+
+#[derive(Clone)]
+enum MatchmakingAction {
+    Cancel,
+}
+
+#[derive(Component)]
+struct MatchmakingTimerText;
+
+#[derive(Component)]
+struct MatchmakingStatusText;
+
+#[derive(Component)]
+struct MatchmakingDotsText;
+
+#[derive(Resource, Default)]
+struct MatchmakingTimer {
+    elapsed: f32,
+}
+
+fn spawn_matchmaking_screen(
+    mut commands: Commands,
+    selected_mode: Res<SelectedGameMode>,
+    mut timer: ResMut<MatchmakingTimer>,
+) {
+    timer.elapsed = 0.0;
+
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.02, 0.02, 0.04, 0.95)),
+        MatchmakingScreenUi,
+    )).with_children(|root| {
+        // Centered card
+        root.spawn((
+            Node {
+                width: Val::Px(420.0),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                padding: UiRect::all(Val::Px(40.0)),
+                row_gap: Val::Px(20.0),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.95)),
+            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+        )).with_children(|card| {
+            // Title with animated dots
+            card.spawn((
+                Text::new("SEARCHING FOR MATCH..."),
+                TextFont { font_size: 24.0, ..default() },
+                TextColor(Color::WHITE),
+                MatchmakingDotsText,
+            ));
+
+            // Game mode display
+            card.spawn((
+                Text::new(selected_mode.mode.display_name()),
+                TextFont { font_size: 16.0, ..default() },
+                TextColor(Color::srgba(0.6, 0.8, 0.6, 0.9)),
+            ));
+
+            // Timer
+            card.spawn((
+                Text::new("0:00"),
+                TextFont { font_size: 32.0, ..default() },
+                TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                MatchmakingTimerText,
+            ));
+
+            // Players in queue
+            card.spawn((
+                Text::new("Players in queue: --"),
+                TextFont { font_size: 14.0, ..default() },
+                TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+                MatchmakingStatusText,
+            ));
+
+            // Cancel button
+            card.spawn((
+                Button,
+                Node {
+                    width: Val::Px(200.0),
+                    height: Val::Px(44.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    margin: UiRect::top(Val::Px(10.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                MatchmakingButton { action: MatchmakingAction::Cancel },
+            )).with_children(|btn| {
+                btn.spawn((
+                    Text::new("CANCEL"),
+                    TextFont { font_size: 16.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.3, 0.3)),
+                ));
+            });
+        });
+    });
+}
+
+fn despawn_matchmaking_screen(mut commands: Commands, query: Query<Entity, With<MatchmakingScreenUi>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn matchmaking_interaction(
+    interaction_query: Query<(&Interaction, &MatchmakingButton), (Changed<Interaction>, With<Button>)>,
+    mut next_state: ResMut<NextState<GameState>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    tcp_client: Res<TcpClient>,
+    rt: Res<TokioRuntime>,
+) {
+    let rt = rt.0.clone();
+    for (interaction, button) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            match button.action {
+                MatchmakingAction::Cancel => {
+                    if tcp_client.is_connected() {
+                        let msg = noctyrn_shared::protocol::ClientMessage::CancelMatchmaking;
+                        let tcp = tcp_client.clone();
+                        let rt = rt.clone();
+                        rt.spawn(async move {
+                            let _ = tcp.send(&msg).await;
+                        });
+                    }
+                    next_state.set(GameState::MainMenu);
+                }
+            }
+        }
+    }
+}
+
+fn matchmaking_update(
+    time: Res<Time>,
+    mut timer: ResMut<MatchmakingTimer>,
+    mut timer_text_query: Query<&mut Text, (With<MatchmakingTimerText>, Without<MatchmakingStatusText>, Without<MatchmakingDotsText>)>,
+    mut status_text_query: Query<&mut Text, (With<MatchmakingStatusText>, Without<MatchmakingTimerText>, Without<MatchmakingDotsText>)>,
+    mut dots_text_query: Query<&mut Text, (With<MatchmakingDotsText>, Without<MatchmakingTimerText>, Without<MatchmakingStatusText>)>,
+    mut events: MessageReader<NetworkEvent>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    timer.elapsed += time.delta_secs();
+
+    // Update timer display
+    let total_secs = timer.elapsed as u32;
+    let mins = total_secs / 60;
+    let secs = total_secs % 60;
+    for mut text in timer_text_query.iter_mut() {
+        **text = format!("{}:{:02}", mins, secs);
+    }
+
+    // Animate dots
+    let dot_count = ((timer.elapsed * 2.0) as usize % 4);
+    let dots = ".".repeat(dot_count);
+    for mut text in dots_text_query.iter_mut() {
+        **text = format!("SEARCHING FOR MATCH{}", dots);
+    }
+
+    // Handle network events
+    for event in events.read() {
+        match event {
+            NetworkEvent::MatchmakingUpdate { players_in_queue } => {
+                for mut text in status_text_query.iter_mut() {
+                    **text = format!("Players in queue: {}", players_in_queue);
+                }
+            }
+            NetworkEvent::MatchFound { lobby_id: _, server_addr: _, udp_port: _ } => {
+                next_state.set(GameState::Lobby);
+            }
+            _ => {}
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Party Invite Overlay
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+struct PartyInviteOverlay;
+
+fn party_invite_overlay_system(
+    mut commands: Commands,
+    party_state: Res<PartyState>,
+    overlay_query: Query<Entity, With<PartyInviteOverlay>>,
+    interaction_query: Query<(&Interaction, &InviteOverlayButton), (Changed<Interaction>, With<Button>)>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    tcp_client: Res<TcpClient>,
+    rt: Res<TokioRuntime>,
+) {
+    let has_invite = party_state.pending_invite.is_some();
+    let overlay_exists = !overlay_query.is_empty();
+
+    if has_invite && !overlay_exists {
+        // Spawn the invite popup
+        let (party_id, from_username) = party_state.pending_invite.as_ref().unwrap();
+        let party_id = *party_id;
+        let username = from_username.clone();
+
+        commands
+            .spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+                PartyInviteOverlay,
+            ))
+            .with_children(|root| {
+                root.spawn((
+                    Node {
+                        width: Val::Px(360.0),
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        padding: UiRect::all(Val::Px(24.0)),
+                        row_gap: Val::Px(16.0),
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.95)),
+                    BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+                ))
+                .with_children(|card| {
+                    card.spawn((
+                        Text::new("PARTY INVITE"),
+                        TextFont { font_size: 24.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                    card.spawn((
+                        Text::new(format!("{} invited you to a party!", username)),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                    ));
+                    card.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(12.0),
+                        ..default()
+                    }).with_children(|row| {
+                        // Accept
+                        row.spawn((
+                            Button,
+                            Node {
+                                width: Val::Px(120.0),
+                                height: Val::Px(40.0),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+                            InviteOverlayButton::Accept(party_id),
+                        )).with_children(|btn| {
+                            btn.spawn((
+                                Text::new("ACCEPT"),
+                                TextFont { font_size: 16.0, ..default() },
+                                TextColor(Color::WHITE),
+                            ));
+                        });
+                        // Decline
+                        row.spawn((
+                            Button,
+                            Node {
+                                width: Val::Px(120.0),
+                                height: Val::Px(40.0),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                            InviteOverlayButton::Decline(party_id),
+                        )).with_children(|btn| {
+                            btn.spawn((
+                                Text::new("DECLINE"),
+                                TextFont { font_size: 16.0, ..default() },
+                                TextColor(Color::srgb(0.9, 0.3, 0.3)),
+                            ));
+                        });
+                    });
+                });
+            });
+    }
+
+    if !has_invite && overlay_exists {
+        // Despawn the invite popup
+        for entity in overlay_query.iter() {
+            commands.entity(entity).despawn();
+        }
+    }
+
+    // Handle button clicks
+    let rt = rt.0.clone();
+    for (interaction, button) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
+            match *button {
+                InviteOverlayButton::Accept(party_id) => {
+                    let msg = noctyrn_shared::protocol::ClientMessage::PartyAcceptInvite {
+                        party_id,
+                    };
+                    let tcp = tcp_client.clone();
+                    let rt = rt.clone();
+                    rt.spawn(async move {
+                        let _ = tcp.send(&msg).await;
+                    });
+                }
+                InviteOverlayButton::Decline(party_id) => {
+                    let msg = noctyrn_shared::protocol::ClientMessage::PartyDeclineInvite {
+                        party_id,
+                    };
+                    let tcp = tcp_client.clone();
+                    let rt = rt.clone();
+                    rt.spawn(async move {
+                        let _ = tcp.send(&msg).await;
+                    });
+                }
+            }
+        }
+    }
+}
+
+#[derive(Component, Clone, Copy)]
+enum InviteOverlayButton {
+    Accept(uuid::Uuid),
+    Decline(uuid::Uuid),
 }

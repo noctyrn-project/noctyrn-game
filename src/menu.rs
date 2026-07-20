@@ -5796,6 +5796,7 @@ fn friends_interaction(
                                 warn!("Party invite send failed: {e}");
                             }
                         });
+                        friends_state.status_message = Some(format!("Invited {} to party!", username));
                     } else {
                         friends_state.status_message = Some("Not connected to server".to_string());
                     }
@@ -5934,6 +5935,10 @@ fn friends_handle_network_events(
             }
             NetworkEvent::PartyError { message } => {
                 friends_state.status_message = Some(format!("Party: {message}"));
+                party_state.pending_invite = None;
+            }
+            NetworkEvent::PartyUpdate { .. } => {
+                party_state.pending_invite = None;
             }
             _ => {}
         }

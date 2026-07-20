@@ -255,9 +255,13 @@ fn handle_network_events(
             }
             NetworkEvent::PartyUpdate { party } => {
                 party_state.party = Some(party.clone());
+                // Being in a party means any pending invite was resolved.
+                party_state.pending_invite = None;
             }
             NetworkEvent::PartyError { message } => {
                 warn!("Party error: {message}");
+                // Clear pending invite on error (rejected, user not found, etc.)
+                party_state.pending_invite = None;
             }
             // TCP
             NetworkEvent::TcpAuthenticated => {

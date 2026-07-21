@@ -2,23 +2,28 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 
 use super::http::PendingRequests;
-use super::{NetworkEvent, ServerConfig, TokioRuntime};
+use super::{NetworkEvent, TokioRuntime};
 
 /// Thread-safe wrapper around the TCP connection.
+/// The stream is split into separate read/write halves so the background
+/// reader and `send()` never contend on the same lock.
 #[derive(Resource, Clone)]
 pub struct TcpClient {
-    pub stream: Arc<Mutex<Option<tokio::net::TcpStream>>>,
+    pub reader: Arc<Mutex<Option<OwnedReadHalf>>>,
+    pub writer: Arc<Mutex<Option<OwnedWriteHalf>>>,
     pub connected: Arc<std::sync::Mutex<bool>>,
 }
 
 impl Default for TcpClient {
     fn default() -> Self {
         Self {
-            stream: Arc::new(Mutex::new(None)),
+            reader: Arc::new(Mutex::new(None)),
+            writer: Arc::new(Mutex::new(None)),
             connected: Arc::new(std::sync::Mutex::new(false)),
         }
     }
@@ -75,18 +80,23 @@ impl TcpClient {
             serde_json::from_slice(&payload).map_err(|e| format!("bad auth response: {e}"))?;
 
         match resp {
-            noctyrn_shared::protocol::ServerMessage::Authenticated { .. } => {
-                // Success!
-            }
+            noctyrn_shared::protocol::ServerMessage::Authenticated { .. } => {}
             _ => {
                 return Err("Unexpected auth response".into());
             }
         }
 
-        // Store stream and mark connected.
+        // Split the stream so the reader and writer never contend on the same lock.
+        let (reader, writer) = write_stream.into_split();
+
+        // Store halves and mark connected.
         {
-            let mut s = self.stream.lock().await;
-            *s = Some(write_stream);
+            let mut r = self.reader.lock().await;
+            *r = Some(reader);
+        }
+        {
+            let mut w = self.writer.lock().await;
+            *w = Some(writer);
         }
         {
             let mut c = self.connected.lock().unwrap();
@@ -107,19 +117,19 @@ impl TcpClient {
         Ok(())
     }
 
-    /// Background task: continuously read messages from the TCP stream
+    /// Background task: continuously read messages from the TCP stream's read half
     /// and push them into PendingRequests.
     async fn background_reader(&self, pending: PendingRequests) {
         loop {
             let msg = {
-                let mut guard = self.stream.lock().await;
-                let stream = match guard.as_mut() {
-                    Some(s) => s,
+                let mut guard = self.reader.lock().await;
+                let reader = match guard.as_mut() {
+                    Some(r) => r,
                     None => break,
                 };
 
                 let mut len_buf = [0u8; 4];
-                if stream.read_exact(&mut len_buf).await.is_err() {
+                if reader.read_exact(&mut len_buf).await.is_err() {
                     break;
                 }
                 let msg_len = u32::from_be_bytes(len_buf) as usize;
@@ -127,7 +137,7 @@ impl TcpClient {
                     break;
                 }
                 let mut payload = vec![0u8; msg_len];
-                if stream.read_exact(&mut payload).await.is_err() {
+                if reader.read_exact(&mut payload).await.is_err() {
                     break;
                 }
 
@@ -157,16 +167,16 @@ impl TcpClient {
 
     /// Send a ClientMessage over the TCP connection.
     pub async fn send(&self, msg: &noctyrn_shared::protocol::ClientMessage) -> Result<(), String> {
-        let mut guard = self.stream.lock().await;
-        let stream = guard.as_mut().ok_or("Not connected")?;
+        let mut guard = self.writer.lock().await;
+        let writer = guard.as_mut().ok_or("Not connected")?;
         let data = serde_json::to_vec(msg).map_err(|e| format!("serialize: {e}"))?;
         let len = (data.len() as u32).to_be_bytes();
-        stream.write_all(&len).await.map_err(|e| format!("write: {e}"))?;
-        stream
+        writer.write_all(&len).await.map_err(|e| format!("write: {e}"))?;
+        writer
             .write_all(&data)
             .await
             .map_err(|e| format!("write: {e}"))?;
-        stream.flush().await.map_err(|e| format!("flush: {e}"))?;
+        writer.flush().await.map_err(|e| format!("flush: {e}"))?;
         Ok(())
     }
 

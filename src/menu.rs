@@ -6458,6 +6458,7 @@ fn lobby_invite_input_system(
     invite_input_query: Query<Entity, With<LobbyInviteInput>>,
     mut invite_text_query: Query<&mut Text, With<LobbyInviteInputText>>,
     tcp_client: Res<crate::net::tcp::TcpClient>,
+    rt: Res<crate::net::TokioRuntime>,
 ) {
     // Check if we need to spawn the invite input bar
     let has_focus = !invite_text.text.is_empty() || !invite_input_query.is_empty();
@@ -6552,7 +6553,7 @@ fn lobby_invite_input_system(
                                 username: target,
                             };
                             let tcp = tcp_client.clone();
-                            tokio::spawn(async move {
+                            rt.0.spawn(async move {
                                 let _ = tcp.send(&msg).await;
                             });
                         }

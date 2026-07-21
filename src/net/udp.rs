@@ -6,64 +6,139 @@ use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 
-/// Holds the UDP socket for game traffic.
+use bevy::prelude::*;
+
+use noctyrn_shared::protocol::{GameStateSnapshot, PlayerInput};
+
+use super::http::PendingRequests;
+use super::NetworkEvent;
+
+/// Bevy resource wrapping the UDP connection for game traffic.
+///
+/// Snapshots received by the background reader are placed in a shared buffer
+/// and drained by a Bevy system each frame.
+#[derive(Resource, Clone)]
 pub struct UdpClient {
-    pub socket: Option<Arc<UdpSocket>>,
-    pub server_addr: Option<SocketAddr>,
-    pub connected: bool,
+    pub socket: Arc<Mutex<Option<Arc<UdpSocket>>>>,
+    pub server_addr: Arc<Mutex<Option<SocketAddr>>>,
+    pub connected: Arc<std::sync::Mutex<bool>>,
+    /// Session id and player id to include in every PlayerInput packet.
+    pub session_id: Arc<std::sync::Mutex<Option<uuid::Uuid>>>,
+    pub player_id: Arc<std::sync::Mutex<Option<uuid::Uuid>>>,
+    /// Most recent snapshot received from the server (shared with Bevy world).
+    pub latest_snapshot: Arc<std::sync::Mutex<Option<GameStateSnapshot>>>,
 }
 
 impl Default for UdpClient {
     fn default() -> Self {
         Self {
-            socket: None,
-            server_addr: None,
-            connected: false,
+            socket: Arc::new(Mutex::new(None)),
+            server_addr: Arc::new(Mutex::new(None)),
+            connected: Arc::new(std::sync::Mutex::new(false)),
+            session_id: Arc::new(std::sync::Mutex::new(None)),
+            player_id: Arc::new(std::sync::Mutex::new(None)),
+            latest_snapshot: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 }
 
 impl UdpClient {
-    /// Bind to a local UDP port and set the server address.
-    pub async fn connect(server_addr: &str) -> Result<Self, std::io::Error> {
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
-        let addr: SocketAddr = server_addr.parse().map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("Invalid address: {}", e))
-        })?;
+    /// Bind to a local UDP port and store the server address.
+    /// Spawns a background reader task that fills `latest_snapshot`.
+    pub async fn connect(
+        &self,
+        server_addr: &str,
+        session_id: uuid::Uuid,
+        player_id: uuid::Uuid,
+    ) -> Result<(), String> {
+        let socket = UdpSocket::bind("0.0.0.0:0")
+            .await
+            .map_err(|e| format!("bind UDP: {e}"))?;
+        let addr: SocketAddr = server_addr.parse().map_err(|e| format!("bad addr: {e}"))?;
 
-        Ok(Self {
-            socket: Some(Arc::new(socket)),
-            server_addr: Some(addr),
-            connected: true,
-        })
+        {
+            let mut s = self.socket.lock().await;
+            *s = Some(Arc::new(socket));
+        }
+        {
+            let mut a = self.server_addr.lock().await;
+            *a = Some(addr);
+        }
+        {
+            let mut c = self.connected.lock().unwrap();
+            *c = true;
+        }
+        {
+            let mut sid = self.session_id.lock().unwrap();
+            *sid = Some(session_id);
+        }
+        {
+            let mut pid = self.player_id.lock().unwrap();
+            *pid = Some(player_id);
+        }
+
+        // Spawn background reader.
+        let this = self.clone();
+        tokio::spawn(async move {
+            this.background_reader().await;
+        });
+
+        Ok(())
+    }
+
+    /// Background task: receives snapshots and stores the latest.
+    async fn background_reader(&self) {
+        loop {
+            let snapshot = {
+                let guard = self.socket.lock().await;
+                let socket = match guard.as_ref() {
+                    Some(s) => s.clone(),
+                    None => break,
+                };
+                drop(guard);
+
+                let mut buf = vec![0u8; 65536];
+                match socket.recv_from(&mut buf).await {
+                    Ok((len, _)) => {
+                        match serde_json::from_slice::<GameStateSnapshot>(&buf[..len]) {
+                            Ok(s) => s,
+                            Err(_) => continue,
+                        }
+                    }
+                    Err(_) => break,
+                }
+            };
+
+            let mut latest = self.latest_snapshot.lock().unwrap();
+            *latest = Some(snapshot);
+        }
+
+        let mut c = self.connected.lock().unwrap();
+        *c = false;
     }
 
     /// Send a player input packet to the server.
-    pub async fn send_input(&self, input: &noctyrn_shared::protocol::PlayerInput) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let (Some(socket), Some(addr)) = (&self.socket, &self.server_addr) {
-            let data = serde_json::to_vec(input)?;
-            socket.send_to(&data, addr).await?;
-            Ok(())
-        } else {
-            Err("Not connected".into())
-        }
+    pub async fn send_input(&self, input: &PlayerInput) -> Result<(), String> {
+        let guard = self.socket.lock().await;
+        let socket = match guard.as_ref() {
+            Some(s) => s.clone(),
+            None => return Err("Not connected".into()),
+        };
+        let addr = {
+            let a = self.server_addr.lock().await;
+            a.ok_or("No server address")?
+        };
+        drop(guard);
+
+        let data = serde_json::to_vec(input).map_err(|e| format!("serialize: {e}"))?;
+        socket
+            .send_to(&data, addr)
+            .await
+            .map_err(|e| format!("send: {e}"))?;
+        Ok(())
     }
 
-    /// Receive a game state snapshot from the server.
-    pub async fn recv_snapshot(&self) -> Result<noctyrn_shared::protocol::GameStateSnapshot, Box<dyn std::error::Error + Send + Sync>> {
-        if let Some(socket) = &self.socket {
-            let mut buf = vec![0u8; 65536]; // Max UDP packet size
-            let (len, _addr) = socket.recv_from(&mut buf).await?;
-            let snapshot: noctyrn_shared::protocol::GameStateSnapshot = serde_json::from_slice(&buf[..len])?;
-            Ok(snapshot)
-        } else {
-            Err("Not connected".into())
-        }
-    }
-
-    pub fn disconnect(&mut self) {
-        self.socket = None;
-        self.server_addr = None;
-        self.connected = false;
+    pub fn is_connected(&self) -> bool {
+        *self.connected.lock().unwrap()
     }
 }

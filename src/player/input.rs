@@ -267,3 +267,62 @@ pub struct PlayerToggleState {
     pub crouch: bool,
     pub ads: bool,
 }
+
+/// Monotonically increasing sequence counter for PlayerInput packets.
+#[derive(Resource, Default)]
+pub struct InputSequence(pub u32);
+
+/// Bevy system: sends the local player's input to the server over UDP.
+///
+/// Runs every fixed timestep while in the `Playing` state.
+pub fn send_player_input(
+    udp: Res<crate::net::udp::UdpClient>,
+    input: Single<&AccumulatedInput>,
+    camera: Single<&Transform, With<super::MainCamera>>,
+    mut seq: ResMut<InputSequence>,
+) {
+    if !udp.is_connected() {
+        return;
+    }
+
+    let accumulated = *input;
+    let yaw = camera.rotation.to_euler(bevy::math::EulerRot::YXZ).0;
+    let pitch = camera.rotation.to_euler(bevy::math::EulerRot::YXZ).1;
+
+    let movement = [
+        accumulated.movement.x,
+        accumulated.movement.y,
+        accumulated.movement.z,
+    ];
+
+    let mut actions = noctyrn_shared::protocol::PlayerActions::empty();
+    actions.set_if(noctyrn_shared::protocol::PlayerActions::JUMP, accumulated.jump);
+    actions.set_if(noctyrn_shared::protocol::PlayerActions::CROUCH, accumulated.crouch);
+    actions.set_if(noctyrn_shared::protocol::PlayerActions::SPRINT, accumulated.sprint);
+    actions.set_if(noctyrn_shared::protocol::PlayerActions::SHOOT, accumulated.fire);
+
+    let seq_num = seq.0;
+    seq.0 += 1;
+
+    let sess_id = *udp.session_id.lock().unwrap();
+    let player_id = *udp.player_id.lock().unwrap();
+
+    let Some(session_id) = sess_id else { return };
+    let Some(pid) = player_id else { return };
+
+    let input_packet = noctyrn_shared::protocol::PlayerInput {
+        sequence: seq_num,
+        timestamp: 0.0,
+        session_id,
+        player_id: pid,
+        movement,
+        look_yaw: yaw,
+        look_pitch: pitch,
+        actions,
+    };
+
+    let udp_clone = udp.clone();
+    tokio::spawn(async move {
+        let _ = udp_clone.send_input(&input_packet).await;
+    });
+}

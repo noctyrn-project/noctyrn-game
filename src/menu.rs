@@ -6418,6 +6418,9 @@ fn lobby_update(
     mut title_query: Query<&mut Text, With<LobbyTitleText>>,
     mut lobby_state: Option<ResMut<LobbyState>>,
     mut next_state: ResMut<NextState<GameState>>,
+    udp: Res<crate::net::udp::UdpClient>,
+    connection: Res<crate::net::ConnectionState>,
+    rt: Res<crate::net::TokioRuntime>,
 ) {
     for event in events.read() {
         match event {
@@ -6440,7 +6443,15 @@ fn lobby_update(
                 // Party state changed (member joined/left/ready), refresh UI
                 next_state.set(GameState::Lobby);
             }
-            NetworkEvent::MatchFound { .. } => {
+            NetworkEvent::MatchFound { lobby_id, server_addr, udp_port } => {
+                let addr = format!("{}:{}", server_addr, udp_port);
+                let sid = *lobby_id;
+                let user_id = connection.user_id().unwrap_or_default();
+                let udp_clone = udp.clone();
+                rt.0.spawn(async move {
+                    let _ = udp_clone.connect(&addr, sid, user_id).await;
+                    info!("Connected UDP to {addr}");
+                });
                 next_state.set(GameState::Playing);
             }
             _ => {}
@@ -6448,7 +6459,6 @@ fn lobby_update(
     }
 }
 
-/// Inline invite input bar in lobby – rendered when invite_text is non-empty after pressing INVITE.
 fn lobby_invite_input_system(
     mut commands: Commands,
     player_list_query: Query<Entity, With<LobbyPlayerList>>,
@@ -6740,6 +6750,9 @@ fn matchmaking_update(
     mut dots_text_query: Query<&mut Text, (With<MatchmakingDotsText>, Without<MatchmakingTimerText>, Without<MatchmakingStatusText>)>,
     mut events: MessageReader<NetworkEvent>,
     mut next_state: ResMut<NextState<GameState>>,
+    udp: Res<crate::net::udp::UdpClient>,
+    connection: Res<crate::net::ConnectionState>,
+    rt: Res<crate::net::TokioRuntime>,
 ) {
     timer.elapsed += time.delta_secs();
 
@@ -6766,8 +6779,16 @@ fn matchmaking_update(
                     **text = format!("Players in queue: {}", players_in_queue);
                 }
             }
-            NetworkEvent::MatchFound { lobby_id: _, server_addr: _, udp_port: _ } => {
-                next_state.set(GameState::Lobby);
+            NetworkEvent::MatchFound { lobby_id, server_addr, udp_port } => {
+                let addr = format!("{}:{}", server_addr, udp_port);
+                let sid = *lobby_id;
+                let user_id = connection.user_id().unwrap_or_default();
+                let udp_clone = udp.clone();
+                rt.0.spawn(async move {
+                    let _ = udp_clone.connect(&addr, sid, user_id).await;
+                    info!("Connected UDP to {addr}");
+                });
+                next_state.set(GameState::Playing);
             }
             _ => {}
         }

@@ -210,10 +210,11 @@ impl Plugin for NetworkPlugin {
         app.init_resource::<TcpConnection>();
         app.init_resource::<http::PendingRequests>();
         app.init_resource::<tcp::TcpClient>();
+        app.init_resource::<udp::UdpClient>();
         app.add_message::<NetworkEvent>();
 
         // Process incoming network events and poll pending HTTP requests
-        app.add_systems(Update, (handle_network_events, http::poll_pending_requests));
+        app.add_systems(Update, (handle_network_events, http::poll_pending_requests, process_snapshots));
     }
 }
 
@@ -272,6 +273,58 @@ fn handle_network_events(
                 tcp.authenticated = false;
             }
             _ => {}
+        }
+    }
+}
+
+/// Bevy system: reads the latest snapshot from the UDP client and spawns/updates
+/// remote player entities.
+///
+/// Runs every frame in Update. Remote players are children of a single
+/// `RemotePlayers` entity to make cleanup on disconnect easy.
+fn process_snapshots(
+    udp: Res<udp::UdpClient>,
+    mut commands: Commands,
+    mut remote_query: Query<(Entity, &mut crate::player::RemotePlayer, &mut Transform)>,
+    local_query: Query<Entity, With<crate::player::LocalPlayer>>,
+) {
+    let snapshot = match *udp.latest_snapshot.lock().unwrap() {
+        Some(ref s) => s.clone(),
+        None => return,
+    };
+
+    let local_id = local_query.iter().next().and_then(|_| {
+        *udp.player_id.lock().unwrap()
+    });
+
+    let known_ids: std::collections::HashSet<uuid::Uuid> =
+        remote_query.iter().map(|(_, rp, _)| rp.server_id).collect();
+
+    // Update existing remote players or mark them for removal.
+    let mut to_keep: std::collections::HashSet<uuid::Uuid> = std::collections::HashSet::new();
+    for (entity, mut rp, mut transform) in remote_query.iter_mut() {
+        if let Some(p) = snapshot.players.iter().find(|p| p.id == rp.server_id) {
+            transform.translation = Vec3::new(p.position[0], p.position[1], p.position[2]);
+            to_keep.insert(p.id);
+        } else {
+            commands.entity(entity).despawn();
+        }
+    }
+
+    // Spawn new remote players that are in the snapshot but not yet in the world.
+    for p in &snapshot.players {
+        if let Some(lid) = local_id {
+            if p.id == lid {
+                continue;
+            }
+        }
+        if !known_ids.contains(&p.id) {
+            commands.spawn((
+                crate::player::RemotePlayer { server_id: p.id },
+                Transform::from_xyz(p.position[0], p.position[1], p.position[2]),
+                Visibility::default(),
+                crate::gameplay::PlayerBody,
+            ));
         }
     }
 }

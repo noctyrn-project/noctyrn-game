@@ -26,7 +26,7 @@ use movement::{
     apply_slide_physics, apply_friction, apply_gravity, integrate_velocity,
     resolve_collisions, interpolate_rendered_transform,
 };
-use input::{AccumulatedInput, accumulate_input, clear_input, load_keybinds, PlayerToggleState};
+use input::{AccumulatedInput, accumulate_input, clear_input, load_keybinds, send_player_input, PlayerToggleState, InputSequence};
 pub use input::{Keybinds, save_keybinds};
 use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching, SwitchState};
@@ -157,6 +157,7 @@ impl Plugin for Player {
         app.init_resource::<CameraMode>();
         app.init_resource::<PauseMenuOpen>();
         app.init_resource::<CameraSway>();
+        app.init_resource::<InputSequence>();
         
         app.add_systems(Startup, load_keybinds);
         app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed));
@@ -192,6 +193,7 @@ impl Plugin for Player {
             apply_gravity.in_set(MovementSet::Gravity),
             integrate_velocity.in_set(MovementSet::Integration),
             resolve_collisions.in_set(MovementSet::Collision),
+            send_player_input,
         ).run_if(in_state(GameState::Playing)));
         
         app.add_systems(Update, (
@@ -338,6 +340,7 @@ fn spawn_player(
         Name::new("Player"),
         Transform::from_translation(initial_pos).with_scale(Vec3::splat(1.0)),
         Visibility::default(),
+        LocalPlayer,
         AccumulatedInput::default(),
         PlayerToggleState::default(),
         Velocity::default(),

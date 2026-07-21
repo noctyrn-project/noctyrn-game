@@ -293,6 +293,12 @@ fn process_snapshots(
         None => return,
     };
 
+    info!(
+        "process_snapshots: tick={}, players={}",
+        snapshot.tick,
+        snapshot.players.len()
+    );
+
     let local_id = local_query.iter().next().and_then(|_| {
         *udp.player_id.lock().unwrap()
     });
@@ -319,6 +325,7 @@ fn process_snapshots(
             }
         }
         if !known_ids.contains(&p.id) {
+            info!("process_snapshots: spawning remote player {}", p.id);
             commands.spawn((
                 crate::player::RemotePlayer { server_id: p.id },
                 Transform::from_xyz(p.position[0], p.position[1], p.position[2]),

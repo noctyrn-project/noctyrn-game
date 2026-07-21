@@ -280,6 +280,7 @@ pub fn send_player_input(
     input: Single<&AccumulatedInput>,
     camera: Single<&Transform, With<super::MainCamera>>,
     mut seq: ResMut<InputSequence>,
+    rt: Res<crate::net::TokioRuntime>,
 ) {
     if !udp.is_connected() {
         return;
@@ -322,7 +323,7 @@ pub fn send_player_input(
     };
 
     let udp_clone = udp.clone();
-    tokio::spawn(async move {
+    rt.0.spawn(async move {
         let _ = udp_clone.send_input(&input_packet).await;
     });
 }

@@ -24,6 +24,9 @@ pub struct FriendDeclineRequest { request_id: uuid::Uuid }
 pub struct FriendSubmitButton;
 
 #[derive(Component)]
+pub struct FriendPartyInviteButton { username: String }
+
+#[derive(Component)]
 pub struct OpenFriendsButton;
 
 #[derive(Component)]
@@ -114,6 +117,7 @@ pub fn toggle_friends_panel(
             state.panel_visible = !state.panel_visible;
             state.pending_remove = None;
             state.pending_add_target = None;
+            state.search_message = None;
             if state.panel_visible && conn_state.is_connected() {
                 if let Some(token) = conn_state.token() {
                     http::spawn_http_request(&rt, &pending, http::async_get_friends(server_config.http_url.clone(), token.to_string()));
@@ -130,10 +134,27 @@ pub fn send_friend_request_from_query(
     rt: &TokioRuntime,
     server_config: &ServerConfig,
     pending: &PendingRequests,
+    friends: &CachedFriends,
 ) {
     let query = state.search_query.trim().to_string();
     if query.is_empty() {
         state.search_message = Some("Error: Enter a username".to_string());
+        state.refresh_pending = true;
+        return;
+    }
+    if !conn_state.is_connected() {
+        state.search_message = Some("Error: Not connected".to_string());
+        state.refresh_pending = true;
+        return;
+    }
+    let current_username = conn_state.username().unwrap_or("");
+    if query.to_lowercase() == current_username.to_lowercase() {
+        state.search_message = Some("Error: Cannot send request to yourself".to_string());
+        state.refresh_pending = true;
+        return;
+    }
+    if friends.friends.iter().any(|f| f.username.to_lowercase() == query.to_lowercase()) {
+        state.search_message = Some("Error: Already friends with this user".to_string());
         state.refresh_pending = true;
         return;
     }
@@ -366,13 +387,18 @@ pub fn spawn_friends_panel(
                         } else {
                             entry.spawn((
                                 Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), ..default() },
+                                BackgroundColor(Color::srgba(0.2, 0.3, 0.5, 0.8)),
+                                FriendPartyInviteButton { username: friend.username.clone() },
+                            )).with_children(|btn| { spawn_btn_text(btn, "INV", 9.0, Color::srgba(0.7, 0.8, 1.0, 0.9)); });
+                            entry.spawn((
+                                Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), ..default() },
                                 BackgroundColor(Color::srgba(0.3, 0.1, 0.1, 0.8)),
                                 FriendRemoveButton { friend_id: friend.id },
                             )).with_children(|btn| { spawn_btn_text(btn, "X", 11.0, Color::srgba(0.9, 0.3, 0.3, 0.8)); });
                         }
                     });
                 }
-
+                
                 for friend in &offline {
                     let is_pending_remove = state.pending_remove == Some(friend.id);
                     panel.spawn((
@@ -501,6 +527,7 @@ pub fn friends_tab_interaction(
             state.active_tab = tab_button.0;
             state.pending_remove = None;
             state.pending_add_target = None;
+            state.search_message = None;
             state.refresh_pending = true;
         }
     }
@@ -513,6 +540,7 @@ pub fn close_friends_panel(
     for interaction in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
             state.panel_visible = false;
+            state.search_message = None;
         }
     }
 }
@@ -551,6 +579,7 @@ pub fn friends_search_input(
     mut state: ResMut<FriendsUiState>,
     mut text_query: Query<&mut Text, (With<FriendsSearchInputText>, Without<FriendsSearchMessageText>)>,
     conn_state: Res<ConnectionState>,
+    friends: Res<CachedFriends>,
     rt: Res<TokioRuntime>,
     server_config: Res<ServerConfig>,
     pending: Res<PendingRequests>,
@@ -609,7 +638,7 @@ pub fn friends_search_input(
     }
 
     if enter_pressed && state.active_tab == FriendsTab::Add {
-        send_friend_request_from_query(&mut state, &conn_state, &rt, &server_config, &pending);
+        send_friend_request_from_query(&mut state, &conn_state, &rt, &server_config, &pending, &friends);
     }
 }
 
@@ -630,23 +659,14 @@ pub fn friends_add_button_handler(
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<Button>, With<FriendSubmitButton>)>,
     mut state: ResMut<FriendsUiState>,
     conn_state: Res<ConnectionState>,
+    friends: Res<CachedFriends>,
     rt: Res<TokioRuntime>,
     server_config: Res<ServerConfig>,
     pending: Res<PendingRequests>,
 ) {
     for interaction in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
-            if let Some(ref target) = state.pending_add_target {
-                if let Some(token) = conn_state.token() {
-                    http::spawn_http_request(
-                        &rt,
-                        &pending,
-                        http::async_send_friend_request(server_config.http_url.clone(), token.to_string(), target.to_lowercase()),
-                    );
-                    state.search_message = Some(format!("Sending request to {}...", target));
-                    state.refresh_pending = true;
-                }
-            }
+            send_friend_request_from_query(&mut state, &conn_state, &rt, &server_config, &pending, &friends);
         }
     }
 }
@@ -694,6 +714,29 @@ pub fn friends_remove_handler(
         if *interaction == Interaction::Pressed {
             state.pending_remove = Some(btn.friend_id);
             state.refresh_pending = true;
+        }
+    }
+}
+
+pub fn friends_party_invite_handler(
+    interaction_query: Query<(&Interaction, &FriendPartyInviteButton), (Changed<Interaction>, With<Button>)>,
+    tcp: Res<crate::net::tcp::TcpClient>,
+    rt: Res<TokioRuntime>,
+    conn_state: Res<ConnectionState>,
+) {
+    for (interaction, btn) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed {
+            if let Some(token) = conn_state.token() {
+                let msg = noctyrn_shared::protocol::ClientMessage::PartyInvite {
+                    username: btn.username.clone(),
+                };
+                let t = tcp.clone();
+                let r = rt.0.clone();
+                info!("Sending party invite to {}", btn.username);
+                r.spawn(async move {
+                    let _ = t.send(&msg).await;
+                });
+            }
         }
     }
 }

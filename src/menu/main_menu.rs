@@ -597,6 +597,9 @@ pub fn main_menu_interaction(
 
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
+            if friends_state.panel_visible {
+                continue;
+            }
             match button {
                 MainMenuButton::Play => {
                     if party_state.party.is_some() {
@@ -658,6 +661,9 @@ pub fn main_menu_interaction(
 
     for interaction in cancel_query.iter() {
         if *interaction == Interaction::Pressed {
+            if friends_state.panel_visible {
+                continue;
+            }
             if tcp_client.is_connected() {
                 let msg = noctyrn_shared::protocol::ClientMessage::CancelMatchmaking;
                 let tcp = tcp_client.clone();

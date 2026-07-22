@@ -344,6 +344,7 @@ impl Plugin for MenuPlugin {
             friends::friends_search_input,
             friends::friends_search_focus_handler,
             friends::friends_add_button_handler,
+            friends::friends_party_invite_handler,
             friends::friends_confirm_remove_handler,
             friends::friends_cancel_remove_handler,
             friends::friends_remove_handler,

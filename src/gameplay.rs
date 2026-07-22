@@ -1358,11 +1358,13 @@ fn toggle_scoreboard(
     scoreboard_query: Query<Entity, With<ScoreboardUi>>,
     match_state: Option<Res<MatchState>>,
     progression: Res<PlayerProgression>,
+    scoreboard_data: Option<Res<crate::net::ScoreboardData>>,
+    conn_state: Res<crate::net::ConnectionState>,
 ) {
     // Show while Scoreboard key is held, hide when released
     if keyboard.just_pressed(keybinds.scoreboard) {
         if scoreboard_query.is_empty() {
-            spawn_scoreboard(&mut commands, match_state.as_deref(), &progression);
+            spawn_scoreboard(&mut commands, match_state.as_deref(), &progression, scoreboard_data.as_deref(), &conn_state);
         }
     }
     if keyboard.just_released(keybinds.scoreboard) {
@@ -1376,23 +1378,20 @@ fn spawn_scoreboard(
     commands: &mut Commands,
     match_state: Option<&MatchState>,
     progression: &PlayerProgression,
+    scoreboard_data: Option<&crate::net::ScoreboardData>,
+    conn_state: &crate::net::ConnectionState,
 ) {
-    let (mode_name, kills, deaths, assists, score, enemy_score, time_str, is_team) = if let Some(ms) = match_state {
+    let (mode_name, time_str, is_team) = if let Some(ms) = match_state {
         (
             ms.mode.display_name(),
-            ms.kills,
-            ms.deaths,
-            ms.assists,
-            ms.player_score,
-            ms.enemy_score,
             ms.format_time_remaining(),
             ms.mode.is_team_mode(),
         )
     } else {
-        ("Unknown", 0, 0, 0, 0, 0, "-".to_string(), false)
+        ("Unknown", "-".to_string(), false)
     };
     
-    let kd_ratio = if deaths > 0 { kills as f32 / deaths as f32 } else { kills as f32 };
+    let local_username = conn_state.username().unwrap_or("You").to_string();
     
     commands.spawn((
         Node {
@@ -1409,10 +1408,10 @@ fn spawn_scoreboard(
     )).with_children(|root| {
         root.spawn((
             Node {
-                width: Val::Px(520.0),
+                width: Val::Px(600.0),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(24.0)),
-                row_gap: Val::Px(12.0),
+                row_gap: Val::Px(8.0),
                 border: UiRect::all(Val::Px(2.0)),
                 ..default()
             },
@@ -1444,160 +1443,82 @@ fn spawn_scoreboard(
                 BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.4)),
             ));
 
-            if is_team {
-                // ── Team mode: two team sections ──
-
-                // Team header row with scores
-                card.spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    justify_content: JustifyContent::SpaceBetween,
-                    ..default()
-                }).with_children(|row| {
-                    row.spawn((
-                        Text::new(format!("YOUR TEAM - {}", score)),
-                        TextFont { font_size: 14.0, ..default() },
-                        TextColor(Color::srgb(0.3, 0.6, 1.0)),
+            // Column headers
+            card.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::horizontal(Val::Px(8.0)),
+                ..default()
+            }).with_children(|cols| {
+                for (label, w) in [("PLAYER", 200.0), ("SCORE", 80.0), ("KILLS", 80.0), ("DEATHS", 80.0), ("K/D", 80.0)] {
+                    cols.spawn((
+                        Text::new(label),
+                        TextFont { font_size: 11.0, ..default() },
+                        TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+                        Node { width: Val::Px(w), ..default() },
                     ));
-                    row.spawn((
-                        Text::new(format!("ENEMY - {}", enemy_score)),
-                        TextFont { font_size: 14.0, ..default() },
-                        TextColor(Color::srgb(1.0, 0.35, 0.35)),
-                    ));
-                });
+                }
+            });
 
-                // Column headers
-                card.spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    justify_content: JustifyContent::SpaceBetween,
-                    ..default()
-                }).with_children(|cols| {
-                    for label in ["PLAYER", "SCORE", "KILLS", "DEATHS", "K/D", "ASSISTS"] {
-                        cols.spawn((
-                            Text::new(label),
-                            TextFont { font_size: 11.0, ..default() },
-                            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
-                            Node { width: Val::Px(80.0), ..default() },
-                        ));
-                    }
-                });
+            // Build sorted player list from ScoreboardData
+            let mut player_rows: Vec<(String, i32, u32, u32, f32)> = Vec::new();
+            if let Some(sd) = scoreboard_data {
+                let mut ids: Vec<uuid::Uuid> = sd.names.keys().cloned().collect();
+                ids.sort_by(|a, b| sd.scores.get(b).unwrap_or(&0).cmp(sd.scores.get(a).unwrap_or(&0)));
+                for id in ids {
+                    let name = sd.get_or_name(&id);
+                    let score = *sd.scores.get(&id).unwrap_or(&0);
+                    let kills = *sd.kills.get(&id).unwrap_or(&0);
+                    let deaths = *sd.deaths.get(&id).unwrap_or(&0);
+                    let kd = if deaths > 0 { kills as f32 / deaths as f32 } else { kills as f32 };
+                    player_rows.push((name, score, kills, deaths, kd));
+                }
+            }
+            // Fallback: show local player if no scoreboard data
+            if player_rows.is_empty() {
+                let kills = match_state.map(|ms| ms.kills).unwrap_or(0);
+                let deaths = match_state.map(|ms| ms.deaths).unwrap_or(0);
+                let score = match_state.map(|ms| ms.player_score).unwrap_or(0);
+                let kd = if deaths > 0 { kills as f32 / deaths as f32 } else { kills as f32 };
+                player_rows.push((format!("{} (You)", local_username), score, kills, deaths, kd));
+            }
 
-                // Player row (your team)
+            for (i, (name, score, kills, deaths, kd)) in player_rows.iter().enumerate() {
+                let is_local = name.contains(&local_username) || name == &local_username;
+                let bg = if is_local { Color::srgba(0.08, 0.12, 0.25, 0.6) } else if i % 2 == 0 { Color::srgba(0.06, 0.06, 0.1, 0.4) } else { Color::NONE };
                 card.spawn((
                     Node {
                         flex_direction: FlexDirection::Row,
                         justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::vertical(Val::Px(6.0)),
+                        padding: UiRect::vertical(Val::Px(4.0)),
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.08, 0.12, 0.25, 0.6)),
+                    BackgroundColor(bg),
                 )).with_children(|row| {
-                    let values = [
-                        format!("You (Lvl {})", progression.level),
-                        format!("{}", score),
-                        format!("{}", kills),
-                        format!("{}", deaths),
-                        format!("{:.2}", kd_ratio),
-                        format!("{}", assists),
-                    ];
-                    for (i, val) in values.iter().enumerate() {
-                        let color = if i == 0 { Color::srgb(0.4, 0.7, 1.0) } else { Color::WHITE };
+                    let name_display = if is_local { format!("{name} (You)") } else { name.clone() };
+                    let row_data = [(name_display, 200.0, if is_local { Color::srgb(0.4, 0.7, 1.0) } else { Color::WHITE }),
+                                   (format!("{score}"), 80.0, Color::WHITE),
+                                   (format!("{kills}"), 80.0, Color::WHITE),
+                                   (format!("{deaths}"), 80.0, Color::WHITE),
+                                   (format!("{kd:.2}"), 80.0, Color::WHITE)];
+                    for (val, w, color) in row_data {
                         row.spawn((
-                            Text::new(val.clone()),
+                            Text::new(val),
                             TextFont { font_size: 13.0, ..default() },
                             TextColor(color),
-                            Node { width: Val::Px(80.0), ..default() },
-                        ));
-                    }
-                });
-
-                // Thin divider between teams
-                card.spawn((
-                    Node { width: Val::Percent(100.0), height: Val::Px(1.0), ..default() },
-                    BackgroundColor(Color::srgba(1.0, 0.3, 0.3, 0.3)),
-                ));
-
-                // Enemy summary row
-                card.spawn((
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::vertical(Val::Px(6.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.25, 0.08, 0.08, 0.6)),
-                )).with_children(|row| {
-                    let values = [
-                        "Enemy Team".to_string(),
-                        format!("{}", enemy_score),
-                        "-".to_string(),
-                        "-".to_string(),
-                        "-".to_string(),
-                        "-".to_string(),
-                    ];
-                    for (i, val) in values.iter().enumerate() {
-                        let color = if i == 0 { Color::srgb(1.0, 0.4, 0.4) } else { Color::WHITE };
-                        row.spawn((
-                            Text::new(val.clone()),
-                            TextFont { font_size: 13.0, ..default() },
-                            TextColor(color),
-                            Node { width: Val::Px(80.0), ..default() },
-                        ));
-                    }
-                });
-            } else {
-                // ── FFA / solo mode: single player row ──
-
-                // Column headers
-                card.spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    justify_content: JustifyContent::SpaceBetween,
-                    ..default()
-                }).with_children(|cols| {
-                    for label in ["PLAYER", "SCORE", "KILLS", "DEATHS", "K/D", "ASSISTS"] {
-                        cols.spawn((
-                            Text::new(label),
-                            TextFont { font_size: 11.0, ..default() },
-                            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
-                            Node { width: Val::Px(80.0), ..default() },
-                        ));
-                    }
-                });
-
-                // Player row
-                card.spawn((
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::vertical(Val::Px(6.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.1, 0.15, 0.25, 0.6)),
-                )).with_children(|row| {
-                    let values = [
-                        format!("You (Lvl {})", progression.level),
-                        format!("{}", score),
-                        format!("{}", kills),
-                        format!("{}", deaths),
-                        format!("{:.2}", kd_ratio),
-                        format!("{}", assists),
-                    ];
-                    for (i, val) in values.iter().enumerate() {
-                        let color = if i == 0 { Color::srgb(0.4, 0.7, 1.0) } else { Color::WHITE };
-                        row.spawn((
-                            Text::new(val.clone()),
-                            TextFont { font_size: 13.0, ..default() },
-                            TextColor(color),
-                            Node { width: Val::Px(80.0), ..default() },
+                            Node { width: Val::Px(w), ..default() },
                         ));
                     }
                 });
             }
 
-            // Footer with time
+            // Divider
             card.spawn((
                 Node { width: Val::Percent(100.0), height: Val::Px(1.0), ..default() },
                 BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.4)),
             ));
+
+            // Footer with time
             card.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 justify_content: JustifyContent::SpaceBetween,
@@ -1609,7 +1530,7 @@ fn spawn_scoreboard(
                     TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
                 ));
                 footer.spawn((
-                    Text::new(format!("Score Limit: {}", match_state.map(|ms| ms.score_limit).unwrap_or(0))),
+                    Text::new(format!("Players: {}", player_rows.len())),
                     TextFont { font_size: 12.0, ..default() },
                     TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
                 ));

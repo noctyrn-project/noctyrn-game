@@ -133,6 +133,27 @@ pub struct CachedFriends {
     pub outgoing_requests: Vec<noctyrn_shared::player::FriendRequestInfo>,
 }
 
+/// Cached lobby / match player list (populated by LobbyUpdate).
+#[derive(Resource, Default, Clone, Debug)]
+pub struct LobbyPlayers {
+    pub players: Vec<noctyrn_shared::lobby::LobbyPlayer>,
+}
+
+/// Per-player stats tracked via snapshot events for the scoreboard.
+#[derive(Resource, Default, Clone, Debug)]
+pub struct ScoreboardData {
+    pub kills: std::collections::HashMap<uuid::Uuid, u32>,
+    pub deaths: std::collections::HashMap<uuid::Uuid, u32>,
+    pub scores: std::collections::HashMap<uuid::Uuid, i32>,
+    pub names: std::collections::HashMap<uuid::Uuid, String>,
+}
+
+impl ScoreboardData {
+    pub fn get_or_name(&self, id: &uuid::Uuid) -> String {
+        self.names.get(id).cloned().unwrap_or_else(|| format!("Player {}", &id.to_string()[..8]))
+    }
+}
+
 /// Tracks the player's party state.
 #[derive(Resource, Default, Clone, Debug)]
 pub struct PartyState {
@@ -206,6 +227,8 @@ impl Plugin for NetworkPlugin {
         app.init_resource::<MultiplayerMode>();
         app.init_resource::<CachedProfile>();
         app.init_resource::<CachedFriends>();
+        app.init_resource::<LobbyPlayers>();
+        app.init_resource::<ScoreboardData>();
         app.init_resource::<PartyState>();
         app.init_resource::<TcpConnection>();
         app.init_resource::<http::PendingRequests>();
@@ -226,6 +249,7 @@ fn handle_network_events(
     mut cached_friends: ResMut<CachedFriends>,
     mut party_state: ResMut<PartyState>,
     mut tcp: ResMut<TcpConnection>,
+    mut lobby_players: ResMut<LobbyPlayers>,
 ) {
     for event in events.read() {
         match event {
@@ -263,6 +287,11 @@ fn handle_network_events(
                 // Clear pending invite on error (rejected, user not found, etc.)
                 party_state.pending_invite = None;
             }
+            // Lobby
+            NetworkEvent::LobbyUpdate { lobby } => {
+                lobby_players.players = lobby.players.clone();
+                info!("Lobby updated: {} players", lobby.players.len());
+            }
             // TCP
             NetworkEvent::TcpAuthenticated => {
                 tcp.connected = true;
@@ -287,17 +316,35 @@ fn process_snapshots(
     mut commands: Commands,
     mut remote_query: Query<(Entity, &mut crate::player::RemotePlayer, &mut Transform)>,
     local_query: Query<Entity, With<crate::player::LocalPlayer>>,
+    mut scoreboard: ResMut<ScoreboardData>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let snapshot = match *udp.latest_snapshot.lock().unwrap() {
         Some(ref s) => s.clone(),
         None => return,
     };
 
-    info!(
-        "process_snapshots: tick={}, players={}",
-        snapshot.tick,
-        snapshot.players.len()
-    );
+    // Cache player names from snapshot
+    for p in &snapshot.players {
+        scoreboard.names.entry(p.id).or_insert_with(|| p.username.clone());
+    }
+
+    // Process snapshot events for scoreboard
+    for event in &snapshot.events {
+        match event {
+            noctyrn_shared::protocol::GameEvent::PlayerKilled { killer_id, victim_id, .. } => {
+                *scoreboard.kills.entry(*killer_id).or_insert(0) += 1;
+                *scoreboard.deaths.entry(*victim_id).or_insert(0) += 1;
+            }
+            noctyrn_shared::protocol::GameEvent::MatchStateUpdate { scores, .. } => {
+                for (player_id, player_score) in scores {
+                    scoreboard.scores.insert(*player_id, *player_score);
+                }
+            }
+            _ => {}
+        }
+    }
 
     let local_id = local_query.iter().next().and_then(|_| {
         *udp.player_id.lock().unwrap()
@@ -306,7 +353,6 @@ fn process_snapshots(
     let known_ids: std::collections::HashSet<uuid::Uuid> =
         remote_query.iter().map(|(_, rp, _)| rp.server_id).collect();
 
-    // Update existing remote players or mark them for removal.
     let mut to_keep: std::collections::HashSet<uuid::Uuid> = std::collections::HashSet::new();
     for (entity, mut rp, mut transform) in remote_query.iter_mut() {
         if let Some(p) = snapshot.players.iter().find(|p| p.id == rp.server_id) {
@@ -317,7 +363,6 @@ fn process_snapshots(
         }
     }
 
-    // Spawn new remote players that are in the snapshot but not yet in the world.
     for p in &snapshot.players {
         if let Some(lid) = local_id {
             if p.id == lid {
@@ -326,12 +371,24 @@ fn process_snapshots(
         }
         if !known_ids.contains(&p.id) {
             info!("process_snapshots: spawning remote player {}", p.id);
-            commands.spawn((
+            let pill_mesh = meshes.add(Capsule3d::new(0.4, 1.8));
+            let pill_material = materials.add(StandardMaterial {
+                base_color: Color::srgb(0.15, 0.2, 0.3),
+                ..default()
+            });
+            let remote = commands.spawn((
                 crate::player::RemotePlayer { server_id: p.id },
                 Transform::from_xyz(p.position[0], p.position[1], p.position[2]),
                 Visibility::default(),
                 crate::gameplay::PlayerBody,
-            ));
+            )).id();
+            commands.entity(remote).with_children(|parent| {
+                parent.spawn((
+                    Mesh3d(pill_mesh),
+                    MeshMaterial3d(pill_material),
+                    Transform::from_xyz(0.0, 0.9, 0.0),
+                ));
+            });
         }
     }
 }

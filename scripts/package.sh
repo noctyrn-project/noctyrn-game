@@ -137,7 +137,8 @@ build_platform() {
   rm -rf "$dist_dir"
   mkdir -p "$dist_dir"
   
-  # Copy binary and assets
+  # Copy binary and assets (strip runtime data first)
+  rm -f settings/auth_token.json settings/savestate.json 2>/dev/null || true
   cp "$out_dir/$binary_name" "$dist_dir/"
   cp -r assets settings README.md "$dist_dir/" 2>/dev/null || true
   

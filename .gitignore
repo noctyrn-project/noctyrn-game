@@ -1,2 +1,4 @@
 /target
 /dist
+settings/auth_token.json
+settings/savestate.json

@@ -59,7 +59,8 @@ pub fn handle_weapon_switching(
         let mut target = None;
         if keyboard_input.just_pressed(KeyCode::Digit1) { target = Some(WeaponSlot::Primary); }
         else if keyboard_input.just_pressed(KeyCode::Digit2) { target = Some(WeaponSlot::Secondary); }
-        // else if keyboard_input.just_pressed(KeyCode::Digit3) { target = Some(WeaponSlot::Melee); } // Removed standard switch
+        else if keyboard_input.just_pressed(KeyCode::Digit3) { target = Some(WeaponSlot::Melee); } // Removed standard switch
+        else if keyboard_input.just_pressed(KeyCode::Digit4) { target = Some(WeaponSlot::Equipment); }
         // else if keyboard_input.just_pressed(KeyCode::Digit4) { target = Some(WeaponSlot::Equipment); }
 
         // Quick Melee Logic (Key F)
@@ -120,6 +121,7 @@ pub fn handle_weapon_switching(
             // If we are Equipping, we have to wait until Idle.
             
             if t != inventory.active_slot {
+                info!("Weapon switch: {:?} -> {:?}", inventory.active_slot, t);
                 if inventory.switch_state == SwitchState::Idle {
                     inventory.target_slot = Some(t);
                     inventory.switch_state = SwitchState::Unequipping;

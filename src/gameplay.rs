@@ -1389,7 +1389,7 @@ fn spawn_scoreboard(
             ms.mode.is_team_mode(),
         )
     } else {
-        ("Unknown", 0, 0, 0, 0, 0, "—".to_string(), false)
+        ("Unknown", 0, 0, 0, 0, 0, "-".to_string(), false)
     };
     
     let kd_ratio = if deaths > 0 { kills as f32 / deaths as f32 } else { kills as f32 };
@@ -1454,12 +1454,12 @@ fn spawn_scoreboard(
                     ..default()
                 }).with_children(|row| {
                     row.spawn((
-                        Text::new(format!("YOUR TEAM — {}", score)),
+                        Text::new(format!("YOUR TEAM - {}", score)),
                         TextFont { font_size: 14.0, ..default() },
                         TextColor(Color::srgb(0.3, 0.6, 1.0)),
                     ));
                     row.spawn((
-                        Text::new(format!("ENEMY — {}", enemy_score)),
+                        Text::new(format!("ENEMY - {}", enemy_score)),
                         TextFont { font_size: 14.0, ..default() },
                         TextColor(Color::srgb(1.0, 0.35, 0.35)),
                     ));
@@ -1529,10 +1529,10 @@ fn spawn_scoreboard(
                     let values = [
                         "Enemy Team".to_string(),
                         format!("{}", enemy_score),
-                        "—".to_string(),
-                        "—".to_string(),
-                        "—".to_string(),
-                        "—".to_string(),
+                        "-".to_string(),
+                        "-".to_string(),
+                        "-".to_string(),
+                        "-".to_string(),
                     ];
                     for (i, val) in values.iter().enumerate() {
                         let color = if i == 0 { Color::srgb(1.0, 0.4, 0.4) } else { Color::WHITE };
@@ -1677,7 +1677,7 @@ fn update_ctf_flags(
                         FlagNotificationUi,
                     )).with_children(|parent| {
                         parent.spawn((
-                            Text::new("🚩 YOU HAVE THE FLAG"),
+                            Text::new("[FLAG] YOU HAVE THE FLAG"),
                             TextFont { font_size: 22.0, ..default() },
                             TextColor(Color::srgb(0.3, 1.0, 0.4)),
                         ));
@@ -1738,7 +1738,7 @@ fn update_ctf_flags(
                     FlagNotificationUi,
                 )).with_children(|parent| {
                     parent.spawn((
-                        Text::new("🏆 FLAG CAPTURED!"),
+                        Text::new("[FLAG CAPTURED!]"),
                         TextFont { font_size: 26.0, ..default() },
                         TextColor(Color::WHITE),
                     ));

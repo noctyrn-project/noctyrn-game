@@ -121,11 +121,6 @@ pub struct Player;
 pub enum GameState {
     #[default]
     MainMenu,
-    Login,
-    Profile,
-    Friends,
-    Lobby,
-    Matchmaking,
     LoadoutSelect,
     CrateOpening,
     GameModeSelect,
@@ -1334,7 +1329,7 @@ fn spawn_weapon_terminal_overlay(
                     WeaponTerminalClose,
                 )).with_children(|btn| {
                     btn.spawn((
-                        Text::new("✕"),
+                        Text::new("✖"),
                         TextFont { font_size: 18.0, ..default() },
                         TextColor(Color::WHITE),
                     ));

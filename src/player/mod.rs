@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::window::CursorOptions;
-use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::settings::SaveSettings;
 use bevy::app::AppExit;
 use bevy::ecs::relationship::Relationship;
 use bevy::camera::visibility::RenderLayers;
@@ -26,8 +27,8 @@ use movement::{
     apply_slide_physics, apply_friction, apply_gravity, integrate_velocity,
     resolve_collisions, interpolate_rendered_transform,
 };
-use input::{AccumulatedInput, accumulate_input, clear_input, load_keybinds, send_player_input, PlayerToggleState, InputSequence};
-pub use input::{Keybinds, save_keybinds};
+use input::{AccumulatedInput, accumulate_input, clear_input, send_player_input, PlayerToggleState, InputSequence};
+pub use input::Keybinds;
 use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching, SwitchState};
 use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil, Projectile, MuzzleFlash, Grenade, ExplosionParticle};
@@ -36,6 +37,7 @@ pub use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation};
 
 /// Tag component for the main (world) camera. Used to distinguish from weapon camera.
 #[derive(Component)]
+#[require(Camera3d, CameraSensitivity, CameraRecoil)]
 pub struct MainCamera;
 
 /// Marker for entities that should render on the weapon layer (layer 1).
@@ -112,12 +114,6 @@ pub struct KeybindingsUi;
 pub struct DebugUi;
 
 #[derive(Component)]
-pub struct StatsUi;
-
-#[derive(Component)]
-pub struct StatsText;
-
-#[derive(Component)]
 pub struct RemapButton {
     pub action: String,
 }
@@ -162,11 +158,10 @@ impl Plugin for Player {
         app.init_resource::<CameraSway>();
         app.init_resource::<InputSequence>();
         
-        app.add_systems(Startup, load_keybinds);
         app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed));
-        app.add_systems(OnExit(GameState::Playing), (despawn_gameplay_ui, cleanup_pause_menu_on_exit));
+        app.add_systems(OnExit(GameState::Playing), (despawn_gameplay_ui, cleanup_pause_menu_on_exit, crate::menu::close_chat));
         app.add_systems(Update, grab_cursor);
-        app.add_systems(Update, (toggle_pause, update_stats_ui, debug_input, sync_settings, update_fov, toggle_camera_mode, animate_player_model).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, (toggle_pause, debug_input, sync_settings, update_fov, toggle_camera_mode, animate_player_model).run_if(in_state(GameState::Playing)));
         app.add_systems(Update, (manage_pause_overlay, pause_menu_action, keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::Playing)));
         app.add_systems(Update, (keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::MainMenu)));
 
@@ -254,7 +249,7 @@ impl Plugin for Player {
             ),
         );
 
-        app.add_systems(Update, sync_settings.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, sync_settings.run_if(in_state(GameState::MainMenu)));
     }
 }
 
@@ -285,10 +280,7 @@ fn spawn_player(
 ) {
     // Spawn Camera with settings-based FOV
     let camera_entity = commands.spawn((
-        Camera3d::default(),
         MainCamera,
-        CameraSensitivity::default(),
-        CameraRecoil::default(),
         Transform::from_xyz(0.0, 0.0, 0.0), // Initial pos, will be updated by translate_camera
         Projection::Perspective(PerspectiveProjection {
             fov: game_settings.graphics.fov.to_radians(),
@@ -348,6 +340,11 @@ fn spawn_player(
         AccumulatedInput::default(),
         PlayerToggleState::default(),
         Velocity::default(),
+        MovementConfig::default(),
+        initial_inventory,
+        AmmoStatus::default(),
+        PlayerBody,
+    )).insert((
         PhysicalTranslation(initial_pos),
         PreviousPhysicalTranslation(initial_pos),
         CrouchHeight::default(),
@@ -356,14 +353,6 @@ fn spawn_player(
         JumpState::default(),
         SlideState::default(),
         movement::LeanState::default(),
-    )).insert((
-        MovementConfig::default(),
-        initial_inventory,
-        AmmoStatus::default(),
-        Health { current: 100.0, max: 100.0 },
-        Regenerating::default(),
-        PlayerBody,
-        NeedsTeamSpawn,
     )).id();
 
     // Spawn pill-shaped player model as a child (capsule mesh)
@@ -390,8 +379,7 @@ fn spawn_ammo_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
     let config = &ui_config.ammo_ui;
     commands.spawn((
         Text::new("Ammo: -- / --"),
-        TextFont {
-            font_size: 30.0,
+        TextFont { font_size: FontSize::Px(30.0),
             ..default()
         },
         TextColor(Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3])),
@@ -587,7 +575,7 @@ fn update_kill_feed(
             commands.entity(container).with_children(|parent| {
                 parent.spawn((
                     Text::new(&event.message),
-                    TextFont { font_size: 20.0, ..default() },
+                    TextFont { font_size: FontSize::Px(20.0), ..default() },
                     TextColor(Color::srgba(config.text_color[0], config.text_color[1], config.text_color[2], config.text_color[3])),
                     BackgroundColor(Color::srgba(config.background_color[0], config.background_color[1], config.background_color[2], config.background_color[3])),
                     Node {
@@ -629,7 +617,7 @@ pub struct GameplayUi;
 
 fn despawn_gameplay_ui(
     mut commands: Commands,
-    query: Query<Entity, Or<(With<AmmoUi>, With<CrosshairTop>, With<CrosshairBottom>, With<CrosshairLeft>, With<CrosshairRight>, With<KillFeedContainer>, With<StatsUi>, With<GameplayUi>)>>,
+    query: Query<Entity, Or<(With<AmmoUi>, With<CrosshairTop>, With<CrosshairBottom>, With<CrosshairLeft>, With<CrosshairRight>, With<KillFeedContainer>, With<GameplayUi>)>>,
     health_ui_query: Query<Entity, Or<(With<crate::gameplay::PlayerHealthUi>, With<crate::gameplay::PlayerHealthBar>, With<crate::gameplay::DeathScreen>)>>,
     camera_query: Query<Entity, With<Camera>>,
     player_query: Query<Entity, With<PlayerBody>>,
@@ -688,7 +676,7 @@ fn spawn_pause_menu(commands: &mut Commands) {
             )).with_children(|card| {
                 card.spawn((
                     Text::new("PAUSED"),
-                    TextFont { font_size: 28.0, ..default() },
+                    TextFont { font_size: FontSize::Px(28.0), ..default() },
                     TextColor(Color::WHITE),
                     Node { margin: UiRect::bottom(Val::Px(8.0)), align_self: AlignSelf::Center, ..default() },
                 ));
@@ -715,7 +703,7 @@ fn spawn_pause_menu(commands: &mut Commands) {
                         let is_quit = matches!(button, PauseMenuButton::Quit);
                         btn.spawn((
                             Text::new(label),
-                            TextFont { font_size: 14.0, ..default() },
+                            TextFont { font_size: FontSize::Px(14.0), ..default() },
                             TextColor(if is_quit {
                                 Color::srgba(0.9, 0.3, 0.3, 0.9)
                             } else {
@@ -922,88 +910,6 @@ fn toggle_pause(
     }
 }
 
-fn toggle_stats(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    keybinds: Res<Keybinds>,
-    mut commands: Commands,
-    stats_query: Query<Entity, With<StatsUi>>,
-) {
-    if keyboard_input.just_pressed(keybinds.stats) {
-        if let Some(entity) = stats_query.iter().next() {
-            commands.entity(entity).despawn();
-        } else {
-            spawn_stats_ui(&mut commands);
-        }
-    }
-}
-
-fn spawn_stats_ui(commands: &mut Commands) {
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            right: Val::Px(10.0),
-            padding: UiRect::all(Val::Px(5.0)),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-        StatsUi,
-    )).with_children(|parent| {
-        parent.spawn((
-            Text::new("FPS: 0.0"),
-            TextFont { font_size: 16.0, ..default() },
-            TextColor(Color::srgb(0.0, 1.0, 0.0)),
-            StatsText,
-        ));
-    });
-}
-
-fn update_stats_ui(
-    diagnostics: Res<DiagnosticsStore>,
-    mut query: Query<&mut Text, With<StatsText>>,
-    game_settings: Res<GameSettings>,
-    entities: Query<Entity>,
-    velocity_query: Query<&Velocity, With<PlayerBody>>,
-    meshes: Res<Assets<Mesh>>,
-) {
-    for mut text in query.iter_mut() {
-        let mut output = String::new();
-        let dm = game_settings.debug.debug_mode;
-        if dm && game_settings.debug.show_fps {
-            if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
-                if let Some(value) = fps.smoothed() {
-                    output.push_str(&format!("FPS: {:.1}\n", value));
-                }
-            }
-        }
-        
-        if dm && game_settings.debug.show_resource_usage {
-            output.push_str(&format!("Entities: {}\n", entities.iter().count()));
-        }
-
-        if dm && game_settings.debug.show_vertex_count {
-            output.push_str(&format!("Meshes: {}\n", meshes.iter().count()));
-        }
-
-        if dm && game_settings.debug.show_ping {
-            output.push_str("Ping: --\n");
-        }
-
-        if let Ok(velocity) = velocity_query.single() {
-            let horiz = Vec3::new(velocity.x, 0.0, velocity.z).length();
-            if dm && game_settings.debug.show_speed {
-                output.push_str(&format!("Speed: {:.1}\n", horiz));
-            }
-        }
-
-        if dm {
-            output.push_str("DEBUG MODE ON\n");
-        }
-        
-        text.0 = output;
-    }
-}
-
 fn grab_cursor(
     mut cursors: Query<&mut CursorOptions>,
     state: Res<State<GameState>>,
@@ -1025,6 +931,7 @@ fn grab_cursor(
 }
 
 fn keybind_remapping_system(
+    mut commands: Commands,
     mut interaction_query: Query<(&Interaction, &RemapButton), (Changed<Interaction>, With<Button>)>,
     mut all_buttons: Query<(&RemapButton, &Children, &mut BackgroundColor)>,
     mut text_query: Query<&mut Text>,
@@ -1044,7 +951,7 @@ fn keybind_remapping_system(
         if let Some(key) = keyboard_input.get_just_pressed().next() {
             if *key != KeyCode::Escape {
                 keybinds.set(&action, *key);
-                save_keybinds(&keybinds);
+                commands.queue(SaveSettings::IfChanged);
             }
             remapping_state.active_action = None;
         }
@@ -1145,8 +1052,7 @@ fn sync_settings(
     game_settings: Res<GameSettings>,
     mut debug_settings: ResMut<DebugSettings>,
     mut debug_runtime: ResMut<DebugRuntime>,
-    mut commands: Commands,
-    stats_query: Query<Entity, With<StatsUi>>,
+    _commands: Commands,
     mut window_query: Query<&mut Window>,
     mut wireframe_config: ResMut<bevy::pbr::wireframe::WireframeConfig>,
 ) {
@@ -1159,20 +1065,6 @@ fn sync_settings(
         debug_runtime.god_mode = dm && game_settings.debug.god_mode;
         debug_runtime.infinite_ammo = dm && game_settings.debug.infinite_ammo;
         wireframe_config.global = dm && game_settings.debug.show_wireframe;
-
-        let show_fps = dm && game_settings.debug.show_fps;
-        let show_res = dm && game_settings.debug.show_resource_usage;
-
-        // Sync FPS/stats UI
-        if show_fps || show_res {
-            if stats_query.iter().next().is_none() {
-                spawn_stats_ui(&mut commands);
-            }
-        } else {
-            if let Some(entity) = stats_query.iter().next() {
-                commands.entity(entity).despawn();
-            }
-        }
 
         // Sync Graphics
         if let Some(mut window) = window_query.iter_mut().next() {
@@ -1297,7 +1189,7 @@ pub fn spawn_damage_number(commands: &mut Commands, damage: f32, _position: Vec3
 
     commands.spawn((
         Text::new(format!("{:.0}", damage)),
-        TextFont { font_size: 18.0, ..default() },
+        TextFont { font_size: FontSize::Px(18.0), ..default() },
         TextColor(color),
         Node {
             position_type: PositionType::Absolute,
@@ -1399,7 +1291,7 @@ fn spawn_weapon_terminal_overlay(
             }).with_children(|title_row| {
                 title_row.spawn((
                     Text::new("WEAPON TERMINAL"),
-                    TextFont { font_size: 24.0, ..default() },
+                    TextFont { font_size: FontSize::Px(24.0), ..default() },
                     TextColor(Color::srgba(0.9, 0.3, 0.3, 0.95)),
                 ));
                 // Close button
@@ -1417,7 +1309,7 @@ fn spawn_weapon_terminal_overlay(
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("✖"),
-                        TextFont { font_size: 18.0, ..default() },
+                        TextFont { font_size: FontSize::Px(18.0), ..default() },
                         TextColor(Color::WHITE),
                     ));
                 });
@@ -1434,7 +1326,7 @@ fn spawn_weapon_terminal_overlay(
             for (slot, label, equipped_id) in &slots {
                 panel.spawn((
                     Text::new(label.to_string()),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
                     Node { margin: UiRect::top(Val::Px(6.0)), ..default() },
                 ));
@@ -1476,13 +1368,13 @@ fn spawn_weapon_terminal_overlay(
                         )).with_children(|item| {
                             item.spawn((
                                 Text::new(&config.info.name),
-                                TextFont { font_size: 15.0, ..default() },
+                                TextFont { font_size: FontSize::Px(15.0), ..default() },
                                 TextColor(if is_equipped { Color::srgb(0.5, 1.0, 0.5) } else { Color::srgba(0.85, 0.85, 0.9, 0.9) }),
                             ));
                             if is_equipped {
                                 item.spawn((
                                     Text::new("EQUIPPED"),
-                                    TextFont { font_size: 11.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(11.0), ..default() },
                                     TextColor(Color::srgba(0.4, 0.8, 0.4, 0.7)),
                                 ));
                             }

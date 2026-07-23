@@ -78,7 +78,7 @@ pub fn translate_camera(
 
 pub fn free_cam_movement(
     time: Res<Time>,
-    mut camera: Single<&mut Transform, With<super::MainCamera>>,
+    camera: Single<&mut Transform, With<super::MainCamera>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     debug_settings: Res<DebugSettings>,
 ) {
@@ -233,7 +233,7 @@ pub fn apply_camera_shake(
     mut camera: Query<&mut Transform, With<super::MainCamera>>,
 ) {
     let Ok(mut cam_transform) = camera.single_mut() else { return };
-    let dt = time.delta_secs();
+    let _dt = time.delta_secs();
 
     for (entity, mut shake) in shake_query.iter_mut() {
         shake.timer.tick(time.delta());

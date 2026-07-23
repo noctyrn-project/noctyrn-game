@@ -1,5 +1,7 @@
 use bevy::prelude::*;
-use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
+use bevy::pbr::wireframe::WireframePlugin;
+use bevy::settings::SettingsPlugin;
+use bevy::dev_tools::diagnostics_overlay::DiagnosticsOverlayPlugin;
 
 mod player;
 mod world;
@@ -11,17 +13,21 @@ mod settings;
 mod ui_settings;
 mod menu;
 mod net;
+mod defaults;
+mod storage;
+mod setup;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(WireframePlugin::default())
+        .add_plugins(SettingsPlugin::new(defaults::APP_ID))
+        .add_plugins(DiagnosticsOverlayPlugin)
+        .add_plugins(setup::SetupPlugin)
         .add_plugins(weapons::WeaponsPlugin)
         .add_plugins(player::Player)
         .add_plugins(world::World)
         .add_plugins(gameplay::GameplayPlugin)
         .add_plugins(net::NetworkPlugin)
-        .insert_resource(ui_config::load_ui_config())
-        .insert_resource(settings::load_game_settings())
         .run();
 }

@@ -14,8 +14,16 @@ use bevy::prelude::*;
 
 use crate::player::GameState;
 
+#[derive(Resource, Default, PartialEq, Eq)]
+pub enum ActiveInput {
+    #[default]
+    None,
+    Chat,
+    Login,
+    FriendsSearch,
+}
+
 // Re-exports used by other modules
-pub use main_menu::CancelSearchButton;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum GameMode {
@@ -201,6 +209,16 @@ pub fn to_shared_gamemode(mode: GameMode) -> noctyrn_shared::GameMode {
 #[derive(Component)]
 pub struct MenuCamera;
 
+pub fn close_chat(
+    mut chat_input: ResMut<chat::ChatInput>,
+    mut chat_open: ResMut<chat::ChatOpen>,
+    mut active_input: ResMut<ActiveInput>,
+) {
+    chat_input.open = false;
+    chat_open.0 = false;
+    active_input.set_if_neq(ActiveInput::None);
+}
+
 pub fn ensure_menu_camera(
     mut commands: Commands,
     existing: Query<Entity, With<MenuCamera>>,
@@ -235,6 +253,7 @@ impl Plugin for MenuPlugin {
         app.init_resource::<chat::ChatHistory>();
         app.init_resource::<chat::ChatInput>();
         app.init_resource::<chat::ChatOpen>();
+        app.init_resource::<ActiveInput>();
 
         // Chat system (runs in all states)
 
@@ -253,6 +272,7 @@ impl Plugin for MenuPlugin {
             invite::despawn_invite_banner,
             login::force_despawn_login_overlay,
             profile::force_despawn_profile_overlay,
+            close_chat,
         ));
         app.add_systems(Update, main_menu::main_menu_interaction.run_if(in_state(GameState::MainMenu)));
         app.add_systems(Update, main_menu::main_menu_hover.run_if(in_state(GameState::MainMenu)));

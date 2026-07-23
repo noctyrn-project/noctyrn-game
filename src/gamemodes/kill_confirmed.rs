@@ -5,8 +5,6 @@
 //!   Enemy dog tags expire after 15 seconds. First to 65 confirmed kills wins.
 
 use bevy::prelude::*;
-use crate::world::objects::StaticCollider;
-use crate::world::GameWorldEntity;
 
 /// Kill Confirmed uses the same map as TDM (symmetric lanes).
 pub fn spawn_map(

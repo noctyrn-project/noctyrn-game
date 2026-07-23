@@ -256,14 +256,14 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("BACK"),
-                        TextFont { font_size: 14.0, ..default() },
+                        TextFont { font_size: FontSize::Px(14.0), ..default() },
                         TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
                     ));
                 });
 
                 left.spawn((
                     Text::new("CRATES"),
-                    TextFont { font_size: 32.0, ..default() },
+                    TextFont { font_size: FontSize::Px(32.0), ..default() },
                     TextColor(Color::WHITE),
                 ));
             });
@@ -276,7 +276,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
             }).with_children(|right| {
                 right.spawn((
                     Text::new(format!("[C] {} Credits", credits.balance)),
-                    TextFont { font_size: 16.0, ..default() },
+                    TextFont { font_size: FontSize::Px(16.0), ..default() },
                     TextColor(Color::srgb(0.9, 0.8, 0.2)),
                     CreditsDisplay,
                 ));
@@ -297,7 +297,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new(format!("SELL {} DUPLICATES", dupes)),
-                            TextFont { font_size: 12.0, ..default() },
+                            TextFont { font_size: FontSize::Px(12.0), ..default() },
                             TextColor(Color::WHITE),
                         ));
                     });
@@ -307,7 +307,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
 
         root.spawn((
             Text::new("Open crates to earn weapon skins. Sell duplicates for credits."),
-            TextFont { font_size: 13.0, ..default() },
+            TextFont { font_size: FontSize::Px(13.0), ..default() },
             TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
         ));
 
@@ -357,20 +357,20 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                     )).with_children(|icon| {
                         icon.spawn((
                             Text::new("CRATE"),
-                            TextFont { font_size: 20.0, ..default() },
+                            TextFont { font_size: FontSize::Px(20.0), ..default() },
                             TextColor(Color::WHITE),
                         ));
                     });
 
                     card.spawn((
                         Text::new(ct.display_name()),
-                        TextFont { font_size: 16.0, ..default() },
+                        TextFont { font_size: FontSize::Px(16.0), ..default() },
                         TextColor(Color::WHITE),
                     ));
 
                     card.spawn((
                         Text::new(ct.description()),
-                        TextFont { font_size: 11.0, ..default() },
+                        TextFont { font_size: FontSize::Px(11.0), ..default() },
                         TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
                     ));
 
@@ -392,12 +392,12 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             }).with_children(|r| {
                                 r.spawn((
                                     Text::new(rarity.display_name()),
-                                    TextFont { font_size: 10.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(10.0), ..default() },
                                     TextColor(rarity.color()),
                                 ));
                                 r.spawn((
                                     Text::new(format!("{:.1}%", pct)),
-                                    TextFont { font_size: 10.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(10.0), ..default() },
                                     TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7)),
                                 ));
                             });
@@ -415,7 +415,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                         if has_weapon_selected {
                             sel_row.spawn((
                                 Text::new(format!("[{}]", selected_weapon_name)),
-                                TextFont { font_size: 10.0, ..default() },
+                                TextFont { font_size: FontSize::Px(10.0), ..default() },
                                 TextColor(Color::srgb(0.4, 0.8, 1.0)),
                             ));
                             sel_row.spawn((
@@ -432,7 +432,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new("X"),
-                                    TextFont { font_size: 11.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(11.0), ..default() },
                                     TextColor(Color::WHITE),
                                 ));
                             });
@@ -451,7 +451,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new("Selected: None"),
-                                    TextFont { font_size: 10.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(10.0), ..default() },
                                     TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
                                 ));
                             });
@@ -465,7 +465,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                     };
                     card.spawn((
                         Text::new(cost_text),
-                        TextFont { font_size: 12.0, ..default() },
+                        TextFont { font_size: FontSize::Px(12.0), ..default() },
                         TextColor(if credits.balance >= actual_cost { ct.color() } else { Color::srgba(0.5, 0.3, 0.3, 0.7) }),
                     ));
                 });
@@ -516,7 +516,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                     }).with_children(|h| {
                         h.spawn((
                             Text::new("SELECT WEAPON (doubles crate cost)"),
-                            TextFont { font_size: 16.0, ..default() },
+                            TextFont { font_size: FontSize::Px(16.0), ..default() },
                             TextColor(Color::WHITE),
                         ));
                         h.spawn((
@@ -533,7 +533,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                         )).with_children(|btn| {
                             btn.spawn((
                                 Text::new("X"),
-                                TextFont { font_size: 14.0, ..default() },
+                                TextFont { font_size: FontSize::Px(14.0), ..default() },
                                 TextColor(Color::WHITE),
                             ));
                         });
@@ -561,7 +561,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new(format!("{}", slot)),
-                                    TextFont { font_size: 11.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(11.0), ..default() },
                                     TextColor(if is_active { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.6, 0.8) }),
                                 ));
                             });
@@ -602,7 +602,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new(&cfg.info.name),
-                                    TextFont { font_size: 11.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(11.0), ..default() },
                                     TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.6, 0.6, 0.7, 0.8) }),
                                 ));
                             });
@@ -793,12 +793,12 @@ pub fn crate_interaction(
                                             )).with_children(|cell| {
                                                 cell.spawn((
                                                     Text::new(s.display_name()),
-                                                    TextFont { font_size: 9.0, ..default() },
+                                                    TextFont { font_size: FontSize::Px(9.0), ..default() },
                                                     TextColor(Color::WHITE),
                                                 ));
                                                 cell.spawn((
                                                     Text::new(rarity.display_name()),
-                                                    TextFont { font_size: 8.0, ..default() },
+                                                    TextFont { font_size: FontSize::Px(8.0), ..default() },
                                                     TextColor(rarity.color()),
                                                 ));
                                             });
@@ -831,7 +831,7 @@ pub fn crate_interaction(
                                 )).with_children(|btn| {
                                     btn.spawn((
                                         Text::new("SKIP >>"),
-                                        TextFont { font_size: 13.0, ..default() },
+                                        TextFont { font_size: FontSize::Px(13.0), ..default() },
                                         TextColor(Color::srgba(0.8, 0.8, 0.9, 0.9)),
                                     ));
                                 });
@@ -993,7 +993,7 @@ pub fn update_crate_animation(
                             )).with_children(|card| {
                                 card.spawn((
                                     Text::new(rarity.display_name().to_uppercase()),
-                                    TextFont { font_size: 14.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                                     TextColor(rarity.color()),
                                 ));
 
@@ -1019,38 +1019,38 @@ pub fn update_crate_animation(
                                 )).with_children(|model| {
                                     model.spawn((
                                         Text::new(slot_label),
-                                        TextFont { font_size: 36.0, ..default() },
+                                        TextFont { font_size: FontSize::Px(36.0), ..default() },
                                         TextColor(Color::WHITE),
                                     ));
                                     model.spawn((
                                         Text::new(&weapon_display),
-                                        TextFont { font_size: 14.0, ..default() },
+                                        TextFont { font_size: FontSize::Px(14.0), ..default() },
                                         TextColor(Color::WHITE),
                                     ));
                                 });
 
                                 card.spawn((
                                     Text::new(skin.display_name()),
-                                    TextFont { font_size: 24.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(24.0), ..default() },
                                     TextColor(Color::WHITE),
                                 ));
 
                                 card.spawn((
                                     Text::new(format!("{} Skin", rarity.display_name())),
-                                    TextFont { font_size: 13.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(13.0), ..default() },
                                     TextColor(rarity.color()),
                                 ));
 
                                 card.spawn((
                                     Text::new(format!("for {}", weapon_display)),
-                                    TextFont { font_size: 15.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(15.0), ..default() },
                                     TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
                                 ));
 
                                 if !dup_text.is_empty() {
                                     card.spawn((
                                         Text::new(dup_text.clone()),
-                                        TextFont { font_size: 11.0, ..default() },
+                                        TextFont { font_size: FontSize::Px(11.0), ..default() },
                                         TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
                                     ));
                                 }
@@ -1070,7 +1070,7 @@ pub fn update_crate_animation(
                                 )).with_children(|btn| {
                                     btn.spawn((
                                         Text::new("CONTINUE"),
-                                        TextFont { font_size: 14.0, ..default() },
+                                        TextFont { font_size: FontSize::Px(14.0), ..default() },
                                         TextColor(Color::WHITE),
                                     ));
                                 });

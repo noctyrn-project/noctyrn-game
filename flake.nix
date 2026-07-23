@@ -1,5 +1,5 @@
 {
-  description = "Noctyrn - Tactical FPS Game Client (Bevy 0.18)";
+  description = "Noctyrn - Tactical FPS Game Client (Bevy 0.19)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

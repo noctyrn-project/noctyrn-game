@@ -29,7 +29,7 @@ pub fn spawn_gamemode_menu(mut commands: Commands, selected_mode: Res<SelectedGa
         BackgroundColor(Color::srgb(0.03, 0.03, 0.06)),
         GameModeMenuUi,
     )).with_children(|root| {
-        root.spawn((Text::new("SELECT GAME MODE"), TextFont { font_size: 32.0, ..default() }, TextColor(Color::WHITE), Node { margin: UiRect::bottom(Val::Px(4.0)), ..default() }));
+        root.spawn((Text::new("SELECT GAME MODE"), TextFont { font_size: FontSize::Px(32.0), ..default() }, TextColor(Color::WHITE), Node { margin: UiRect::bottom(Val::Px(4.0)), ..default() }));
 
         root.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(4.0), margin: UiRect::bottom(Val::Px(8.0)), ..default() }).with_children(|tab_row| {
             for (label, tab_val) in [("STANDARD", GameModeTabButton::Standard), ("LIMITED TIME", GameModeTabButton::Ltm)] {
@@ -40,7 +40,7 @@ pub fn spawn_gamemode_menu(mut commands: Commands, selected_mode: Res<SelectedGa
                     BorderColor::all(if is_active { Color::srgba(0.4, 0.6, 1.0, 0.8) } else { Color::NONE }),
                     tab_val,
                 )).with_children(|btn| {
-                    btn.spawn((Text::new(label), TextFont { font_size: 14.0, ..default() }, TextColor(if is_active { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.6, 0.8) })));
+                    btn.spawn((Text::new(label), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(if is_active { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.6, 0.8) })));
                 });
             }
         });
@@ -66,14 +66,14 @@ pub fn spawn_gamemode_menu(mut commands: Commands, selected_mode: Res<SelectedGa
                         GameModeCard(mode),
                     )).with_children(|card| {
                         card.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(4.0), ..default() }).with_children(|top| {
-                            top.spawn((Text::new(mode.short_name()), TextFont { font_size: 24.0, ..default() }, TextColor(accent)));
-                            top.spawn((Text::new(mode.display_name()), TextFont { font_size: 13.0, ..default() }, TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.7, 0.7, 0.7, 0.9) })));
+                            top.spawn((Text::new(mode.short_name()), TextFont { font_size: FontSize::Px(24.0), ..default() }, TextColor(accent)));
+                            top.spawn((Text::new(mode.display_name()), TextFont { font_size: FontSize::Px(13.0), ..default() }, TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.7, 0.7, 0.7, 0.9) })));
                         });
-                        card.spawn((Text::new(mode.description()), TextFont { font_size: 11.0, ..default() }, TextColor(Color::srgba(0.5, 0.55, 0.6, 0.8))));
+                        card.spawn((Text::new(mode.description()), TextFont { font_size: FontSize::Px(11.0), ..default() }, TextColor(Color::srgba(0.5, 0.55, 0.6, 0.8))));
                         card.spawn(Node { flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, ..default() }).with_children(|bottom_row| {
-                            bottom_row.spawn((Text::new(mode.player_count()), TextFont { font_size: 10.0, ..default() }, TextColor(Color::srgba(0.4, 0.5, 0.6, 0.7))));
+                            bottom_row.spawn((Text::new(mode.player_count()), TextFont { font_size: FontSize::Px(10.0), ..default() }, TextColor(Color::srgba(0.4, 0.5, 0.6, 0.7))));
                             if is_selected {
-                                bottom_row.spawn((Text::new("[SELECTED]"), TextFont { font_size: 10.0, ..default() }, TextColor(accent)));
+                                bottom_row.spawn((Text::new("[SELECTED]"), TextFont { font_size: FontSize::Px(10.0), ..default() }, TextColor(accent)));
                             }
                         });
                     });
@@ -84,7 +84,7 @@ pub fn spawn_gamemode_menu(mut commands: Commands, selected_mode: Res<SelectedGa
         root.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(12.0), margin: UiRect::top(Val::Px(8.0)), ..default() }).with_children(|bottom| {
             bottom.spawn((Button, Node { width: Val::Px(140.0), height: Val::Px(42.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                 BackgroundColor(Color::srgb(0.25, 0.12, 0.12)), GameModeBackButton,
-            )).with_children(|btn| { btn.spawn((Text::new("BACK"), TextFont { font_size: 14.0, ..default() }, TextColor(Color::WHITE))); });
+            )).with_children(|btn| { btn.spawn((Text::new("BACK"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(Color::WHITE))); });
         });
     });
 }

@@ -175,7 +175,7 @@ pub fn handle_weapon_recoil(
 pub fn handle_weapon_sway(
     time: Res<Time>,
     accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+    _keyboard_input: Res<ButtonInput<KeyCode>>,
     mouse_input: Res<ButtonInput<MouseButton>>,
     mut query: Query<&mut WeaponRecoil, With<WeaponModel>>,
     player_velocity: Single<&Velocity>,
@@ -635,7 +635,7 @@ pub fn fire_weapon(
             WeaponSlot::Equipment => {
                 // Grenade Throw Logic
                 commands.spawn((
-                    SceneRoot(asset_server.load("weapons/models/equipment/grenade/rgd-5.glb#Scene0")),
+                    WorldAssetRoot(asset_server.load("weapons/models/equipment/grenade/rgd-5.glb#Scene0")),
                     Transform::from_translation(spawn_pos).with_scale(Vec3::splat(0.2)),
                     Grenade {
                         velocity: forward * 15.0 + Vec3::Y * 5.0, // Arc throw
@@ -764,7 +764,7 @@ pub fn fire_weapon(
                                     color: Color::srgb(1.0, 0.8, 0.2),
                                     intensity: 1000.0,
                                     range: 5.0,
-                                    shadows_enabled: false,
+                                    shadow_maps_enabled: false,
                                     ..default()
                                 },
                                 Transform::from_translation(muzzle_pos),
@@ -1078,8 +1078,7 @@ pub fn handle_explosion_particles(
         let scale = particle.start_scale + (particle.end_scale - particle.start_scale) * t.sqrt();
         transform.scale = Vec3::splat(scale);
 
-        // Color Fade: White-Yellow -> Orange-Red -> Gray-Black
-        if let Some(material) = materials.get_mut(&handle.0) {
+        if let Some(mut material) = materials.get_mut(&handle.0) {
             let color = if t < 0.2 {
                 // White-Yellow to Orange
                 let sub_t = t / 0.2;

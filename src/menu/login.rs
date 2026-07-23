@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use bevy::input::keyboard::KeyboardInput;
+use bevy::clipboard::Clipboard;
 use crate::player::GameState;
 use crate::net::{ConnectionState, ServerConfig, TokioRuntime, NetworkEvent, http::{self, PendingRequests}};
 use crate::net::tcp::TcpClient;
 use crate::menu::profile::ProfileOverlayState;
-
-const AUTH_TOKEN_PATH: &str = "settings/auth_token.json";
+use crate::menu::ActiveInput;
 
 #[derive(Component)]
 pub struct LoginOverlayUi;
@@ -63,30 +63,22 @@ impl Default for LoginUiState {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Default)]
 struct StoredToken { token: String, username: String, user_id: String }
 
 pub fn load_persisted_token() -> Option<(uuid::Uuid, String, String)> {
-    std::fs::read_to_string(AUTH_TOKEN_PATH).ok().and_then(|data| {
-        serde_json::from_str::<StoredToken>(&data).ok().and_then(|st| {
-            let uid = uuid::Uuid::parse_str(&st.user_id).ok()?;
-            Some((uid, st.username, st.token))
-        })
-    })
+    let stored = crate::storage::load_json::<StoredToken>("auth_token.json");
+    let uid = uuid::Uuid::parse_str(&stored.user_id).ok()?;
+    Some((uid, stored.username, stored.token))
 }
 
 pub(crate) fn save_token(token: &str, username: &str, user_id: uuid::Uuid) {
-    if let Some(parent) = std::path::Path::new(AUTH_TOKEN_PATH).parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
     let stored = StoredToken { token: token.to_string(), username: username.to_string(), user_id: user_id.to_string() };
-    if let Ok(data) = serde_json::to_string(&stored) {
-        let _ = std::fs::write(AUTH_TOKEN_PATH, &data);
-    }
+    crate::storage::save_json("auth_token.json", &stored);
 }
 
 pub(crate) fn clear_token() {
-    let _ = std::fs::remove_file(AUTH_TOKEN_PATH);
+    crate::storage::remove_file("auth_token.json");
 }
 
 pub fn spawn_login_overlay(mut commands: Commands, login_state: Res<LoginUiState>) {
@@ -114,20 +106,20 @@ pub fn spawn_login_overlay(mut commands: Commands, login_state: Res<LoginUiState
             BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.95)),
             BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
         )).with_children(|card| {
-            card.spawn((Text::new(if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: 28.0, ..default() }, TextColor(Color::WHITE), Node { margin: UiRect::bottom(Val::Px(8.0)), ..default() }));
+            card.spawn((Text::new(if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(28.0), ..default() }, TextColor(Color::WHITE), Node { margin: UiRect::bottom(Val::Px(8.0)), ..default() }));
 
             card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(4.0), margin: UiRect::bottom(Val::Px(8.0)), ..default() }).with_children(|tabs| {
                 tabs.spawn((Button, Node { width: Val::Percent(50.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                     BackgroundColor(if !is_register { Color::srgba(0.2, 0.4, 0.2, 0.8) } else { Color::srgba(0.15, 0.15, 0.2, 0.8) }),
                     LoginButton::SwitchToLogin,
                 )).with_children(|btn| {
-                    btn.spawn((Text::new("LOGIN"), TextFont { font_size: 14.0, ..default() }, TextColor(if !is_register { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.5, 0.8) })));
+                    btn.spawn((Text::new("LOGIN"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(if !is_register { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.5, 0.8) })));
                 });
                 tabs.spawn((Button, Node { width: Val::Percent(50.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                     BackgroundColor(if is_register { Color::srgba(0.2, 0.4, 0.2, 0.8) } else { Color::srgba(0.15, 0.15, 0.2, 0.8) }),
                     LoginButton::SwitchToRegister,
                 )).with_children(|btn| {
-                    btn.spawn((Text::new("REGISTER"), TextFont { font_size: 14.0, ..default() }, TextColor(if is_register { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.5, 0.8) })));
+                    btn.spawn((Text::new("REGISTER"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(if is_register { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.5, 0.8) })));
                 });
             });
 
@@ -144,16 +136,16 @@ pub fn spawn_login_overlay(mut commands: Commands, login_state: Res<LoginUiState
                 BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
                 if is_register { LoginButton::Register } else { LoginButton::Login },
             )).with_children(|btn| {
-                btn.spawn((Text::new(if login_state.loading { "LOADING..." } else if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: 16.0, ..default() }, TextColor(Color::WHITE)));
+                btn.spawn((Text::new(if login_state.loading { "LOADING..." } else if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::WHITE)));
             });
 
-            card.spawn((Text::new(login_state.error_message.as_deref().unwrap_or("")), TextFont { font_size: 13.0, ..default() }, TextColor(Color::srgb(0.9, 0.2, 0.2)), LoginErrorText));
+            card.spawn((Text::new(login_state.error_message.as_deref().unwrap_or("")), TextFont { font_size: FontSize::Px(13.0), ..default() }, TextColor(Color::srgb(0.9, 0.2, 0.2)), LoginErrorText));
 
             card.spawn((Button, Node { width: Val::Percent(100.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, margin: UiRect::top(Val::Px(4.0)), ..default() },
                 BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.8)),
                 LoginButton::Back,
             )).with_children(|btn| {
-                btn.spawn((Text::new("BACK"), TextFont { font_size: 14.0, ..default() }, TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9))));
+                btn.spawn((Text::new("BACK"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9))));
             });
         });
     });
@@ -168,7 +160,7 @@ fn spawn_login_input_field(
     is_focused: bool,
 ) {
     parent.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(4.0), ..default() }).with_children(|container| {
-        container.spawn((Text::new(label), TextFont { font_size: 11.0, ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.6, 0.9))));
+        container.spawn((Text::new(label), TextFont { font_size: FontSize::Px(11.0), ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.6, 0.9))));
 
         let display_text = if is_password { "*".repeat(current_value.len()) } else { current_value.to_string() };
         let display_with_cursor = if is_focused { format!("{}|", display_text) } else if display_text.is_empty() { " ".to_string() } else { display_text };
@@ -180,7 +172,7 @@ fn spawn_login_input_field(
             BorderColor::all(if is_focused { Color::srgba(0.3, 0.6, 0.3, 0.8) } else { Color::srgba(0.25, 0.25, 0.3, 0.6) }),
             LoginTextInput { field },
         )).with_children(|input| {
-            input.spawn((Text::new(display_with_cursor), TextFont { font_size: 14.0, ..default() }, TextColor(Color::srgba(0.85, 0.85, 0.85, 0.95)), LoginFieldText(field)));
+            input.spawn((Text::new(display_with_cursor), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(Color::srgba(0.85, 0.85, 0.85, 0.95)), LoginFieldText(field)));
         });
     });
 }
@@ -229,10 +221,12 @@ pub fn login_interaction(
     server_config: Res<ServerConfig>,
     pending: Res<PendingRequests>,
     mouse_input: Res<ButtonInput<MouseButton>>,
+    mut active_input: ResMut<ActiveInput>,
 ) {
     for (interaction, text_input) in input_query.iter() {
         if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
             login_state.focused_field = Some(text_input.field);
+            active_input.set_if_neq(ActiveInput::Login);
         }
     }
 
@@ -276,40 +270,77 @@ pub fn login_interaction(
                 }
                 LoginButton::Back => {
                     login_state.show_overlay = false;
+                    active_input.set_if_neq(ActiveInput::None);
                 }
             }
         }
     }
 }
 
+fn push_to_field(field: LoginField, state: &mut LoginUiState, ch: &str) {
+    match field {
+        LoginField::Email => state.email.push_str(ch),
+        LoginField::Password => state.password.push_str(ch),
+        LoginField::Username => state.username.push_str(ch),
+        LoginField::ConfirmPassword => state.confirm_password.push_str(ch),
+    }
+}
+
+fn pop_from_field(field: LoginField, state: &mut LoginUiState) {
+    match field {
+        LoginField::Email => { state.email.pop(); }
+        LoginField::Password => { state.password.pop(); }
+        LoginField::Username => { state.username.pop(); }
+        LoginField::ConfirmPassword => { state.confirm_password.pop(); }
+    }
+}
+
 pub fn login_text_input(
     mut char_events: MessageReader<KeyboardInput>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mut login_state: ResMut<LoginUiState>,
+    mut active_input: ResMut<ActiveInput>,
+    mut clipboard: ResMut<Clipboard>,
 ) {
     if !login_state.show_overlay {
+        active_input.set_if_neq(ActiveInput::None);
         return;
     }
+    if *active_input != ActiveInput::None && *active_input != ActiveInput::Login {
+        return;
+    }
+
+    if login_state.focused_field.is_some() {
+        active_input.set_if_neq(ActiveInput::Login);
+    }
+
     let focused = match login_state.focused_field {
         Some(f) => f,
         None => return,
     };
 
+    let ctrl = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
+    if ctrl && keyboard.just_pressed(KeyCode::KeyV) {
+        let text = clipboard.fetch_text().poll_result();
+        if let Some(Ok(text)) = text {
+            push_to_field(focused, &mut login_state, &text);
+        }
+    }
+
+    let mut submitted = false;
+    let mut tab_pressed = false;
+
     for event in char_events.read() {
         if !event.state.is_pressed() {
             continue;
         }
-
-        let target = match focused {
-            LoginField::Email => &mut login_state.email,
-            LoginField::Password => &mut login_state.password,
-            LoginField::Username => &mut login_state.username,
-            LoginField::ConfirmPassword => &mut login_state.confirm_password,
-        };
-
         match event.key_code {
-            KeyCode::Backspace => { target.pop(); }
+            KeyCode::Backspace => {
+                pop_from_field(focused, &mut login_state);
+            }
             KeyCode::Enter => {
-                if !login_state.loading {
+                if !submitted && !login_state.loading {
+                    submitted = true;
                     match login_state.mode {
                         LoginMode::Login => {
                             login_state.loading = true;
@@ -318,11 +349,11 @@ pub fn login_text_input(
                         LoginMode::Register => {
                             if login_state.password != login_state.confirm_password {
                                 login_state.error_message = Some("Passwords do not match".to_string());
-                                return;
+                                continue;
                             }
                             if login_state.username.is_empty() {
                                 login_state.error_message = Some("Username is required".to_string());
-                                return;
+                                continue;
                             }
                             login_state.loading = true;
                             login_state.error_message = None;
@@ -331,22 +362,25 @@ pub fn login_text_input(
                 }
             }
             KeyCode::Tab => {
-                login_state.focused_field = Some(match focused {
-                    LoginField::Email => LoginField::Password,
-                    LoginField::Password => {
-                        if login_state.mode == LoginMode::Register {
-                            LoginField::ConfirmPassword
-                        } else {
-                            LoginField::Email
+                if !tab_pressed {
+                    tab_pressed = true;
+                    login_state.focused_field = Some(match focused {
+                        LoginField::Email => LoginField::Password,
+                        LoginField::Password => {
+                            if login_state.mode == LoginMode::Register {
+                                LoginField::ConfirmPassword
+                            } else {
+                                LoginField::Email
+                            }
                         }
-                    }
-                    LoginField::Username => LoginField::Email,
-                    LoginField::ConfirmPassword => LoginField::Email,
-                });
+                        LoginField::Username => LoginField::Email,
+                        LoginField::ConfirmPassword => LoginField::Email,
+                    });
+                }
             }
             _ => {
                 if let bevy::input::keyboard::Key::Character(ref ch) = event.logical_key {
-                    target.push_str(ch.as_str());
+                    push_to_field(focused, &mut login_state, ch.as_str());
                 }
             }
         }

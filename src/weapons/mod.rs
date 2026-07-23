@@ -569,35 +569,11 @@ impl PlayerLoadout {
     }
 
     pub fn save(&self) {
-        let path = "settings/savestate.json";
-        
-        // Load existing savestate or create new
-        let mut savestate: serde_json::Value = match std::fs::read_to_string(path) {
-            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
-            Err(_) => serde_json::json!({}),
-        };
-        
-        // Update loadout section
-        savestate["loadout"] = serde_json::to_value(self).unwrap();
-        
-        if let Ok(content) = serde_json::to_string_pretty(&savestate) {
-            let _ = std::fs::write(path, content);
-        }
+        crate::storage::save_section("savestate.json", "loadout", self);
     }
 
     pub fn load() -> Self {
-        let path = "settings/savestate.json";
-        match std::fs::read_to_string(path) {
-            Ok(content) => {
-                if let Ok(savestate) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(loadout) = savestate.get("loadout") {
-                        return serde_json::from_value(loadout.clone()).unwrap_or_default();
-                    }
-                }
-                Self::default()
-            },
-            Err(_) => Self::default(),
-        }
+        crate::storage::load_section("savestate.json", "loadout")
     }
 }
 
@@ -624,35 +600,11 @@ impl Default for PlayerCredits {
 
 impl PlayerCredits {
     pub fn save(&self) {
-        let path = "settings/savestate.json";
-        
-        // Load existing savestate or create new
-        let mut savestate: serde_json::Value = match std::fs::read_to_string(path) {
-            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
-            Err(_) => serde_json::json!({}),
-        };
-        
-        // Update credits section
-        savestate["credits"] = serde_json::to_value(self).unwrap();
-        
-        if let Ok(content) = serde_json::to_string_pretty(&savestate) {
-            let _ = std::fs::write(path, content);
-        }
+        crate::storage::save_section("savestate.json", "credits", self);
     }
 
     pub fn load() -> Self {
-        let path = "settings/savestate.json";
-        match std::fs::read_to_string(path) {
-            Ok(content) => {
-                if let Ok(savestate) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(credits) = savestate.get("credits") {
-                        return serde_json::from_value(credits.clone()).unwrap_or_default();
-                    }
-                }
-                Self::default()
-            },
-            Err(_) => Self::default(),
-        }
+        crate::storage::load_section("savestate.json", "credits")
     }
 
     /// Credit value for selling a skin of a given rarity
@@ -795,35 +747,11 @@ impl SkinInventory {
     }
 
     pub fn save(&self) {
-        let path = "settings/savestate.json";
-        
-        // Load existing savestate or create new
-        let mut savestate: serde_json::Value = match std::fs::read_to_string(path) {
-            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
-            Err(_) => serde_json::json!({}),
-        };
-        
-        // Update inventory section
-        savestate["inventory"] = serde_json::to_value(self).unwrap();
-        
-        if let Ok(content) = serde_json::to_string_pretty(&savestate) {
-            let _ = std::fs::write(path, content);
-        }
+        crate::storage::save_section("savestate.json", "inventory", self);
     }
 
     pub fn load() -> Self {
-        let path = "settings/savestate.json";
-        match std::fs::read_to_string(path) {
-            Ok(content) => {
-                if let Ok(savestate) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(inventory) = savestate.get("inventory") {
-                        return serde_json::from_value(inventory.clone()).unwrap_or_default();
-                    }
-                }
-                Self::default()
-            },
-            Err(_) => Self::default(),
-        }
+        crate::storage::load_section("savestate.json", "inventory")
     }
 }
 
@@ -1037,7 +965,7 @@ pub fn spawn_weapon_visual_skinned(
 
         let entity = if model_exists {
             commands.spawn((
-                SceneRoot(asset_server.load(&config.meta.model_path)),
+                WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                 transform,
                 BaseWeaponTransform(transform),
                 WeaponRecoil::default(),
@@ -1193,7 +1121,7 @@ pub fn spawn_weapon_visual_by_id(
 
         if model_exists {
             Some(commands.spawn((
-                SceneRoot(asset_server.load(&config.meta.model_path)),
+                WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                 transform,
                 BaseWeaponTransform(transform),
                 WeaponRecoil::default(),

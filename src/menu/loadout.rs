@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::player::GameState;
 use crate::weapons::{
     WeaponRegistry, WeaponSlot, PlayerLoadout, WeaponConfig,
-    sync_loadout_to_configs, WeaponSkin, WeaponSkinTag, SkinRarity,
+    sync_loadout_to_configs, WeaponSkin, WeaponSkinTag,
     SkinInventory,
 };
 use crate::menu::MenuCamera;
@@ -141,7 +141,7 @@ pub fn setup_loadout_scene(
             color: Color::srgb(0.95, 0.95, 1.0),
             intensity: 50_000.0,
             range: 20.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..default()
         },
         Transform::from_translation(PREVIEW_ORIGIN + Vec3::new(2.0, 3.0, 3.0)),
@@ -152,7 +152,7 @@ pub fn setup_loadout_scene(
             color: Color::srgb(0.4, 0.5, 0.8),
             intensity: 20_000.0,
             range: 15.0,
-            shadows_enabled: false,
+            shadow_maps_enabled: false,
             ..default()
         },
         Transform::from_translation(PREVIEW_ORIGIN + Vec3::new(-2.0, 1.0, -1.0)),
@@ -214,14 +214,14 @@ pub fn spawn_loadout_menu(
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("BACK"),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
                 ));
             });
 
             bar.spawn((
                 Text::new("LOADOUT"),
-                TextFont { font_size: 28.0, ..default() },
+                TextFont { font_size: FontSize::Px(28.0), ..default() },
                 TextColor(Color::WHITE),
                 Node { margin: UiRect::left(Val::Px(16.0)), ..default() },
             ));
@@ -230,7 +230,7 @@ pub fn spawn_loadout_menu(
 
             bar.spawn((
                 Text::new(format_loadout_summary(&loadout, &registry)),
-                TextFont { font_size: 11.0, ..default() },
+                TextFont { font_size: FontSize::Px(11.0), ..default() },
                 TextColor(Color::srgba(0.5, 0.7, 0.5, 0.8)),
                 CurrentLoadoutDisplay,
             ));
@@ -270,7 +270,7 @@ pub fn spawn_loadout_menu(
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(label),
-                        TextFont { font_size: 12.0, ..default() },
+                        TextFont { font_size: FontSize::Px(12.0), ..default() },
                         TextColor(if is_active { Color::WHITE } else { Color::srgba(0.6, 0.6, 0.6, 0.8) }),
                     ));
                 });
@@ -468,7 +468,7 @@ pub fn update_loadout_ui(
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(category_display_name(category).to_uppercase()),
-                        TextFont { font_size: 10.0, ..default() },
+                        TextFont { font_size: FontSize::Px(10.0), ..default() },
                         TextColor(if is_active { Color::WHITE } else { Color::srgba(0.6, 0.6, 0.6, 0.8) }),
                     ));
                 });
@@ -512,13 +512,13 @@ pub fn update_loadout_ui(
                         )).with_children(|btn| {
                             btn.spawn((
                                 Text::new(&config.info.name),
-                                TextFont { font_size: 13.0, ..default() },
+                                TextFont { font_size: FontSize::Px(13.0), ..default() },
                                 TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.85, 0.85, 0.85, 0.9) }),
                             ));
                             if is_equipped {
                                 btn.spawn((
                                     Text::new("[E]"),
-                                    TextFont { font_size: 10.0, ..default() },
+                                    TextFont { font_size: FontSize::Px(10.0), ..default() },
                                     TextColor(Color::srgb(0.3, 0.8, 0.3)),
                                 ));
                             }
@@ -571,7 +571,7 @@ pub fn update_loadout_ui(
                         ));
                         btn.spawn((
                             Text::new(format!("COLOR: {}", ui_state.selected_skin.display_name().to_uppercase())),
-                            TextFont { font_size: 12.0, ..default() },
+                            TextFont { font_size: FontSize::Px(12.0), ..default() },
                             TextColor(Color::srgba(0.8, 0.8, 0.9, 0.9)),
                         ));
                     });
@@ -613,19 +613,19 @@ pub fn update_loadout_tabs(
 fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, weapon_id: &str, loadout: &PlayerLoadout, slot: WeaponSlot) {
     parent.spawn((
         Text::new(&config.info.name),
-        TextFont { font_size: 26.0, ..default() },
+        TextFont { font_size: FontSize::Px(26.0), ..default() },
         TextColor(Color::WHITE),
     ));
 
     parent.spawn((
         Text::new(format!("{} - {} - {}", config.meta.weapon_type, config.info.manufacturer, config.info.year_introduced)),
-        TextFont { font_size: 13.0, ..default() },
+        TextFont { font_size: FontSize::Px(13.0), ..default() },
         TextColor(Color::srgba(0.6, 0.6, 0.6, 0.8)),
     ));
 
     parent.spawn((
         Text::new(&config.info.description),
-        TextFont { font_size: 13.0, ..default() },
+        TextFont { font_size: FontSize::Px(13.0), ..default() },
         TextColor(Color::srgba(0.7, 0.7, 0.7, 0.7)),
         Node { margin: UiRect::vertical(Val::Px(6.0)), ..default() },
     ));
@@ -672,7 +672,7 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
             ));
             parent.spawn((
                 Text::new(format!("Ammo: {} | Damage: {:.0} | Pen: {:.0}%", ammo.name, ammo.damage, ammo.penetration * 100.0)),
-                TextFont { font_size: 12.0, ..default() },
+                TextFont { font_size: FontSize::Px(12.0), ..default() },
                 TextColor(Color::srgba(0.8, 0.7, 0.4, 0.9)),
             ));
         }
@@ -680,7 +680,7 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
         if let Some(mag) = &config.attachments.magazine {
             parent.spawn((
                 Text::new(format!("Magazine: {} rds | Reserve: {}", mag.capacity, mag.carry_capacity)),
-                TextFont { font_size: 12.0, ..default() },
+                TextFont { font_size: FontSize::Px(12.0), ..default() },
                 TextColor(Color::srgba(0.6, 0.7, 0.8, 0.9)),
             ));
         }
@@ -688,7 +688,7 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
         if !config.attributes.fire_modes.is_empty() {
             parent.spawn((
                 Text::new(format!("Fire Modes: {}", config.attributes.fire_modes.join(" / "))),
-                TextFont { font_size: 12.0, ..default() },
+                TextFont { font_size: FontSize::Px(12.0), ..default() },
                 TextColor(Color::srgba(0.6, 0.7, 0.8, 0.9)),
             ));
         }
@@ -719,13 +719,13 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
     )).with_children(|btn: &mut ChildSpawnerCommands| {
         btn.spawn((
             Text::new(if is_equipped { "EQUIPPED" } else { "EQUIP" }),
-            TextFont { font_size: 18.0, ..default() },
+            TextFont { font_size: FontSize::Px(18.0), ..default() },
             TextColor(Color::WHITE),
         ));
     });
 }
 
-fn spawn_stat_bar(parent: &mut ChildSpawnerCommands, label: &str, value: f32, max: f32) {
+fn spawn_stat_bar(parent: &mut ChildSpawnerCommands, label: &str, value: f32, _max: f32) {
     parent.spawn(Node {
         width: Val::Percent(100.0),
         flex_direction: FlexDirection::Row,
@@ -736,14 +736,14 @@ fn spawn_stat_bar(parent: &mut ChildSpawnerCommands, label: &str, value: f32, ma
     }).with_children(|row: &mut ChildSpawnerCommands| {
         row.spawn((
             Text::new(label),
-            TextFont { font_size: 13.0, ..default() },
+            TextFont { font_size: FontSize::Px(13.0), ..default() },
             TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
             Node { width: Val::Px(120.0), ..default() },
         ));
 
         row.spawn((
             Text::new(format!("{:.2}", value)),
-            TextFont { font_size: 13.0, ..default() },
+            TextFont { font_size: FontSize::Px(13.0), ..default() },
             TextColor(Color::WHITE),
         ));
     });
@@ -947,7 +947,7 @@ fn attachment_slot_names(att: &crate::weapons::WeaponAttachments) -> Vec<(String
     result
 }
 
-fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: WeaponSkin, owned_skins: &[WeaponSkin], attachment_info: &[(String, String)]) {
+fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: WeaponSkin, owned_skins: &[WeaponSkin], _attachment_info: &[(String, String)]) {
     parent.spawn((
         Node {
             position_type: PositionType::Absolute,
@@ -973,7 +973,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
         }).with_children(|row| {
             row.spawn((
                 Text::new("COLOR"),
-                TextFont { font_size: 18.0, ..default() },
+                TextFont { font_size: FontSize::Px(18.0), ..default() },
                 TextColor(Color::WHITE),
             ));
             row.spawn((
@@ -990,7 +990,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("X"),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::WHITE),
                 ));
             });
@@ -998,7 +998,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
 
         panel.spawn((
             Text::new("GUN BODY"),
-            TextFont { font_size: 13.0, ..default() },
+            TextFont { font_size: FontSize::Px(13.0), ..default() },
             TextColor(Color::srgba(0.5, 0.6, 0.8, 0.9)),
         ));
 
@@ -1059,7 +1059,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
         )).with_children(|btn| {
             btn.spawn((
                 Text::new("ATTACHMENTS"),
-                TextFont { font_size: 13.0, ..default() },
+                TextFont { font_size: FontSize::Px(13.0), ..default() },
                 TextColor(Color::srgba(0.8, 0.8, 0.9, 1.0)),
             ));
         });
@@ -1076,7 +1076,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
 
         panel.spawn((
             Text::new("SKINS"),
-            TextFont { font_size: 13.0, ..default() },
+            TextFont { font_size: FontSize::Px(13.0), ..default() },
             TextColor(Color::srgba(0.5, 0.6, 0.8, 0.9)),
         ));
 
@@ -1120,7 +1120,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
 
         panel.spawn((
             Text::new(format!("Selected: {}", selected_skin.display_name())),
-            TextFont { font_size: 11.0, ..default() },
+            TextFont { font_size: FontSize::Px(11.0), ..default() },
             TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
         ));
     });
@@ -1231,7 +1231,7 @@ pub fn update_loadout_preview_model(
             if model_exists {
                 let skin = ui_state.selected_skin;
                 commands.spawn((
-                    SceneRoot(asset_server.load(&config.meta.model_path)),
+                    WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                     Transform::from_translation(PREVIEW_ORIGIN)
                         .with_rotation(rotation)
                         .with_scale(Vec3::splat(scale)),

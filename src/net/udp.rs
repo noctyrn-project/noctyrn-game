@@ -10,8 +10,6 @@ use bevy::prelude::*;
 
 use noctyrn_shared::protocol::{GameStateSnapshot, PlayerInput};
 
-use super::http::PendingRequests;
-use super::NetworkEvent;
 
 /// Bevy resource wrapping the UDP connection for game traffic.
 ///

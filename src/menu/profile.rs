@@ -58,35 +58,35 @@ pub fn spawn_profile_overlay(
                 align_items: AlignItems::Center,
                 ..default()
             }).with_children(|header| {
-                header.spawn((Text::new("PROFILE"), TextFont { font_size: 22.0, ..default() }, TextColor(Color::WHITE)));
+                header.spawn((Text::new("PROFILE"), TextFont { font_size: FontSize::Px(22.0), ..default() }, TextColor(Color::WHITE)));
                 header.spawn(Button).with_children(|btn| {
-                    btn.spawn((Text::new("X"), TextFont { font_size: 16.0, ..default() }, TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8))));
+                    btn.spawn((Text::new("X"), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8))));
                 }).insert(ProfileCloseButton);
             });
 
             if !conn_state.is_connected() {
-                card.spawn((Text::new("You are not logged in."), TextFont { font_size: 16.0, ..default() }, TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8)), Node { margin: UiRect::vertical(Val::Px(16.0)), ..default() }));
+                card.spawn((Text::new("You are not logged in."), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8)), Node { margin: UiRect::vertical(Val::Px(16.0)), ..default() }));
                 card.spawn((
                     Button,
                     Node { width: Val::Percent(100.0), height: Val::Px(40.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
                     BackgroundColor(Color::srgba(0.2, 0.4, 0.2, 0.9)),
                     ProfileGoToLoginButton,
                 )).with_children(|btn| {
-                    btn.spawn((Text::new("GO TO LOGIN"), TextFont { font_size: 15.0, ..default() }, TextColor(Color::WHITE)));
+                    btn.spawn((Text::new("GO TO LOGIN"), TextFont { font_size: FontSize::Px(15.0), ..default() }, TextColor(Color::WHITE)));
                 });
                 return;
             }
 
             let profile = cached_profile.profile.as_ref();
             let username = profile.map(|p| p.username.as_str()).unwrap_or(conn_state.username().unwrap_or("--"));
-            card.spawn((Text::new(username), TextFont { font_size: 30.0, ..default() }, TextColor(Color::srgb(0.4, 0.7, 1.0))));
+            card.spawn((Text::new(username), TextFont { font_size: FontSize::Px(30.0), ..default() }, TextColor(Color::srgb(0.4, 0.7, 1.0))));
 
             let level = profile.map(|p| p.level).unwrap_or(1);
             let xp = profile.map(|p| p.xp).unwrap_or(0);
             let xp_for_next = level * 1000;
             let xp_pct = (xp as f32 / xp_for_next.max(1) as f32 * 100.0).min(100.0);
 
-            card.spawn((Text::new(format!("Level {}", level)), TextFont { font_size: 18.0, ..default() }, TextColor(Color::srgba(0.8, 0.8, 0.3, 0.9))));
+            card.spawn((Text::new(format!("Level {}", level)), TextFont { font_size: FontSize::Px(18.0), ..default() }, TextColor(Color::srgba(0.8, 0.8, 0.3, 0.9))));
 
             card.spawn(Node {
                 width: Val::Percent(100.0),
@@ -99,11 +99,11 @@ pub fn spawn_profile_overlay(
                     BackgroundColor(Color::srgb(0.3, 0.7, 0.3)),
                 ));
             });
-            card.spawn((Text::new(format!("{} / {} XP", xp, xp_for_next)), TextFont { font_size: 11.0, ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.5, 0.8))));
+            card.spawn((Text::new(format!("{} / {} XP", xp, xp_for_next)), TextFont { font_size: FontSize::Px(11.0), ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.5, 0.8))));
 
             let created = profile.map(|p| p.created_at.as_str()).unwrap_or("--");
             let display_date = if created.len() >= 10 { &created[..10] } else { created };
-            card.spawn((Text::new(format!("Member since {}", display_date)), TextFont { font_size: 12.0, ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7))));
+            card.spawn((Text::new(format!("Member since {}", display_date)), TextFont { font_size: FontSize::Px(12.0), ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7))));
 
             let kills = profile.map(|p| p.stats.total_kills).unwrap_or(0);
             let deaths = profile.map(|p| p.stats.total_deaths).unwrap_or(0);
@@ -146,7 +146,7 @@ pub fn spawn_profile_overlay(
                     BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
                     ProfileLogoutButton,
                 )).with_children(|btn| {
-                    btn.spawn((Text::new("LOGOUT"), TextFont { font_size: 13.0, ..default() }, TextColor(Color::srgb(0.9, 0.3, 0.3))));
+                    btn.spawn((Text::new("LOGOUT"), TextFont { font_size: FontSize::Px(13.0), ..default() }, TextColor(Color::srgb(0.9, 0.3, 0.3))));
                 });
             });
         });
@@ -159,8 +159,8 @@ fn spawn_stat_pill(parent: &mut ChildSpawnerCommands, label: &str, value: &str) 
         BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.8)),
         BorderColor::all(Color::srgba(0.2, 0.2, 0.3, 0.3)),
     )).with_children(|pill| {
-        pill.spawn((Text::new(value), TextFont { font_size: 20.0, ..default() }, TextColor(Color::WHITE)));
-        pill.spawn((Text::new(label), TextFont { font_size: 9.0, ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7))));
+        pill.spawn((Text::new(value), TextFont { font_size: FontSize::Px(20.0), ..default() }, TextColor(Color::WHITE)));
+        pill.spawn((Text::new(label), TextFont { font_size: FontSize::Px(9.0), ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7))));
     });
 }
 

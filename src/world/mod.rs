@@ -90,7 +90,7 @@ fn update_lighting(
 ) {
     if settings.is_changed() {
         for mut light in query.iter_mut() {
-            light.shadows_enabled = match settings.graphics.shadow_quality.as_str() {
+            light.shadow_maps_enabled = match settings.graphics.shadow_quality.as_str() {
                 "Low" => false,
                 _ => true,
             };
@@ -141,7 +141,7 @@ pub fn init(
     for (i, pos) in light_positions.iter().enumerate() {
         commands.spawn((
             PointLight {
-                shadows_enabled: i == 0, // Only main light casts shadows
+                shadow_maps_enabled: i == 0, // Only main light casts shadows
                 intensity: 15_000_000.0,
                 range: 200.0,
                 ..default()

@@ -94,7 +94,7 @@ pub fn spawn_party_indicator(
                     )).with_children(|avatar| {
                         avatar.spawn((
                             Text::new(initials),
-                            TextFont { font_size: 11.0, ..default() },
+                            TextFont { font_size: FontSize::Px(11.0), ..default() },
                             TextColor(Color::WHITE),
                         ));
                     });
@@ -105,14 +105,14 @@ pub fn spawn_party_indicator(
                         } else {
                             m.username.clone()
                         }),
-                        TextFont { font_size: 9.0, ..default() },
+                        TextFont { font_size: FontSize::Px(9.0), ..default() },
                         TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
                     ));
 
                     if is_member_leader {
                         slot.spawn((
                             Text::new("*"),
-                            TextFont { font_size: 10.0, ..default() },
+                            TextFont { font_size: FontSize::Px(10.0), ..default() },
                             TextColor(Color::srgb(0.9, 0.7, 0.2)),
                         ));
                     }
@@ -132,7 +132,7 @@ pub fn spawn_party_indicator(
                         )).with_children(|btn| {
                             btn.spawn((
                                 Text::new("X"),
-                                TextFont { font_size: 10.0, ..default() },
+                                TextFont { font_size: FontSize::Px(10.0), ..default() },
                                 TextColor(Color::srgb(0.9, 0.3, 0.3)),
                             ));
                         });
@@ -140,7 +140,7 @@ pub fn spawn_party_indicator(
                 } else {
                     slot.spawn((
                         Text::new("+"),
-                        TextFont { font_size: 18.0, ..default() },
+                        TextFont { font_size: FontSize::Px(18.0), ..default() },
                         TextColor(Color::srgba(0.3, 0.3, 0.3, 0.4)),
                     ));
                 }
@@ -163,7 +163,7 @@ pub fn spawn_party_indicator(
         )).with_children(|btn| {
             btn.spawn((
                 Text::new("LEAVE"),
-                TextFont { font_size: 9.0, ..default() },
+                TextFont { font_size: FontSize::Px(9.0), ..default() },
                 TextColor(Color::srgba(0.9, 0.3, 0.3, 0.7)),
             ));
         });

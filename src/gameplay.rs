@@ -232,33 +232,11 @@ impl Default for PlayerProgression {
 
 impl PlayerProgression {
     pub fn save(&self) {
-        let path = "settings/savestate.json";
-        
-        let mut savestate: serde_json::Value = match std::fs::read_to_string(path) {
-            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
-            Err(_) => serde_json::json!({}),
-        };
-        
-        savestate["progression"] = serde_json::to_value(self).unwrap();
-        
-        if let Ok(content) = serde_json::to_string_pretty(&savestate) {
-            let _ = std::fs::write(path, content);
-        }
+        crate::storage::save_section("savestate.json", "progression", self);
     }
 
     pub fn load() -> Self {
-        let path = "settings/savestate.json";
-        match std::fs::read_to_string(path) {
-            Ok(content) => {
-                if let Ok(savestate) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(progression) = savestate.get("progression") {
-                        return serde_json::from_value(progression.clone()).unwrap_or_default();
-                    }
-                }
-                Self::default()
-            },
-            Err(_) => Self::default(),
-        }
+        crate::storage::load_section("savestate.json", "progression")
     }
 
     pub fn add_xp(&mut self, amount: u64) {
@@ -301,7 +279,7 @@ pub struct PlayerHasFlag(pub bool);
 pub struct PlayerTeam(pub u8);
 
 /// Marker added to player on spawn; consumed by assign_team_spawn system.
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct NeedsTeamSpawn;
 
 pub struct GameplayPlugin;
@@ -390,7 +368,7 @@ fn despawn_gameplay_entities(
 #[derive(Resource)]
 pub struct RespawnTimer(pub Timer);
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct SpectatorTarget;
 
 #[derive(Component)]
@@ -501,8 +479,7 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         // Health Text Overlay
         parent.spawn((
             Text::new("100 / 100"),
-            TextFont {
-                font_size: 20.0,
+            TextFont { font_size: FontSize::Px(20.0),
                 ..default()
             },
             TextColor(Color::srgba(config.text_color[0], config.text_color[1], config.text_color[2], config.text_color[3])),
@@ -536,13 +513,13 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         // "YOU WERE KILLED BY" label
         parent.spawn((
             Text::new("YOU WERE KILLED BY"),
-            TextFont { font_size: 28.0, ..default() },
+            TextFont { font_size: FontSize::Px(28.0), ..default() },
             TextColor(Color::srgba(0.8, 0.2, 0.2, 1.0)),
         ));
         // Killer name (dynamic)
         parent.spawn((
             Text::new("Unknown"),
-            TextFont { font_size: 48.0, ..default() },
+            TextFont { font_size: FontSize::Px(48.0), ..default() },
             TextColor(Color::srgba(1.0, 0.3, 0.3, 1.0)),
             DeathScreenKillerText,
         ));
@@ -551,7 +528,7 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         // Respawn timer text
         parent.spawn((
             Text::new("Respawning in 5.0s"),
-            TextFont { font_size: 24.0, ..default() },
+            TextFont { font_size: FontSize::Px(24.0), ..default() },
             TextColor(Color::srgba(0.9, 0.9, 0.9, 1.0)),
             DeathScreenTimerText,
         ));
@@ -573,7 +550,7 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         )).with_children(|btn| {
             btn.spawn((
                 Text::new("RESPAWN"),
-                TextFont { font_size: 22.0, ..default() },
+                TextFont { font_size: FontSize::Px(22.0), ..default() },
                 TextColor(Color::WHITE),
             ));
         });
@@ -609,9 +586,15 @@ pub struct Health {
 }
 
 #[derive(Component)]
+#[require(SpectatorTarget)]
 pub struct Enemy;
 
 #[derive(Component)]
+#[require(
+    NeedsTeamSpawn,
+    Regenerating,
+    Health { current: 100.0, max: 100.0 },
+)]
 pub struct PlayerBody; // Tag for player to take damage
 
 #[derive(Component)]
@@ -660,12 +643,11 @@ fn spawn_enemies(
         let pos = Vec3::new(start_x + i as f32 * spacing, 0.0, -10.0);
         
         let enemy = commands.spawn((
-            SceneRoot(asset_server.load("characters/default.glb#Scene0")),
+            WorldAssetRoot(asset_server.load("characters/default.glb#Scene0")),
             Transform::from_translation(pos).with_scale(Vec3::splat(1.0)),
             Visibility::default(),
             Enemy,
             Health { current: hp, max: hp },
-            SpectatorTarget,
         )).id();
 
         commands.entity(enemy).with_children(|parent| {
@@ -703,7 +685,6 @@ fn spawn_enemies(
         },
         Health { current: 200.0, max: 200.0 },
         Enemy,
-        SpectatorTarget,
     )).id();
 
     commands.entity(turret).with_children(|parent| {
@@ -1035,7 +1016,7 @@ fn spawn_match_hud(
         // Player score
         hud.spawn((
             Text::new("0"),
-            TextFont { font_size: 22.0, ..default() },
+            TextFont { font_size: FontSize::Px(22.0), ..default() },
             TextColor(Color::srgb(0.3, 0.7, 1.0)),
             MatchHudScore,
         ));
@@ -1048,12 +1029,12 @@ fn spawn_match_hud(
         }).with_children(|center| {
             center.spawn((
                 Text::new(mode.short_name()),
-                TextFont { font_size: 10.0, ..default() },
+                TextFont { font_size: FontSize::Px(10.0), ..default() },
                 TextColor(accent),
             ));
             center.spawn((
                 Text::new("10:00"),
-                TextFont { font_size: 18.0, ..default() },
+                TextFont { font_size: FontSize::Px(18.0), ..default() },
                 TextColor(Color::WHITE),
                 MatchHudTimer,
             ));
@@ -1062,7 +1043,7 @@ fn spawn_match_hud(
         // Enemy score
         hud.spawn((
             Text::new("0"),
-            TextFont { font_size: 22.0, ..default() },
+            TextFont { font_size: FontSize::Px(22.0), ..default() },
             TextColor(Color::srgb(1.0, 0.3, 0.3)),
         ));
     });
@@ -1109,8 +1090,8 @@ fn update_objective_zones(
     mut match_state: Option<ResMut<MatchState>>,
     zone_query: Query<(Entity, &Transform, &ObjectiveZone)>,
     player_query: Query<&Transform, (With<PlayerBody>, Without<ObjectiveZone>)>,
-    mut zone_mat_query: Query<&mut MeshMaterial3d<StandardMaterial>, With<ObjectiveZone>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    _zone_mat_query: Query<&mut MeshMaterial3d<StandardMaterial>, With<ObjectiveZone>>,
+    _materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let Some(ref mut ms) = match_state else { return };
     if ms.match_over { return; }
@@ -1285,22 +1266,22 @@ fn check_match_over(
         }).with_children(|card| {
             card.spawn((
                 Text::new(title),
-                TextFont { font_size: 52.0, ..default() },
+                TextFont { font_size: FontSize::Px(52.0), ..default() },
                 TextColor(title_color),
             ));
             card.spawn((
                 Text::new(format!("Mode: {}", ms.mode.display_name())),
-                TextFont { font_size: 16.0, ..default() },
+                TextFont { font_size: FontSize::Px(16.0), ..default() },
                 TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
             ));
             card.spawn((
                 Text::new(format!("Score: {} - {}", ms.player_score, ms.enemy_score)),
-                TextFont { font_size: 24.0, ..default() },
+                TextFont { font_size: FontSize::Px(24.0), ..default() },
                 TextColor(Color::WHITE),
             ));
             card.spawn((
                 Text::new(format!("K/D: {} / {}   Assists: {}", ms.kills, ms.deaths, ms.assists)),
-                TextFont { font_size: 16.0, ..default() },
+                TextFont { font_size: FontSize::Px(16.0), ..default() },
                 TextColor(Color::srgba(0.6, 0.6, 0.7, 0.9)),
             ));
 
@@ -1320,7 +1301,7 @@ fn check_match_over(
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("RETURN TO MENU"),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::WHITE),
                 ));
             });
@@ -1377,11 +1358,11 @@ fn toggle_scoreboard(
 fn spawn_scoreboard(
     commands: &mut Commands,
     match_state: Option<&MatchState>,
-    progression: &PlayerProgression,
+    _progression: &PlayerProgression,
     scoreboard_data: Option<&crate::net::ScoreboardData>,
     conn_state: &crate::net::ConnectionState,
 ) {
-    let (mode_name, time_str, is_team) = if let Some(ms) = match_state {
+    let (mode_name, time_str, _is_team) = if let Some(ms) = match_state {
         (
             ms.mode.display_name(),
             ms.format_time_remaining(),
@@ -1427,12 +1408,12 @@ fn spawn_scoreboard(
             }).with_children(|header| {
                 header.spawn((
                     Text::new("SCOREBOARD"),
-                    TextFont { font_size: 22.0, ..default() },
+                    TextFont { font_size: FontSize::Px(22.0), ..default() },
                     TextColor(Color::WHITE),
                 ));
                 header.spawn((
                     Text::new(mode_name),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(match_state.map(|ms| ms.mode.accent_color()).unwrap_or(Color::WHITE)),
                 ));
             });
@@ -1453,7 +1434,7 @@ fn spawn_scoreboard(
                 for (label, w) in [("PLAYER", 200.0), ("SCORE", 80.0), ("KILLS", 80.0), ("DEATHS", 80.0), ("K/D", 80.0)] {
                     cols.spawn((
                         Text::new(label),
-                        TextFont { font_size: 11.0, ..default() },
+                        TextFont { font_size: FontSize::Px(11.0), ..default() },
                         TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
                         Node { width: Val::Px(w), ..default() },
                     ));
@@ -1504,7 +1485,7 @@ fn spawn_scoreboard(
                     for (val, w, color) in row_data {
                         row.spawn((
                             Text::new(val),
-                            TextFont { font_size: 13.0, ..default() },
+                            TextFont { font_size: FontSize::Px(13.0), ..default() },
                             TextColor(color),
                             Node { width: Val::Px(w), ..default() },
                         ));
@@ -1526,12 +1507,12 @@ fn spawn_scoreboard(
             }).with_children(|footer| {
                 footer.spawn((
                     Text::new(format!("Time Remaining: {}", time_str)),
-                    TextFont { font_size: 12.0, ..default() },
+                    TextFont { font_size: FontSize::Px(12.0), ..default() },
                     TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
                 ));
                 footer.spawn((
                     Text::new(format!("Players: {}", player_rows.len())),
-                    TextFont { font_size: 12.0, ..default() },
+                    TextFont { font_size: FontSize::Px(12.0), ..default() },
                     TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
                 ));
             });
@@ -1599,7 +1580,7 @@ fn update_ctf_flags(
                     )).with_children(|parent| {
                         parent.spawn((
                             Text::new("[FLAG] YOU HAVE THE FLAG"),
-                            TextFont { font_size: 22.0, ..default() },
+                            TextFont { font_size: FontSize::Px(22.0), ..default() },
                             TextColor(Color::srgb(0.3, 1.0, 0.4)),
                         ));
                     });
@@ -1660,7 +1641,7 @@ fn update_ctf_flags(
                 )).with_children(|parent| {
                     parent.spawn((
                         Text::new("[FLAG CAPTURED!]"),
-                        TextFont { font_size: 26.0, ..default() },
+                        TextFont { font_size: FontSize::Px(26.0), ..default() },
                         TextColor(Color::WHITE),
                     ));
                 });

@@ -408,7 +408,7 @@ fn process_snapshots(
             // Username text with Billboard so it always faces the camera
             parent.spawn((
                 Text2d::new(p.username.clone()),
-                TextFont { font_size: 24.0, ..default() },
+                TextFont { font_size: FontSize::Px(24.0), ..default() },
                 TextColor(Color::WHITE),
                 Transform::from_translation(Vec3::new(0.0, 2.3, 0.0)),
                 crate::gameplay::Billboard,
@@ -434,7 +434,7 @@ fn process_snapshots(
                 let mf = config.meta.model_path.split('#').next().unwrap_or("");
                 if !mf.is_empty() && std::path::Path::new(&format!("assets/{mf}")).exists() {
                     parent.spawn((
-                        SceneRoot(asset_server.load(&config.meta.model_path)),
+                        WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                         Transform::from_xyz(0.6, 0.3, 0.0)
                             .with_rotation(Quat::from_rotation_y(-0.5))
                             .with_scale(Vec3::splat(0.35)),

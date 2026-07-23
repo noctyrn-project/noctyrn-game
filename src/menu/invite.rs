@@ -57,26 +57,26 @@ pub fn spawn_invite_banner(
     )).with_children(|banner| {
         banner.spawn((
             Text::new("PARTY INVITE"),
-            TextFont { font_size: 16.0, ..default() },
+            TextFont { font_size: FontSize::Px(16.0), ..default() },
             TextColor(Color::srgba(0.8, 0.8, 0.9, 0.8)),
         ));
 
         banner.spawn((
             Text::new(format!("{} has invited you!", from_username)),
-            TextFont { font_size: 14.0, ..default() },
+            TextFont { font_size: FontSize::Px(14.0), ..default() },
             TextColor(Color::WHITE),
         ));
 
         banner.spawn((
             Text::new("10"),
-            TextFont { font_size: 28.0, ..default() },
+            TextFont { font_size: FontSize::Px(28.0), ..default() },
             TextColor(Color::srgba(0.9, 0.9, 0.9, 0.8)),
             InviteTimerText,
         ));
 
         banner.spawn((
             Text::new("Auto-decline"),
-            TextFont { font_size: 11.0, ..default() },
+            TextFont { font_size: FontSize::Px(11.0), ..default() },
             TextColor(Color::srgba(0.5, 0.5, 0.6, 0.5)),
         ));
 
@@ -92,7 +92,7 @@ pub fn spawn_invite_banner(
                 BackgroundColor(Color::srgba(0.2, 0.5, 0.2, 0.8)),
                 InviteAcceptButton { party_id },
             )).with_children(|btn| {
-                btn.spawn((Text::new("ACCEPT"), TextFont { font_size: 14.0, ..default() }, TextColor(Color::WHITE)));
+                btn.spawn((Text::new("ACCEPT"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(Color::WHITE)));
             });
 
             actions.spawn((
@@ -101,7 +101,7 @@ pub fn spawn_invite_banner(
                 BackgroundColor(Color::srgba(0.5, 0.15, 0.15, 0.8)),
                 InviteDeclineButton { party_id },
             )).with_children(|btn| {
-                btn.spawn((Text::new("DECLINE"), TextFont { font_size: 14.0, ..default() }, TextColor(Color::WHITE)));
+                btn.spawn((Text::new("DECLINE"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(Color::WHITE)));
             });
         });
     });

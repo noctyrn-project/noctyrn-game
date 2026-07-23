@@ -178,7 +178,7 @@ fn spawn_geometry(
     // Ramp labels
     commands.spawn((
         Text2d::new("RAMP TEST AREA"),
-        TextFont { font_size: 48.0, ..default() },
+        TextFont { font_size: FontSize::Px(48.0), ..default() },
         TextColor(Color::srgb(0.3, 0.8, 0.3)),
         Transform::from_translation(Vec3::new(-6.0, 4.0, -15.0))
             .with_scale(Vec3::splat(0.025)),
@@ -187,7 +187,7 @@ fn spawn_geometry(
     for (label, x) in [("10°", -15.0), ("20°", -9.0), ("30°", -3.0), ("45°", 3.0)] {
         commands.spawn((
             Text2d::new(label),
-            TextFont { font_size: 28.0, ..default() },
+            TextFont { font_size: FontSize::Px(28.0), ..default() },
             TextColor(Color::srgb(0.5, 0.8, 0.5)),
             Transform::from_translation(Vec3::new(x, 3.0, -15.0))
                 .with_scale(Vec3::splat(0.02)),
@@ -405,7 +405,7 @@ fn spawn_weapon_terminals(
         // Floating text label above terminal (Billboard)
         commands.spawn((
             Text2d::new(label),
-            TextFont { font_size: 36.0, ..default() },
+            TextFont { font_size: FontSize::Px(36.0), ..default() },
             TextColor(screen_color),
             Transform::from_translation(pos + Vec3::new(0.0, 2.4, 0.0))
                 .with_scale(Vec3::splat(0.02)),
@@ -416,7 +416,7 @@ fn spawn_weapon_terminals(
         // "SHOOT TO OPEN" sub-label
         commands.spawn((
             Text2d::new("[ SHOOT TO OPEN ]"),
-            TextFont { font_size: 22.0, ..default() },
+            TextFont { font_size: FontSize::Px(22.0), ..default() },
             TextColor(Color::srgba(0.7, 0.7, 0.7, 0.6)),
             Transform::from_translation(pos + Vec3::new(0.0, 2.1, 0.0))
                 .with_scale(Vec3::splat(0.015)),
@@ -430,7 +430,7 @@ fn spawn_weapon_terminals(
                 color: screen_color,
                 intensity: 800.0,
                 range: 5.0,
-                shadows_enabled: false,
+                shadow_maps_enabled: false,
                 ..default()
             },
             Transform::from_translation(pos + Vec3::new(0.0, 2.5, 0.5)),
@@ -483,7 +483,7 @@ fn spawn_shooting_range(
         // Distance label
         commands.spawn((
             Text2d::new(format!("{}m", dist as i32)),
-            TextFont { font_size: 28.0, ..default() },
+            TextFont { font_size: FontSize::Px(28.0), ..default() },
             TextColor(Color::srgb(0.9, 0.7, 0.2)),
             Transform::from_translation(marker_pos + Vec3::new(6.5, 1.5, 0.0))
                 .with_scale(Vec3::splat(0.02)),
@@ -557,7 +557,7 @@ fn spawn_shooting_range(
     // "SHOOTING RANGE" sign
     commands.spawn((
         Text2d::new("SHOOTING RANGE"),
-        TextFont { font_size: 48.0, ..default() },
+        TextFont { font_size: FontSize::Px(48.0), ..default() },
         TextColor(Color::srgb(0.9, 0.3, 0.1)),
         Transform::from_translation(range_origin + Vec3::new(2.5, 3.5, 1.0))
             .with_scale(Vec3::splat(0.025)),
@@ -590,7 +590,7 @@ fn spawn_parkour_course(
     // "PARKOUR COURSE" sign
     commands.spawn((
         Text2d::new("PARKOUR COURSE"),
-        TextFont { font_size: 48.0, ..default() },
+        TextFont { font_size: FontSize::Px(48.0), ..default() },
         TextColor(Color::srgb(0.2, 0.7, 0.9)),
         Transform::from_translation(course_origin + Vec3::new(0.0, 4.0, 0.0))
             .with_scale(Vec3::splat(0.025)),
@@ -799,7 +799,7 @@ fn spawn_material_test_area(
     // "PENETRATION TEST" sign
     commands.spawn((
         Text2d::new("PENETRATION TEST"),
-        TextFont { font_size: 48.0, ..default() },
+        TextFont { font_size: FontSize::Px(48.0), ..default() },
         TextColor(Color::srgb(0.9, 0.6, 0.1)),
         Transform::from_translation(area_origin + Vec3::new(5.0, 4.0, 0.0))
             .with_scale(Vec3::splat(0.025)),
@@ -822,7 +822,7 @@ fn spawn_material_test_area(
     ));
     commands.spawn((
         Text2d::new("WOOD"),
-        TextFont { font_size: 28.0, ..default() },
+        TextFont { font_size: FontSize::Px(28.0), ..default() },
         TextColor(Color::srgb(0.55, 0.4, 0.2)),
         Transform::from_translation(area_origin + Vec3::new(0.0, 3.0, 0.0))
             .with_scale(Vec3::splat(0.02)),
@@ -847,7 +847,7 @@ fn spawn_material_test_area(
     ));
     commands.spawn((
         Text2d::new("GLASS"),
-        TextFont { font_size: 28.0, ..default() },
+        TextFont { font_size: FontSize::Px(28.0), ..default() },
         TextColor(Color::srgb(0.5, 0.7, 0.9)),
         Transform::from_translation(area_origin + Vec3::new(4.0, 3.0, 0.0))
             .with_scale(Vec3::splat(0.02)),
@@ -871,7 +871,7 @@ fn spawn_material_test_area(
     ));
     commands.spawn((
         Text2d::new("METAL"),
-        TextFont { font_size: 28.0, ..default() },
+        TextFont { font_size: FontSize::Px(28.0), ..default() },
         TextColor(Color::srgb(0.6, 0.6, 0.65)),
         Transform::from_translation(area_origin + Vec3::new(8.0, 3.0, 0.0))
             .with_scale(Vec3::splat(0.02)),
@@ -894,7 +894,7 @@ fn spawn_material_test_area(
     ));
     commands.spawn((
         Text2d::new("DRYWALL"),
-        TextFont { font_size: 28.0, ..default() },
+        TextFont { font_size: FontSize::Px(28.0), ..default() },
         TextColor(Color::srgb(0.8, 0.78, 0.74)),
         Transform::from_translation(area_origin + Vec3::new(12.0, 3.0, 0.0))
             .with_scale(Vec3::splat(0.02)),
@@ -917,7 +917,7 @@ fn spawn_material_test_area(
     ));
     commands.spawn((
         Text2d::new("CONCRETE"),
-        TextFont { font_size: 28.0, ..default() },
+        TextFont { font_size: FontSize::Px(28.0), ..default() },
         TextColor(Color::srgb(0.5, 0.5, 0.53)),
         Transform::from_translation(area_origin + Vec3::new(16.0, 3.0, 0.0))
             .with_scale(Vec3::splat(0.02)),

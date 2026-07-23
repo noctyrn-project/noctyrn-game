@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy::input::keyboard::KeyboardInput;
+use bevy::clipboard::Clipboard;
 use crate::net::{CachedFriends, PartyState, TokioRuntime, ConnectionState, NetworkEvent, http::{self, PendingRequests}, ServerConfig};
+use crate::menu::ActiveInput;
 
 #[derive(Component)]
 pub struct FriendsPanelUi;
@@ -99,7 +101,7 @@ fn fuzzy_match(query: &str, target: &str) -> bool {
 fn spawn_btn_text(parent: &mut ChildSpawnerCommands, text: &str, size: f32, color: Color) {
     parent.spawn((
         Text::new(text),
-        TextFont { font_size: size, ..default() },
+        TextFont { font_size: FontSize::Px(size), ..default() },
         TextColor(color),
     ));
 }
@@ -214,7 +216,7 @@ pub fn spawn_friends_panel(
             align_items: AlignItems::Center,
             ..default()
         }).with_children(|header| {
-            header.spawn((Text::new("FRIENDS"), TextFont { font_size: 20.0, ..default() }, TextColor(Color::WHITE)));
+            header.spawn((Text::new("FRIENDS"), TextFont { font_size: FontSize::Px(20.0), ..default() }, TextColor(Color::WHITE)));
             header.spawn((Button, CloseFriendsPanelButton)).with_children(|btn| {
                 spawn_btn_text(btn, "X", 16.0, Color::srgba(0.7, 0.7, 0.7, 0.8));
             });
@@ -223,7 +225,7 @@ pub fn spawn_friends_panel(
         if !conn_state.is_connected() {
             panel.spawn((
                 Text::new("Log in to invite friends"),
-                TextFont { font_size: 14.0, ..default() },
+                TextFont { font_size: FontSize::Px(14.0), ..default() },
                 TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
                 Node { margin: UiRect::vertical(Val::Px(20.0)), ..default() },
             ));
@@ -292,7 +294,7 @@ pub fn spawn_friends_panel(
                 };
                 input.spawn((
                     Text::new(display),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
                     FriendsSearchInputText,
                 ));
@@ -314,7 +316,7 @@ pub fn spawn_friends_panel(
             let is_error = msg.starts_with("Error:") || msg.starts_with("Could not");
             panel.spawn((
                 Text::new(msg.as_str()),
-                TextFont { font_size: 11.0, ..default() },
+                TextFont { font_size: FontSize::Px(11.0), ..default() },
                 TextColor(if is_error { Color::srgba(0.9, 0.4, 0.4, 0.9) } else { Color::srgba(0.4, 0.8, 0.4, 0.9) }),
                 FriendsSearchMessageText,
             ));
@@ -324,7 +326,7 @@ pub fn spawn_friends_panel(
             FriendsTab::Party => {
                 panel.spawn((
                     Text::new("PARTY MEMBERS"),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
                     Node { margin: UiRect::top(Val::Px(8.0)), ..default() },
                 ));
@@ -343,7 +345,7 @@ pub fn spawn_friends_panel(
                 } else {
                     panel.spawn((
                         Text::new("Not in a party"),
-                        TextFont { font_size: 12.0, ..default() },
+                        TextFont { font_size: FontSize::Px(12.0), ..default() },
                         TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
@@ -352,7 +354,7 @@ pub fn spawn_friends_panel(
             FriendsTab::Friends => {
                 panel.spawn((
                     Text::new("YOUR FRIENDS"),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
                     Node { margin: UiRect::top(Val::Px(8.0)), ..default() },
                 ));
@@ -434,14 +436,14 @@ pub fn spawn_friends_panel(
                 if filtered.is_empty() && !state.search_query.is_empty() {
                     panel.spawn((
                         Text::new("No friends match your search"),
-                        TextFont { font_size: 12.0, ..default() },
+                        TextFont { font_size: FontSize::Px(12.0), ..default() },
                         TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
                 } else if friends.friends.is_empty() {
                     panel.spawn((
                         Text::new("No friends yet. Go to ADD tab to search for users."),
-                        TextFont { font_size: 12.0, ..default() },
+                        TextFont { font_size: FontSize::Px(12.0), ..default() },
                         TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
@@ -450,7 +452,7 @@ pub fn spawn_friends_panel(
             FriendsTab::Add => {
                 panel.spawn((
                     Text::new("ADD FRIENDS"),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
                     Node { margin: UiRect::top(Val::Px(8.0)), ..default() },
                 ));
@@ -471,14 +473,14 @@ pub fn spawn_friends_panel(
                 } else if state.search_query.is_empty() {
                     panel.spawn((
                         Text::new("Type a username and press Enter"),
-                        TextFont { font_size: 12.0, ..default() },
+                        TextFont { font_size: FontSize::Px(12.0), ..default() },
                         TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
                 } else {
                     panel.spawn((
                         Text::new("Press Enter to search"),
-                        TextFont { font_size: 12.0, ..default() },
+                        TextFont { font_size: FontSize::Px(12.0), ..default() },
                         TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
@@ -488,7 +490,7 @@ pub fn spawn_friends_panel(
                     panel.spawn(Node { height: Val::Px(8.0), ..default() });
                     panel.spawn((
                         Text::new("PENDING REQUESTS"),
-                        TextFont { font_size: 14.0, ..default() },
+                        TextFont { font_size: FontSize::Px(14.0), ..default() },
                         TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
                         Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
                     ));
@@ -576,6 +578,7 @@ pub fn despawn_friends_panel(
 
 pub fn friends_search_input(
     mut char_events: MessageReader<KeyboardInput>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mut state: ResMut<FriendsUiState>,
     mut text_query: Query<&mut Text, (With<FriendsSearchInputText>, Without<FriendsSearchMessageText>)>,
     conn_state: Res<ConnectionState>,
@@ -583,37 +586,65 @@ pub fn friends_search_input(
     rt: Res<TokioRuntime>,
     server_config: Res<ServerConfig>,
     pending: Res<PendingRequests>,
+    mut active_input: ResMut<ActiveInput>,
+    mut clipboard: ResMut<Clipboard>,
 ) {
     if !state.panel_visible {
+        if *active_input == ActiveInput::FriendsSearch {
+            active_input.set_if_neq(ActiveInput::None);
+        }
         return;
     }
+
+    if !state.focused {
+        if *active_input == ActiveInput::FriendsSearch {
+            active_input.set_if_neq(ActiveInput::None);
+        }
+        return;
+    }
+
+    if *active_input != ActiveInput::None && *active_input != ActiveInput::FriendsSearch {
+        return;
+    }
+
+    active_input.set_if_neq(ActiveInput::FriendsSearch);
 
     let mut query_changed = false;
     let mut enter_pressed = false;
 
-    if state.focused {
-        for event in char_events.read() {
-            if !event.state.is_pressed() {
-                continue;
+    let ctrl = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
+    if ctrl && keyboard.just_pressed(KeyCode::KeyV) {
+        let text = clipboard.fetch_text().poll_result();
+        if let Some(Ok(text)) = text {
+            state.search_query.push_str(&text);
+            query_changed = true;
+        }
+    }
+
+    for event in char_events.read() {
+        if !event.state.is_pressed() {
+            continue;
+        }
+        match event.key_code {
+            KeyCode::Backspace => {
+                state.search_query.pop();
+                query_changed = true;
             }
-            match event.key_code {
-                KeyCode::Backspace => {
-                    state.search_query.pop();
+            KeyCode::Enter => {
+                enter_pressed = true;
+                if state.active_tab == FriendsTab::Add {
+                    state.pending_add_target = Some(state.search_query.trim().to_string());
+                    state.focused = true;
+                    query_changed = true;
+                } else {
+                    state.focused = false;
+                    active_input.set_if_neq(ActiveInput::None);
                     query_changed = true;
                 }
-                KeyCode::Enter => {
-                    enter_pressed = true;
-                    if state.active_tab == FriendsTab::Add {
-                        state.pending_add_target = Some(state.search_query.trim().to_string());
-                        state.focused = true;
-                        query_changed = true;
-                    } else {
-                        state.focused = false;
-                        query_changed = true;
-                    }
-                }
-                _ => {
-                    if let bevy::input::keyboard::Key::Character(ref ch) = event.logical_key {
+            }
+            _ => {
+                if let bevy::input::keyboard::Key::Character(ref ch) = event.logical_key {
+                    if !(ctrl && ch == "v") {
                         state.search_query.push_str(ch.as_str());
                         query_changed = true;
                     }
@@ -646,10 +677,12 @@ pub fn friends_search_focus_handler(
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<FriendsSearchInput>, With<Button>)>,
     mut state: ResMut<FriendsUiState>,
     mouse_input: Res<ButtonInput<MouseButton>>,
+    mut active_input: ResMut<ActiveInput>,
 ) {
     for interaction in interaction_query.iter() {
         if *interaction == Interaction::Pressed && mouse_input.just_pressed(MouseButton::Left) {
             state.focused = true;
+            active_input.set_if_neq(ActiveInput::FriendsSearch);
             state.refresh_pending = true;
         }
     }
@@ -726,7 +759,7 @@ pub fn friends_party_invite_handler(
 ) {
     for (interaction, btn) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
-            if let Some(token) = conn_state.token() {
+            if let Some(_token) = conn_state.token() {
                 let msg = noctyrn_shared::protocol::ClientMessage::PartyInvite {
                     username: btn.username.clone(),
                 };

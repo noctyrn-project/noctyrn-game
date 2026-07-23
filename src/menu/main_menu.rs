@@ -77,7 +77,7 @@ pub fn setup_main_menu_scene(
             color: Color::srgb(0.95, 0.92, 1.0),
             intensity: 150_000.0,
             range: 25.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..default()
         },
         Transform::from_translation(MENU_SCENE_ORIGIN + Vec3::new(2.0, 4.0, 3.0)),
@@ -88,7 +88,7 @@ pub fn setup_main_menu_scene(
             color: Color::srgb(0.4, 0.5, 0.85),
             intensity: 60_000.0,
             range: 20.0,
-            shadows_enabled: false,
+            shadow_maps_enabled: false,
             ..default()
         },
         Transform::from_translation(MENU_SCENE_ORIGIN + Vec3::new(-3.0, 2.0, -1.0)),
@@ -128,7 +128,7 @@ pub fn setup_main_menu_scene(
 
             if model_exists {
                 pill.spawn((
-                    SceneRoot(asset_server.load(&config.meta.model_path)),
+                    WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                     Transform::from_translation(Vec3::new(0.35, -0.1, -0.2))
                         .with_rotation(Quat::from_rotation_y(-0.3))
                         .with_scale(Vec3::splat(config.meta.scale * 1.5)),
@@ -207,12 +207,12 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
             }).with_children(|top| {
                 top.spawn((
                     Text::new("NOCTYRN"),
-                    TextFont { font_size: 84.0, ..default() },
+                    TextFont { font_size: FontSize::Px(84.0), ..default() },
                     TextColor(Color::srgb(0.9, 0.1, 0.1)),
                 ));
                 top.spawn((
                     Text::new("TACTICAL SHOOTER"),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(0.5, 0.5, 0.5, 0.6)),
                     Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
                 ));
@@ -237,7 +237,7 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new(label),
-                            TextFont { font_size: 18.0, ..default() },
+                            TextFont { font_size: FontSize::Px(18.0), ..default() },
                             TextColor(text_color),
                         ));
                     });
@@ -245,7 +245,7 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
 
                 top.spawn((
                     Text::new("v0.1.0"),
-                    TextFont { font_size: 11.0, ..default() },
+                    TextFont { font_size: FontSize::Px(11.0), ..default() },
                     TextColor(Color::srgba(0.3, 0.3, 0.3, 0.4)),
                     Node { margin: UiRect::top(Val::Px(16.0)), ..default() },
                 ));
@@ -268,12 +268,12 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
                 )).with_children(|credits_box| {
                     credits_box.spawn((
                         Text::new("CREDITS: "),
-                        TextFont { font_size: 16.0, ..default() },
+                        TextFont { font_size: FontSize::Px(16.0), ..default() },
                         TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
                     ));
                     credits_box.spawn((
                         Text::new(credits.balance.to_string()),
-                        TextFont { font_size: 16.0, ..default() },
+                        TextFont { font_size: FontSize::Px(16.0), ..default() },
                         TextColor(Color::srgb(0.9, 0.7, 0.2)),
                         MainMenuCreditsText,
                     ));
@@ -293,7 +293,7 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("FRIENDS"),
-                        TextFont { font_size: 13.0, ..default() },
+                        TextFont { font_size: FontSize::Px(13.0), ..default() },
                         TextColor(Color::WHITE),
                     ));
                 });
@@ -328,7 +328,7 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(format!(">> {}", selected_mode.mode.display_name())),
-                        TextFont { font_size: 13.0, ..default() },
+                        TextFont { font_size: FontSize::Px(13.0), ..default() },
                         TextColor(selected_mode.mode.accent_color()),
                     ));
                 });
@@ -347,7 +347,7 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("PLAY"),
-                        TextFont { font_size: 26.0, ..default() },
+                        TextFont { font_size: FontSize::Px(26.0), ..default() },
                         TextColor(Color::WHITE),
                     ));
                 });
@@ -376,18 +376,18 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
         )).with_children(|notifier| {
             notifier.spawn((
                 Text::new("SEARCHING FOR MATCH"),
-                TextFont { font_size: 14.0, ..default() },
+                TextFont { font_size: FontSize::Px(14.0), ..default() },
                 TextColor(Color::WHITE),
             ));
             notifier.spawn((
                 Text::new("0:00"),
-                TextFont { font_size: 28.0, ..default() },
+                TextFont { font_size: FontSize::Px(28.0), ..default() },
                 TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
                 MatchmakingTimerText,
             ));
             notifier.spawn((
                 Text::new("Players in queue: --"),
-                TextFont { font_size: 12.0, ..default() },
+                TextFont { font_size: FontSize::Px(12.0), ..default() },
                 TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
             ));
             notifier.spawn((
@@ -404,7 +404,7 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("CANCEL"),
-                    TextFont { font_size: 13.0, ..default() },
+                    TextFont { font_size: FontSize::Px(13.0), ..default() },
                     TextColor(Color::srgb(0.9, 0.3, 0.3)),
                 ));
             }).insert(CancelSearchButton);
@@ -472,7 +472,7 @@ pub fn spawn_escape_menu(mut commands: Commands, in_party: bool) {
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new(label),
-                    TextFont { font_size: 14.0, ..default() },
+                    TextFont { font_size: FontSize::Px(14.0), ..default() },
                     TextColor(Color::srgba(r, g, b, alpha)),
                 ));
             });
@@ -603,15 +603,15 @@ pub fn main_menu_interaction(
     mut exit: MessageWriter<AppExit>,
     mut commands: Commands,
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+    _keyboard_input: Res<ButtonInput<KeyCode>>,
     party_state: Res<PartyState>,
     friends_state: Res<crate::menu::friends::FriendsUiState>,
     tcp_client: Res<TcpClient>,
     rt: Res<TokioRuntime>,
     selected_mode: Res<SelectedGameMode>,
     mut matchmaking_timer: ResMut<MatchmakingTimer>,
-    mut login_state: ResMut<crate::menu::login::LoginUiState>,
-    mut profile_state: ResMut<crate::menu::profile::ProfileOverlayState>,
+    _login_state: ResMut<crate::menu::login::LoginUiState>,
+    _profile_state: ResMut<crate::menu::profile::ProfileOverlayState>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -814,7 +814,7 @@ pub fn server_connection_notification(
             ));
             root.spawn((
                 Text::new("Not connected to server"),
-                TextFont { font_size: 12.0, ..default() },
+                TextFont { font_size: FontSize::Px(12.0), ..default() },
                 TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
             ));
         });

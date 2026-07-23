@@ -314,7 +314,7 @@ fn process_snapshots(
     if let Some(lid) = local_player_id {
         if let Some(server_pos) = snapshot.players.iter().find(|p| p.id == lid) {
             if let Ok((_entity, mut local_transform)) = local_query.single_mut() {
-                let target = Vec3::new(server_pos.position[0], server_pos.position[1] + 1.5, server_pos.position[2]);
+                let target = Vec3::new(server_pos.position[0], server_pos.position[1] + 1.7, server_pos.position[2]);
                 if local_transform.translation.distance(target) > 0.2 {
                     local_transform.translation = target;
                 }

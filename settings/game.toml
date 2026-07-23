@@ -1,0 +1,31 @@
+[gameplay]
+toggle_sprint = false
+toggle_ads = false
+toggle_crouch = false
+sensitivity = 1.0
+
+[graphics]
+resolution = [
+    1920,
+    1080,
+]
+texture_quality = "High"
+shadow_quality = "High"
+view_distance = 1000.0
+fps_cap = 0
+fov = 60.0
+
+[debug]
+show_fps = false
+max_fps_display = 144
+show_resource_usage = false
+show_hitboxes = false
+free_cam = false
+debug_mode = false
+show_vertex_count = false
+show_ping = false
+show_speed = false
+show_crosshair_debug = false
+god_mode = false
+infinite_ammo = false
+show_wireframe = false

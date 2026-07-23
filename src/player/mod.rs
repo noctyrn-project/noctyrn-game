@@ -331,7 +331,7 @@ fn spawn_player(
     initial_inventory.switch_state = SwitchState::Equipping;
     initial_inventory.switch_timer = Timer::from_seconds(0.4, TimerMode::Once);
 
-    let initial_pos = Vec3::new(0.0, 2.0, 0.0);
+    let initial_pos = Vec3::new(0.0, 1.7, 0.0);
     let player_entity = commands.spawn((
         Name::new("Player"),
         Transform::from_translation(initial_pos).with_scale(Vec3::splat(1.0)),

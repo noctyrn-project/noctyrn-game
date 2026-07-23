@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::app::AppExit;
 use crate::player::GameState;
 use crate::weapons::{WeaponRegistry, PlayerLoadout, PlayerCredits};
-use crate::net::{ConnectionState, TokioRuntime, NetworkEvent, PartyState, TcpConnection};
+use crate::net::{ConnectionState, ServerConfig, TokioRuntime, NetworkEvent, PartyState, TcpConnection};
 use crate::net::tcp::TcpClient;
 use crate::menu::{SelectedGameMode, to_shared_gamemode, MenuCamera};
 
@@ -202,6 +202,7 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
         }).with_children(|top_row| {
             top_row.spawn(Node {
                 flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
                 ..default()
             }).with_children(|top| {
                 top.spawn((
@@ -214,6 +215,39 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
                     TextFont { font_size: 14.0, ..default() },
                     TextColor(Color::srgba(0.5, 0.5, 0.5, 0.6)),
                     Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
+                ));
+
+                // Menu buttons below title
+                for (label, button, text_color) in [
+                    ("LOADOUT", MainMenuButton::Loadout, Color::WHITE),
+                    ("CRATES", MainMenuButton::Crates, Color::srgba(0.9, 0.7, 0.2, 0.9)),
+                    ("COSMETICS", MainMenuButton::Cosmetics, Color::srgba(0.2, 0.8, 0.4, 0.9)),
+                    ("PROFILE", MainMenuButton::Profile, Color::srgba(0.4, 0.6, 1.0, 0.9)),
+                    ("SETTINGS", MainMenuButton::Settings, Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                    ("QUIT", MainMenuButton::Quit, Color::srgba(0.6, 0.4, 0.4, 0.8)),
+                ] {
+                    top.spawn((
+                        Button,
+                        Node {
+                            padding: UiRect::new(Val::Px(12.0), Val::Px(20.0), Val::Px(4.0), Val::Px(4.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::NONE),
+                        button,
+                    )).with_children(|btn| {
+                        btn.spawn((
+                            Text::new(label),
+                            TextFont { font_size: 18.0, ..default() },
+                            TextColor(text_color),
+                        ));
+                    });
+                }
+
+                top.spawn((
+                    Text::new("v0.1.0"),
+                    TextFont { font_size: 11.0, ..default() },
+                    TextColor(Color::srgba(0.3, 0.3, 0.3, 0.4)),
+                    Node { margin: UiRect::top(Val::Px(16.0)), ..default() },
                 ));
             });
 
@@ -269,48 +303,10 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
         root.spawn(Node {
             width: Val::Percent(100.0),
             flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::SpaceBetween,
+            justify_content: JustifyContent::FlexEnd,
             align_items: AlignItems::End,
             ..default()
         }).with_children(|bottom| {
-            bottom.spawn(Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                ..default()
-            }).with_children(|left| {
-                for (label, button, text_color) in [
-                    ("LOADOUT", MainMenuButton::Loadout, Color::WHITE),
-                    ("CRATES", MainMenuButton::Crates, Color::srgba(0.9, 0.7, 0.2, 0.9)),
-                    ("COSMETICS", MainMenuButton::Cosmetics, Color::srgba(0.2, 0.8, 0.4, 0.9)),
-                    ("PROFILE", MainMenuButton::Profile, Color::srgba(0.4, 0.6, 1.0, 0.9)),
-                    ("SETTINGS", MainMenuButton::Settings, Color::srgba(0.7, 0.7, 0.7, 0.9)),
-                    ("QUIT", MainMenuButton::Quit, Color::srgba(0.6, 0.4, 0.4, 0.8)),
-                ] {
-                    left.spawn((
-                        Button,
-                        Node {
-                            padding: UiRect::new(Val::Px(12.0), Val::Px(20.0), Val::Px(6.0), Val::Px(6.0)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::NONE),
-                        button,
-                    )).with_children(|btn| {
-                        btn.spawn((
-                            Text::new(label),
-                            TextFont { font_size: 18.0, ..default() },
-                            TextColor(text_color),
-                        ));
-                    });
-                }
-
-                left.spawn((
-                    Text::new("v0.1.0"),
-                    TextFont { font_size: 11.0, ..default() },
-                    TextColor(Color::srgba(0.3, 0.3, 0.3, 0.4)),
-                    Node { margin: UiRect::top(Val::Px(20.0)), ..default() },
-                ));
-            });
-
             bottom.spawn(Node {
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::End,
@@ -546,6 +542,60 @@ pub fn escape_menu_interaction(
     }
 }
 
+/// Handles Escape key: closes modals in priority, toggles escape menu.
+/// Chat is checked first (chat has its own Escape handler that closes it).
+pub fn handle_escape_key(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
+    escape_query: Query<Entity, With<EscapeMenuUi>>,
+    friends_state: Res<crate::menu::friends::FriendsUiState>,
+    mut login_state: ResMut<crate::menu::login::LoginUiState>,
+    mut profile_state: ResMut<crate::menu::profile::ProfileOverlayState>,
+    party_state: Res<PartyState>,
+    mut chat_input: ResMut<crate::menu::chat::ChatInput>,
+    mut chat_open: ResMut<crate::menu::chat::ChatOpen>,
+) {
+    if !keyboard_input.just_pressed(KeyCode::Escape) {
+        return;
+    }
+    // Close chat if open
+    if chat_input.open {
+        chat_input.open = false;
+        chat_input.input.clear();
+        chat_open.0 = false;
+        return;
+    }
+    // Close settings if open
+    if let Some(entity) = settings_query.iter().next() {
+        commands.entity(entity).despawn();
+        return;
+    }
+    // Close profile overlay if open
+    if profile_state.show {
+        profile_state.show = false;
+        return;
+    }
+    // Close login overlay if open
+    if login_state.show_overlay {
+        login_state.show_overlay = false;
+        return;
+    }
+    // Close friends panel if open
+    if friends_state.panel_visible {
+        return;
+    }
+    // Toggle escape menu
+    let escape_open = !escape_query.is_empty();
+    if escape_open {
+        for entity in escape_query.iter() {
+            commands.entity(entity).despawn();
+        }
+    } else {
+        spawn_escape_menu(commands.reborrow(), party_state.party.is_some());
+    }
+}
+
 pub fn main_menu_interaction(
     interaction_query: Query<(&Interaction, &MainMenuButton), (Changed<Interaction>, With<Button>)>,
     cancel_query: Query<&Interaction, (Changed<Interaction>, With<CancelSearchButton>, With<Button>)>,
@@ -553,7 +603,6 @@ pub fn main_menu_interaction(
     mut exit: MessageWriter<AppExit>,
     mut commands: Commands,
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
-    escape_query: Query<Entity, With<EscapeMenuUi>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     party_state: Res<PartyState>,
     friends_state: Res<crate::menu::friends::FriendsUiState>,
@@ -564,37 +613,6 @@ pub fn main_menu_interaction(
     mut login_state: ResMut<crate::menu::login::LoginUiState>,
     mut profile_state: ResMut<crate::menu::profile::ProfileOverlayState>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::Escape) {
-        // Close settings if open
-        if let Some(entity) = settings_query.iter().next() {
-            commands.entity(entity).despawn();
-            return;
-        }
-        // Close profile overlay if open
-        if profile_state.show {
-            profile_state.show = false;
-            return;
-        }
-        // Close login overlay if open
-        if login_state.show_overlay {
-            login_state.show_overlay = false;
-            return;
-        }
-        // Close friends panel if open
-        if friends_state.panel_visible {
-            return;
-        }
-        // Toggle escape menu
-        let escape_open = !escape_query.is_empty();
-        if escape_open {
-            for entity in escape_query.iter() {
-                commands.entity(entity).despawn();
-            }
-        } else {
-            spawn_escape_menu(commands.reborrow(), party_state.party.is_some());
-        }
-    }
-
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
             if friends_state.panel_visible {
@@ -814,21 +832,25 @@ pub fn main_menu_matchmaking_handler(
     udp: Res<crate::net::udp::UdpClient>,
     connection: Res<crate::net::ConnectionState>,
     rt: Res<crate::net::TokioRuntime>,
+    server_config: Res<ServerConfig>,
 ) {
     for event in events.read() {
         match event {
             NetworkEvent::MatchmakingUpdate { players_in_queue } => {
                 timer.players_in_queue = *players_in_queue;
             }
-            NetworkEvent::MatchFound { lobby_id, server_addr, udp_port } => {
-                info!("Match found! lobby={lobby_id} addr={server_addr}:{udp_port}");
-                let addr = format!("{}:{}", server_addr, udp_port);
+            NetworkEvent::MatchFound { lobby_id, udp_port, .. } => {
+                let host = server_config.tcp_addr.split(':').next().unwrap_or("127.0.0.1");
+                let addr = format!("{}:{}", host, udp_port);
+                info!("Match found! lobby={lobby_id} connecting UDP to {addr} (host from server_config.tcp_addr={})", server_config.tcp_addr);
                 let sid = *lobby_id;
                 let user_id = connection.user_id().unwrap_or_default();
                 let udp_clone = udp.clone();
                 rt.0.spawn(async move {
-                    let _ = udp_clone.connect(&addr, sid, user_id).await;
-                    info!("Connected UDP to {addr}");
+                    match udp_clone.connect(&addr, sid, user_id).await {
+                        Ok(()) => info!("UDP connect SUCCESS to {addr}"),
+                        Err(e) => warn!("UDP connect FAILED to {addr}: {e}"),
+                    }
                 });
                 timer.searching = false;
                 next_state.set(GameState::Playing);

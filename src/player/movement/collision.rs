@@ -221,18 +221,19 @@ pub fn resolve_collisions(
             {
                 let y_diff = position.y - surface_y;
                 // Snap if player is at or below the surface (within a generous tolerance)
-                if y_diff < 0.15 {
+                if y_diff < 0.25 {
                     position.y = surface_y;
 
-                    // Compute the ramp surface normal in world space
                     let ramp_normal = ramp_transform.rotation * Vec3::Y;
 
-                    // Project velocity onto the ramp surface plane so the player
-                    // moves smoothly along it instead of fighting gravity/snap.
-                    // Remove the component of velocity going INTO the surface.
+                    // Project velocity onto the ramp surface plane
                     let vel_along_normal = velocity.0.dot(ramp_normal);
                     if vel_along_normal < 0.0 {
                         velocity.0 -= ramp_normal * vel_along_normal;
+                    }
+                    // Clamp upward velocity when on ramp to prevent sliding up
+                    if velocity.y > 0.1 {
+                        velocity.y *= 0.5;
                     }
 
                     on_surface = true;
@@ -258,7 +259,7 @@ pub fn resolve_collisions(
 
             let diff = local_pos - clamped;
             let dist_sq = diff.length_squared();
-            let combined_radius = player_radius;
+            let combined_radius = player_radius + 0.05;
 
             if dist_sq < combined_radius * combined_radius && dist_sq > 0.0001 {
                 let dist = dist_sq.sqrt();

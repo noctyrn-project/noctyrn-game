@@ -35,6 +35,16 @@ pub struct DebugSettingsConfig {
     pub show_hitboxes: bool,
     pub free_cam: bool,
     #[serde(default)]
+    pub debug_mode: bool,
+    #[serde(default)]
+    pub show_vertex_count: bool,
+    #[serde(default)]
+    pub show_ping: bool,
+    #[serde(default)]
+    pub show_speed: bool,
+    #[serde(default)]
+    pub show_crosshair_debug: bool,
+    #[serde(default)]
     pub god_mode: bool,
     #[serde(default)]
     pub infinite_ammo: bool,
@@ -65,6 +75,11 @@ impl Default for GameSettings {
                 show_resource_usage: false,
                 show_hitboxes: false,
                 free_cam: false,
+                debug_mode: false,
+                show_vertex_count: false,
+                show_ping: false,
+                show_speed: false,
+                show_crosshair_debug: false,
                 god_mode: false,
                 infinite_ammo: false,
                 show_wireframe: false,

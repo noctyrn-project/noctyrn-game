@@ -48,14 +48,21 @@ pub struct DebugSettings {
     pub show_hitboxes: bool,
     pub show_directions: bool,
     pub free_cam: bool,
+    pub god_mode: bool,
+    pub infinite_ammo: bool,
 }
 
-/// Resource to track whether the in-game weapon terminal overlay is open.
+#[derive(Resource, Default)]
+pub struct DebugRuntime {
+    pub god_mode: bool,
+    pub infinite_ammo: bool,
+}
 #[derive(Resource, Default)]
 pub struct WeaponTerminalOpen(pub bool);
 
 /// Resource to track whether the pause menu overlay is visible.
 /// When true, the overlay is shown but the game keeps running underneath.
+/// Resource to track whether the pause menu overlay is visible.
 #[derive(Resource, Default)]
 pub struct PauseMenuOpen(pub bool);
 
@@ -146,6 +153,7 @@ impl Plugin for Player {
         app.init_resource::<DidFixedTimestepRunThisFrame>();
         app.init_state::<GameState>();
         app.init_resource::<DebugSettings>();
+        app.init_resource::<DebugRuntime>();
         app.init_resource::<RemappingState>();
         app.init_resource::<SettingsState>();
         app.init_resource::<WeaponTerminalOpen>();
@@ -191,10 +199,11 @@ impl Plugin for Player {
             send_player_input,
         ).run_if(in_state(GameState::Playing)));
         
+        app.add_systems(Update, handle_weapon_switching.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, move_projectiles.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, apply_debug_cheats.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, fire_weapon); // Note: fire_weapon checks pause state internally
         app.add_systems(Update, (
-            handle_weapon_switching, 
-            fire_weapon, 
-            move_projectiles, 
             handle_weapon_recoil, 
             handle_muzzle_flash,
             handle_melee_swing,
@@ -358,7 +367,7 @@ fn spawn_player(
     )).id();
 
     // Spawn pill-shaped player model as a child (capsule mesh)
-    let pill_mesh = meshes.add(Capsule3d::new(0.4, 1.8));
+    let pill_mesh = meshes.add(Capsule3d::new(0.3, 0.6));
     let pill_material = materials.add(StandardMaterial {
         base_color: Color::srgba(0.3, 0.5, 0.7, 0.8),
         alpha_mode: AlphaMode::Blend,
@@ -368,8 +377,8 @@ fn spawn_player(
         parent.spawn((
             Mesh3d(pill_mesh),
             MeshMaterial3d(pill_material),
-            // Offset so capsule center aligns with body center
-            Transform::from_xyz(0.0, 1.3, 0.0),
+            // Offset so capsule bottom touches ground, top at 1.8m
+            Transform::from_xyz(0.0, 0.9, 0.0),
             PlayerModel,
             // Hidden in 1st person by default
             Visibility::Hidden,
@@ -606,7 +615,7 @@ fn update_kill_feed(
 #[derive(Component)]
 struct PauseMenuUi;
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum PauseMenuButton {
     Resume,
     Settings,
@@ -657,47 +666,65 @@ fn spawn_pause_menu(commands: &mut Commands) {
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(10.0),
+                row_gap: Val::Px(8.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
             GlobalZIndex(200),
             PauseMenuUi,
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new("PAUSED"),
-                TextFont { font_size: 48.0, ..default() },
-                TextColor(Color::WHITE),
-                Node { margin: UiRect::bottom(Val::Px(20.0)), ..default() },
-            ));
+                Node {
+                    width: Val::Px(220.0),
+                    padding: UiRect::all(Val::Px(16.0)),
+                    row_gap: Val::Px(4.0),
+                    flex_direction: FlexDirection::Column,
+                    border: UiRect::all(Val::Px(1.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.95)),
+                BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+            )).with_children(|card| {
+                card.spawn((
+                    Text::new("PAUSED"),
+                    TextFont { font_size: 28.0, ..default() },
+                    TextColor(Color::WHITE),
+                    Node { margin: UiRect::bottom(Val::Px(8.0)), align_self: AlignSelf::Center, ..default() },
+                ));
 
-            for (label, button, color) in [
-                ("Resume", PauseMenuButton::Resume, Color::srgb(0.3, 0.3, 0.3)),
-                ("Settings", PauseMenuButton::Settings, Color::srgb(0.3, 0.3, 0.3)),
-                ("Reset", PauseMenuButton::Reset, Color::srgb(0.3, 0.35, 0.5)),
-                ("Main Menu", PauseMenuButton::MainMenu, Color::srgb(0.4, 0.3, 0.1)),
-                ("Quit", PauseMenuButton::Quit, Color::srgb(0.5, 0.1, 0.1)),
-            ] {
-                parent.spawn((
-                    Button,
-                    Node {
-                        width: Val::Px(200.0),
-                        height: Val::Px(50.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(color),
-                    button,
-                )).with_children(|parent| {
-                    parent.spawn((
-                        Text::new(label),
-                        TextFont { font_size: 20.0, ..default() },
-                        TextColor(Color::WHITE),
-                    ));
-                });
-            }
+                for (label, button) in [
+                    ("RESUME", PauseMenuButton::Resume),
+                    ("SETTINGS", PauseMenuButton::Settings),
+                    ("RESET", PauseMenuButton::Reset),
+                    ("MAIN MENU", PauseMenuButton::MainMenu),
+                    ("QUIT", PauseMenuButton::Quit),
+                ] {
+                    card.spawn((
+                        Button,
+                        Node {
+                            width: Val::Percent(100.0),
+                            height: Val::Px(34.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.9)),
+                        button,
+                    )).with_children(|btn| {
+                        let is_quit = matches!(button, PauseMenuButton::Quit);
+                        btn.spawn((
+                            Text::new(label),
+                            TextFont { font_size: 14.0, ..default() },
+                            TextColor(if is_quit {
+                                Color::srgba(0.9, 0.3, 0.3, 0.9)
+                            } else {
+                                Color::srgba(0.9, 0.9, 0.9, 0.9)
+                            }),
+                        ));
+                    });
+                }
+            });
         });
 }
 
@@ -881,8 +908,16 @@ fn toggle_pause(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     keybinds: Res<Keybinds>,
     mut pause_open: ResMut<PauseMenuOpen>,
+    mut chat_input: ResMut<crate::menu::chat::ChatInput>,
+    mut chat_open: ResMut<crate::menu::chat::ChatOpen>,
 ) {
     if keyboard_input.just_pressed(keybinds.pause) {
+        if chat_input.open {
+            chat_input.open = false;
+            chat_input.input.clear();
+            chat_open.0 = false;
+            return;
+        }
         pause_open.0 = !pause_open.0;
     }
 }
@@ -929,23 +964,40 @@ fn update_stats_ui(
     game_settings: Res<GameSettings>,
     entities: Query<Entity>,
     velocity_query: Query<&Velocity, With<PlayerBody>>,
+    meshes: Res<Assets<Mesh>>,
 ) {
     for mut text in query.iter_mut() {
         let mut output = String::new();
-        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
-            if let Some(value) = fps.smoothed() {
-                output.push_str(&format!("FPS: {:.1}\n", value));
+        let dm = game_settings.debug.debug_mode;
+        if dm && game_settings.debug.show_fps {
+            if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
+                if let Some(value) = fps.smoothed() {
+                    output.push_str(&format!("FPS: {:.1}\n", value));
+                }
             }
         }
         
-        if game_settings.debug.show_resource_usage {
+        if dm && game_settings.debug.show_resource_usage {
             output.push_str(&format!("Entities: {}\n", entities.iter().count()));
         }
 
-        // Show player speed
+        if dm && game_settings.debug.show_vertex_count {
+            output.push_str(&format!("Meshes: {}\n", meshes.iter().count()));
+        }
+
+        if dm && game_settings.debug.show_ping {
+            output.push_str("Ping: --\n");
+        }
+
         if let Ok(velocity) = velocity_query.single() {
             let horiz = Vec3::new(velocity.x, 0.0, velocity.z).length();
-            output.push_str(&format!("Speed: {:.1}\n", horiz));
+            if dm && game_settings.debug.show_speed {
+                output.push_str(&format!("Speed: {:.1}\n", horiz));
+            }
+        }
+
+        if dm {
+            output.push_str("DEBUG MODE ON\n");
         }
         
         text.0 = output;
@@ -1092,18 +1144,27 @@ fn draw_hitboxes(
 fn sync_settings(
     game_settings: Res<GameSettings>,
     mut debug_settings: ResMut<DebugSettings>,
+    mut debug_runtime: ResMut<DebugRuntime>,
     mut commands: Commands,
     stats_query: Query<Entity, With<StatsUi>>,
     mut window_query: Query<&mut Window>,
     mut wireframe_config: ResMut<bevy::pbr::wireframe::WireframeConfig>,
 ) {
     if game_settings.is_changed() {
-        debug_settings.show_hitboxes = game_settings.debug.show_hitboxes;
-        debug_settings.free_cam = game_settings.debug.free_cam;
-        wireframe_config.global = game_settings.debug.show_wireframe;
-        
-        // Sync FPS counter
-        if game_settings.debug.show_fps {
+        let dm = game_settings.debug.debug_mode;
+
+        // Debug sub-features are only active when master switch is on
+        debug_settings.show_hitboxes = dm && game_settings.debug.show_hitboxes;
+        debug_settings.free_cam = dm && game_settings.debug.free_cam;
+        debug_runtime.god_mode = dm && game_settings.debug.god_mode;
+        debug_runtime.infinite_ammo = dm && game_settings.debug.infinite_ammo;
+        wireframe_config.global = dm && game_settings.debug.show_wireframe;
+
+        let show_fps = dm && game_settings.debug.show_fps;
+        let show_res = dm && game_settings.debug.show_resource_usage;
+
+        // Sync FPS/stats UI
+        if show_fps || show_res {
             if stats_query.iter().next().is_none() {
                 spawn_stats_ui(&mut commands);
             }
@@ -1135,6 +1196,32 @@ fn sync_settings(
             
             if window.present_mode != target_mode {
                 window.present_mode = target_mode;
+            }
+        }
+    }
+}
+
+/// Applies god_mode (auto-heal) and infinite_ammo (auto-refill) each frame.
+fn apply_debug_cheats(
+    debug: Res<DebugRuntime>,
+    mut health_query: Query<&mut Health, With<LocalPlayer>>,
+    mut ammo_query: Query<&mut AmmoStatus>,
+    weapon_registry: Res<crate::weapons::WeaponRegistry>,
+) {
+    if debug.god_mode {
+        if let Ok(mut health) = health_query.single_mut() {
+            health.current = health.max;
+        }
+    }
+    if debug.infinite_ammo {
+        if let Ok(mut ammo) = ammo_query.single_mut() {
+            let slots: Vec<_> = ammo.current_ammo.iter().map(|(s, _)| *s).collect();
+            for slot in slots {
+                if let Some(config) = weapon_registry.configs.get(&slot) {
+                    let max = config.attachments.magazine.as_ref().map(|m| m.capacity).unwrap_or(30);
+                    ammo.current_ammo.insert(slot, max as u32);
+                    ammo.reserve_ammo.insert(slot, 999);
+                }
             }
         }
     }

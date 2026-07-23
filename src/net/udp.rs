@@ -54,7 +54,11 @@ impl UdpClient {
         let socket = UdpSocket::bind("0.0.0.0:0")
             .await
             .map_err(|e| format!("bind UDP: {e}"))?;
-        let addr: SocketAddr = server_addr.parse().map_err(|e| format!("bad addr: {e}"))?;
+        let addr: SocketAddr = tokio::net::lookup_host(server_addr)
+            .await
+            .map_err(|e| format!("lookup host {server_addr}: {e}"))?
+            .next()
+            .ok_or_else(|| format!("no address found for {server_addr}"))?;
 
         {
             let mut s = self.socket.lock().await;
@@ -99,13 +103,23 @@ impl UdpClient {
 
                 let mut buf = vec![0u8; 65536];
                 match socket.recv_from(&mut buf).await {
-                    Ok((len, _)) => {
+                    Ok((len, from)) => {
+                        trace!("UDP: received {len} bytes from {from}");
                         match serde_json::from_slice::<GameStateSnapshot>(&buf[..len]) {
-                            Ok(s) => s,
-                            Err(_) => continue,
+                            Ok(s) => {
+                                trace!("UDP: decoded snapshot tick={} players={}", s.tick, s.players.len());
+                                s
+                            }
+                            Err(e) => {
+                                trace!("UDP: failed to decode snapshot: {e}");
+                                continue;
+                            }
                         }
                     }
-                    Err(_) => break,
+                    Err(e) => {
+                        trace!("UDP: recv error: {e}");
+                        break;
+                    }
                 }
             };
 
@@ -115,6 +129,7 @@ impl UdpClient {
 
         let mut c = self.connected.lock().unwrap();
         *c = false;
+        trace!("UDP: background reader stopped");
     }
 
     /// Send a player input packet to the server.

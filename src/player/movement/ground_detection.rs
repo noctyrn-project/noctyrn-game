@@ -104,7 +104,7 @@ pub fn ramp_surface_y(
     let local_pos = inv_rotation * (player_pos - ramp_transform.translation);
 
     // Check if player is within the ramp's local XZ bounds (with margin for player radius)
-    let margin = 0.4;
+    let margin = 0.5;
     if local_pos.x.abs() > ramp.half_extents.x + margin
         || local_pos.z.abs() > ramp.half_extents.z + margin
     {

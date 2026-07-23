@@ -214,6 +214,9 @@ fn tcp_message_to_event(msg: noctyrn_shared::protocol::ServerMessage) -> Network
         ServerMessage::LobbyError { message } | ServerMessage::AuthError { message } | ServerMessage::Error { message } => {
             NetworkEvent::ConnectionError { message }
         }
+        ServerMessage::ChatBroadcast { from_username, content } => {
+            NetworkEvent::ChatReceived { from_username, content }
+        }
         _ => NetworkEvent::ConnectionError {
             message: format!("Unhandled server message: {:?}", std::mem::discriminant(&msg)),
         },

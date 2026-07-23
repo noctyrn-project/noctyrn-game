@@ -120,7 +120,7 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
     spawn_tab_button(commands, tab_bar, "Gameplay", SettingsTab::Gameplay);
     spawn_tab_button(commands, tab_bar, "Keybinds", SettingsTab::Keybinds);
     spawn_tab_button(commands, tab_bar, "Graphics", SettingsTab::Graphics);
-    spawn_tab_button(commands, tab_bar, "Debug", SettingsTab::Debug);
+    spawn_tab_button(commands, tab_bar, "Options", SettingsTab::Debug);
     spawn_tab_button(commands, tab_bar, "Info", SettingsTab::Info);
 
     // Content Area
@@ -200,7 +200,10 @@ pub fn update_settings_menu(
             SettingsTab::Gameplay => spawn_gameplay_settings(&mut commands, entity, &game_settings),
             SettingsTab::Keybinds => spawn_keybinds_settings(&mut commands, entity, &keybinds),
             SettingsTab::Graphics => spawn_graphics_settings(&mut commands, entity, &game_settings),
-            SettingsTab::Debug => spawn_debug_settings(&mut commands, entity, &game_settings),
+            SettingsTab::Debug => {
+                spawn_debug_settings(&mut commands, entity, &game_settings);
+                spawn_cheats_settings(&mut commands, entity, &game_settings);
+            }
             SettingsTab::Info => spawn_info_tab(&mut commands, entity),
         }
     }
@@ -329,13 +332,31 @@ fn spawn_debug_settings(commands: &mut Commands, parent: Entity, settings: &Game
         ));
     });
 
+    spawn_toggle(commands, parent, "Enable Debug Mode", settings.debug.debug_mode, SettingAction::ToggleDebugMode);
     spawn_toggle(commands, parent, "Show FPS", settings.debug.show_fps, SettingAction::ToggleShowFPS);
-    spawn_toggle(commands, parent, "Show Resource Usage", settings.debug.show_resource_usage, SettingAction::ToggleResourceUsage);
+    spawn_toggle(commands, parent, "Show Ping", settings.debug.show_ping, SettingAction::TogglePing);
+    spawn_toggle(commands, parent, "Show Vertex Count", settings.debug.show_vertex_count, SettingAction::ToggleVertexCount);
+    spawn_toggle(commands, parent, "Show Entity Count", settings.debug.show_resource_usage, SettingAction::ToggleResourceUsage);
+    spawn_toggle(commands, parent, "Show Speed", settings.debug.show_speed, SettingAction::ToggleSpeed);
     spawn_toggle(commands, parent, "Show Hitboxes", settings.debug.show_hitboxes, SettingAction::ToggleHitboxes);
+    spawn_toggle(commands, parent, "Debug Crosshair Info", settings.debug.show_crosshair_debug, SettingAction::ToggleCrosshairDebug);
+    spawn_toggle(commands, parent, "Show Wireframe", settings.debug.show_wireframe, SettingAction::ToggleWireframe);
+}
+
+fn spawn_cheats_settings(commands: &mut Commands, parent: Entity, settings: &GameSettings) {
+    commands.entity(parent).with_children(|parent| {
+        parent.spawn((
+            Text::new("Cheats"),
+            TextFont { font_size: 24.0, ..default() },
+            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            Node { margin: UiRect::bottom(Val::Px(16.0)), border: UiRect::bottom(Val::Px(1.0)), ..default() },
+            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+        ));
+    });
+
     spawn_toggle(commands, parent, "Free Cam", settings.debug.free_cam, SettingAction::ToggleFreeCam);
     spawn_toggle(commands, parent, "God Mode", settings.debug.god_mode, SettingAction::ToggleGodMode);
     spawn_toggle(commands, parent, "Infinite Ammo", settings.debug.infinite_ammo, SettingAction::ToggleInfiniteAmmo);
-    spawn_toggle(commands, parent, "Show Wireframe", settings.debug.show_wireframe, SettingAction::ToggleWireframe);
 }
 
 fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
@@ -528,6 +549,11 @@ pub enum SettingAction {
     ToggleGodMode,
     ToggleInfiniteAmmo,
     ToggleWireframe,
+    ToggleDebugMode,
+    ToggleVertexCount,
+    TogglePing,
+    ToggleSpeed,
+    ToggleCrosshairDebug,
     CycleResolution,
     CycleTextureQuality,
     CycleShadowQuality,
@@ -615,7 +641,12 @@ pub fn handle_settings_interaction(
                 SettingAction::ToggleFreeCam => game_settings.debug.free_cam,
                 SettingAction::ToggleGodMode => game_settings.debug.god_mode,
                 SettingAction::ToggleInfiniteAmmo => game_settings.debug.infinite_ammo,
+                SettingAction::ToggleDebugMode => game_settings.debug.debug_mode,
                 SettingAction::ToggleWireframe => game_settings.debug.show_wireframe,
+                SettingAction::ToggleVertexCount => game_settings.debug.show_vertex_count,
+                SettingAction::TogglePing => game_settings.debug.show_ping,
+                SettingAction::ToggleSpeed => game_settings.debug.show_speed,
+                SettingAction::ToggleCrosshairDebug => game_settings.debug.show_crosshair_debug,
                 _ => false,
             };
             let base_color = if value { Color::srgba(0.2, 0.5, 0.25, 0.9) } else { Color::srgba(0.3, 0.2, 0.2, 0.8) };
@@ -664,7 +695,12 @@ pub fn handle_settings_interaction(
                         SettingAction::ToggleFreeCam => game_settings.debug.free_cam = !game_settings.debug.free_cam,
                         SettingAction::ToggleGodMode => game_settings.debug.god_mode = !game_settings.debug.god_mode,
                         SettingAction::ToggleInfiniteAmmo => game_settings.debug.infinite_ammo = !game_settings.debug.infinite_ammo,
+                        SettingAction::ToggleDebugMode => game_settings.debug.debug_mode = !game_settings.debug.debug_mode,
                         SettingAction::ToggleWireframe => game_settings.debug.show_wireframe = !game_settings.debug.show_wireframe,
+                        SettingAction::ToggleVertexCount => game_settings.debug.show_vertex_count = !game_settings.debug.show_vertex_count,
+                        SettingAction::TogglePing => game_settings.debug.show_ping = !game_settings.debug.show_ping,
+                        SettingAction::ToggleSpeed => game_settings.debug.show_speed = !game_settings.debug.show_speed,
+                        SettingAction::ToggleCrosshairDebug => game_settings.debug.show_crosshair_debug = !game_settings.debug.show_crosshair_debug,
                         _ => {}
                     }
                     save_game_settings(&game_settings);

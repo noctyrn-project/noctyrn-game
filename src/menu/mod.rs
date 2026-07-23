@@ -8,6 +8,7 @@ pub mod profile;
 pub mod friends;
 pub mod party;
 pub mod invite;
+pub mod chat;
 
 use bevy::prelude::*;
 
@@ -231,6 +232,11 @@ impl Plugin for MenuPlugin {
         app.init_resource::<main_menu::MatchmakingTimer>();
         app.init_resource::<invite::InviteTimer>();
         app.init_resource::<gamemode::ActiveGameModeTab>();
+        app.init_resource::<chat::ChatHistory>();
+        app.init_resource::<chat::ChatInput>();
+        app.init_resource::<chat::ChatOpen>();
+
+        // Chat system (runs in all states)
 
         app.add_systems(OnEnter(GameState::MainMenu), (
             main_menu::setup_main_menu_scene,
@@ -365,11 +371,19 @@ impl Plugin for MenuPlugin {
         ));
 
         // Escape menu
-        app.add_systems(Update, (
-            main_menu::escape_menu_interaction,
-        ).run_if(in_state(GameState::MainMenu)));
+        app.add_systems(Update, main_menu::escape_menu_interaction.run_if(in_state(GameState::MainMenu)));
+        app.add_systems(Update, main_menu::handle_escape_key.run_if(in_state(GameState::MainMenu)));
 
         // Party kick handler (visible from MainMenu)
         app.add_systems(Update, party::party_kick_handler.run_if(in_state(GameState::MainMenu)));
+
+        // Chat system (always runs)
+        app.add_systems(Update, (
+            chat::chat_input,
+            chat::chat_history_display,
+            chat::chat_input_display,
+            chat::chat_receive_handler,
+            chat::cleanup_expired_messages,
+        ));
     }
 }

@@ -266,10 +266,6 @@ pub fn send_player_input(
     let Some(session_id) = sess_id else { return };
     let Some(pid) = player_id else { return };
 
-    // Record predicted state before sending.
-    let (phys, vel) = player.into_inner();
-    pred_buf.push([phys.x, phys.y, phys.z], [vel.x, vel.y, vel.z]);
-
     let input_packet = noctyrn_shared::protocol::PlayerInput {
         sequence: seq_num,
         timestamp: 0.0,
@@ -280,6 +276,10 @@ pub fn send_player_input(
         look_pitch: pitch,
         actions,
     };
+
+    // Record predicted state before sending (store input for replay).
+    let (phys, vel) = player.into_inner();
+    pred_buf.push([phys.x, phys.y, phys.z], [vel.x, vel.y, vel.z], &input_packet);
 
     let udp_clone = udp.clone();
     rt.0.spawn(async move {
@@ -296,6 +296,8 @@ pub fn send_shot_fired(
     udp: Res<crate::net::udp::UdpClient>,
     camera: Single<&Transform, With<super::MainCamera>>,
     rt: Res<crate::net::TokioRuntime>,
+    inventory: Single<&crate::player::inventory::Inventory>,
+    registry: Res<crate::weapons::WeaponRegistry>,
 ) {
     if !udp.is_connected() {
         return;
@@ -318,8 +320,13 @@ pub fn send_shot_fired(
     let origin = camera.translation;
     let direction = [forward.x, forward.y, forward.z];
 
-    // Default weapon ID — the inventory system will set this later
-    let weapon_id = "rifle".to_string();
+    // Get the actual weapon_id from the active inventory slot.
+    let weapon_id = registry
+        .by_slot
+        .get(&inventory.active_slot)
+        .and_then(|ids| ids.first())
+        .cloned()
+        .unwrap_or_else(|| "colt_m4a1".to_string());
 
     let shot = noctyrn_shared::protocol::ShotFired::new(
         player_id,

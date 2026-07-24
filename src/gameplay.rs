@@ -906,10 +906,27 @@ fn death_screen_respawn_button(
     player_team: Option<Res<PlayerTeam>>,
     spawn_areas: Query<&TeamSpawnArea>,
     selected_mode: Res<SelectedGameMode>,
+    tcp: Option<Res<crate::net::tcp::TcpClient>>,
+    rt: Option<Res<crate::net::TokioRuntime>>,
 ) {
     if timer.is_none() { return; }
     for interaction in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
+            // In multiplayer mode, send RequestRespawn to the server instead of
+            // respawning locally.
+            if let Some(tcp_res) = tcp.as_ref() {
+                if let Some(rt_res) = rt.as_ref() {
+                    let tc = (*tcp_res).clone();
+                    let rt_handle = rt_res.0.clone();
+                    rt_handle.spawn(async move {
+                        let msg = noctyrn_shared::protocol::ClientMessage::RequestRespawn;
+                        let _ = tc.send(&msg).await;
+                    });
+                    return;
+                }
+            }
+
+            // Single-player: local respawn
             if let Some((mut health, mut transform, mut phys, mut prev_phys, mut velocity)) = player_query.iter_mut().next() {
                 health.current = health.max;
                 velocity.0 = Vec3::ZERO;

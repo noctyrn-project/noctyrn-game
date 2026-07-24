@@ -4,6 +4,7 @@ use bevy::input::keyboard::NativeKeyCode;
 
 use crate::defaults;
 use crate::settings::GameSettings;
+use crate::player::{PhysicalTranslation, Velocity};
 
 #[derive(Resource, SettingsGroup, Reflect, Debug, Clone)]
 #[reflect(Resource, SettingsGroup, Default)]
@@ -233,6 +234,8 @@ pub fn send_player_input(
     camera: Single<&Transform, With<super::MainCamera>>,
     mut seq: ResMut<InputSequence>,
     rt: Res<crate::net::TokioRuntime>,
+    mut pred_buf: ResMut<crate::net::prediction::PredictionBuffer>,
+    player: Single<(&PhysicalTranslation, &Velocity), With<super::LocalPlayer>>,
 ) {
     if !udp.is_connected() {
         return;
@@ -263,6 +266,10 @@ pub fn send_player_input(
     let Some(session_id) = sess_id else { return };
     let Some(pid) = player_id else { return };
 
+    // Record predicted state before sending.
+    let (phys, vel) = player.into_inner();
+    pred_buf.push([phys.x, phys.y, phys.z], [vel.x, vel.y, vel.z]);
+
     let input_packet = noctyrn_shared::protocol::PlayerInput {
         sequence: seq_num,
         timestamp: 0.0,
@@ -277,5 +284,54 @@ pub fn send_player_input(
     let udp_clone = udp.clone();
     rt.0.spawn(async move {
         let _ = udp_clone.send_input(&input_packet).await;
+    });
+}
+
+/// Send a `ShotFired` UDP packet when the player fires.
+///
+/// Runs on each tick the mouse button is held, but the server implements
+/// fire-rate limiting so rapid clicks are handled correctly.
+pub fn send_shot_fired(
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    udp: Res<crate::net::udp::UdpClient>,
+    camera: Single<&Transform, With<super::MainCamera>>,
+    rt: Res<crate::net::TokioRuntime>,
+) {
+    if !udp.is_connected() {
+        return;
+    }
+    if !mouse_input.just_pressed(MouseButton::Left) {
+        return;
+    }
+
+    let sess_id = match *udp.session_id.lock().unwrap() {
+        Some(id) => id,
+        None => return,
+    };
+    let player_id = match *udp.player_id.lock().unwrap() {
+        Some(id) => id,
+        None => return,
+    };
+
+    // Camera forward direction is -Z in Bevy; transform.forward() returns -Z.
+    let forward = camera.forward().as_vec3();
+    let origin = camera.translation;
+    let direction = [forward.x, forward.y, forward.z];
+
+    // Default weapon ID — the inventory system will set this later
+    let weapon_id = "rifle".to_string();
+
+    let shot = noctyrn_shared::protocol::ShotFired::new(
+        player_id,
+        sess_id,
+        [origin.x, origin.y, origin.z],
+        direction,
+        weapon_id,
+        0.0, // timestamp
+    );
+
+    let udp_clone = udp.clone();
+    rt.0.spawn(async move {
+        let _ = udp_clone.send_shot(&shot).await;
     });
 }

@@ -361,9 +361,9 @@ fn spawn_cheats_settings(commands: &mut Commands, parent: Entity, settings: &Gam
 }
 
 fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
-    let path = "assets/info.toml";
+    let path = "assets/info.json";
     let info = if let Ok(content) = fs::read_to_string(path) {
-        toml::from_str(&content).unwrap_or_else(|_| InfoConfig {
+        serde_json::from_str(&content).unwrap_or_else(|_| InfoConfig {
             title: "Noctyrn".to_string(),
             version: "Unknown".to_string(),
             disclaimer: String::new(),

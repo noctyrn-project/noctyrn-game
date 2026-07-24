@@ -4,6 +4,7 @@
 // when a server snapshot arrives, the client can compare its prediction
 // with the authoritative server state and correct if needed.
 
+use bevy::prelude::Resource;
 use std::collections::VecDeque;
 
 /// A recorded input with the predicted position after applying it.
@@ -15,7 +16,7 @@ pub struct PredictedFrame {
 }
 
 /// Manages the prediction buffer for the local player.
-#[derive(Default)]
+#[derive(Resource, Default)]
 pub struct PredictionBuffer {
     pub frames: VecDeque<PredictedFrame>,
     pub next_sequence: u32,
@@ -59,30 +60,31 @@ impl PredictionBuffer {
         server_position: [f32; 3],
         threshold: f32,
     ) -> Option<[f32; 3]> {
-        // Remove all acknowledged frames
+        // Save the predicted position of the last acknowledged frame.
+        let mut last_ack_pos: Option<[f32; 3]> = None;
+
+        // Remove all acknowledged frames.
         while let Some(front) = self.frames.front() {
             if front.sequence <= last_processed_sequence {
+                last_ack_pos = Some(front.position);
                 self.frames.pop_front();
             } else {
                 break;
             }
         }
 
-        // Check if correction is needed by comparing the predicted position
-        // at the acknowledged sequence with the server's position
-        let dist_sq = (server_position[0] - self.last_acknowledged_position().unwrap_or(server_position)[0]).powi(2)
-            + (server_position[1] - self.last_acknowledged_position().unwrap_or(server_position)[1]).powi(2)
-            + (server_position[2] - self.last_acknowledged_position().unwrap_or(server_position)[2]).powi(2);
-
-        if dist_sq > threshold * threshold {
-            Some(server_position)
-        } else {
-            None
+        // Compare our prediction at the last acknowledged input with the
+        // server's authoritative position.
+        if let Some(predicted) = last_ack_pos {
+            let dist_sq = (server_position[0] - predicted[0]).powi(2)
+                + (server_position[1] - predicted[1]).powi(2)
+                + (server_position[2] - predicted[2]).powi(2);
+            if dist_sq > threshold * threshold {
+                return Some(server_position);
+            }
         }
-    }
 
-    fn last_acknowledged_position(&self) -> Option<[f32; 3]> {
-        self.frames.front().map(|f| f.position)
+        None
     }
 
     pub fn clear(&mut self) {

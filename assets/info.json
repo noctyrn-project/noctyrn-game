@@ -1,0 +1,17 @@
+{
+  "title": "Noctyrn",
+  "version": "0.1.0",
+  "disclaimer": "This game is a work in progress and may contain bugs, incomplete features, and placeholder assets. All content is subject to change without notice. All rights reserved by their respective owners. This game is intended for entertainment purposes only and is not affiliated with any real-world entities or brands.",
+  "description": "My childhood dream of making the perfect FPS game. With aspects from all of my favorite shooters, Titanfall 2, COD, Phantom Forces, and more, Noctyrn is a love letter to the genre. Fast-paced movement, fluid gunplay, and deep customization.",
+  "credits": [
+    "GitanElyon - Lead Developer",
+    "Amiel Mandell - Animations & Models",
+    "Ronan Glick - Beta Testing & Feedback",
+    "Hashim Almeer - Beta Testing & Feedback",
+    "Ismail Qureshi - Beta Testing & Feedback",
+    "D_U - Weapon Models",
+    "favoritelike69 - Character Models",
+    "Bevy Engine - Game Engine",
+    "Rust Community - Crates & Support"
+  ]
+}

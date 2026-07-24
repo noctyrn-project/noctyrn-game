@@ -27,7 +27,7 @@ use movement::{
     apply_slide_physics, apply_friction, apply_gravity, integrate_velocity,
     resolve_collisions, interpolate_rendered_transform,
 };
-use input::{AccumulatedInput, accumulate_input, clear_input, send_player_input, PlayerToggleState, InputSequence};
+use input::{AccumulatedInput, accumulate_input, clear_input, send_player_input, send_shot_fired, PlayerToggleState, InputSequence};
 pub use input::Keybinds;
 use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
 use inventory::{Inventory, WeaponModel, handle_weapon_switching, SwitchState};
@@ -192,6 +192,7 @@ impl Plugin for Player {
             integrate_velocity.in_set(MovementSet::Integration),
             resolve_collisions.in_set(MovementSet::Collision),
             send_player_input,
+            send_shot_fired,
         ).run_if(in_state(GameState::Playing)));
         
         app.add_systems(Update, handle_weapon_switching.run_if(in_state(GameState::Playing)));

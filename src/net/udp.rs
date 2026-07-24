@@ -151,6 +151,28 @@ impl UdpClient {
         Ok(())
     }
 
+    /// Send a shot-fired packet to the server.
+    pub async fn send_shot(&self, shot: &noctyrn_shared::protocol::ShotFired) -> Result<(), String> {
+        let guard = self.socket.lock().await;
+        let socket = match guard.as_ref() {
+            Some(s) => s.clone(),
+            None => return Err("Not connected".into()),
+        };
+        let addr = {
+            let a = self.server_addr.lock().await;
+            a.ok_or("No server address")?
+        };
+        drop(guard);
+
+        let data = noctyrn_shared::protocol::encode_shot_fired(shot)
+            .map_err(|e| format!("serialize: {e}"))?;
+        socket
+            .send_to(&data, addr)
+            .await
+            .map_err(|e| format!("send: {e}"))?;
+        Ok(())
+    }
+
     pub fn is_connected(&self) -> bool {
         *self.connected.lock().unwrap()
     }

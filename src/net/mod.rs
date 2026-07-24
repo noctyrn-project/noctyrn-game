@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use std::sync::Arc;
 use crate::player::GameState;
+use crate::gameplay::Health;
+use crate::player::{PhysicalTranslation, PreviousPhysicalTranslation, Velocity};
 
 pub mod http;
 pub mod tcp;
@@ -39,15 +41,15 @@ impl Default for ServerConfig {
             udp_addr: "127.0.0.1:7877".to_string(),
         };
 
-        let raw = match std::fs::read_to_string("assets/server.toml") {
+        let raw = match std::fs::read_to_string("assets/server.json") {
             Ok(s) => s,
             Err(_) => {
-                info!("assets/server.toml not found, using localhost defaults");
+                info!("assets/server.json not found, using localhost defaults");
                 return fallback;
             }
         };
 
-        match toml::from_str::<ServerConfigFile>(&raw) {
+        match serde_json::from_str::<ServerConfigFile>(&raw) {
             Ok(cfg) => {
                 info!(
                     "Loaded server config: http={} tcp={} udp={}",
@@ -60,7 +62,7 @@ impl Default for ServerConfig {
                 }
             }
             Err(e) => {
-                warn!("Failed to parse assets/server.toml: {e} — using localhost defaults");
+                warn!("Failed to parse assets/server.json: {e} — using localhost defaults");
                 fallback
             }
         }
@@ -214,10 +216,12 @@ impl Plugin for NetworkPlugin {
         app.init_resource::<http::PendingRequests>();
         app.init_resource::<tcp::TcpClient>();
         app.init_resource::<udp::UdpClient>();
+        app.init_resource::<prediction::PredictionBuffer>();
         app.add_message::<NetworkEvent>();
 
         app.add_systems(Update, (handle_network_events, http::poll_pending_requests));
         app.add_systems(Update, process_snapshots.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, reconcile_prediction.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, cleanup_muzzle_flashes.run_if(in_state(GameState::Playing)));
     }
 }
@@ -293,7 +297,10 @@ fn process_snapshots(
     udp: Res<udp::UdpClient>,
     mut commands: Commands,
     mut remote_query: Query<(Entity, &mut crate::player::RemotePlayer, &mut Transform)>,
-    mut local_query: Query<(Entity, &mut Transform), (With<crate::player::LocalPlayer>, Without<crate::player::RemotePlayer>)>,
+    mut local_query: Query<
+        (Entity, &mut Transform, &mut PhysicalTranslation, &mut PreviousPhysicalTranslation, &mut Velocity, &mut Health),
+        (With<crate::player::LocalPlayer>, Without<crate::player::RemotePlayer>),
+    >,
     mut scoreboard: ResMut<ScoreboardData>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -310,14 +317,40 @@ fn process_snapshots(
 
     let local_player_id = *udp.player_id.lock().unwrap();
 
-    // Sync local player to server's authoritative position
+    // Sync local player to server's authoritative position.
+    // Server sends feet-level positions; client stores feet-level in physics
+    // and adds eye offset only for the camera transform.
     if let Some(lid) = local_player_id {
         if let Some(server_pos) = snapshot.players.iter().find(|p| p.id == lid) {
-            if let Ok((_entity, mut local_transform)) = local_query.single_mut() {
-                let target = Vec3::new(server_pos.position[0], server_pos.position[1] + 1.7, server_pos.position[2]);
-                if local_transform.translation.distance(target) > 0.2 {
-                    local_transform.translation = target;
+            if let Ok((_entity, mut local_transform, mut phys, mut prev_phys, mut velocity, mut health)) = local_query.single_mut() {
+                let server_feet = Vec3::new(
+                    server_pos.position[0],
+                    server_pos.position[1],
+                    server_pos.position[2],
+                );
+                let server_vel = Vec3::new(
+                    server_pos.velocity[0],
+                    server_pos.velocity[1],
+                    server_pos.velocity[2],
+                );
+
+                // Update physics state to match server.
+                let current_feet = phys.0;
+                let diff = current_feet.distance(server_feet);
+                if diff > 0.2 {
+                    phys.0 = server_feet;
+                    prev_phys.0 = server_feet;
+                    velocity.0 = server_vel;
                 }
+
+                // Render/camera transform uses eye height (feet + 1.7).
+                let eye_target = server_feet + Vec3::Y * 1.7;
+                if local_transform.translation.distance(eye_target) > 0.2 {
+                    local_transform.translation = eye_target;
+                }
+
+                // Sync authoritative health from server.
+                health.current = server_pos.health;
             }
         }
     }
@@ -352,12 +385,27 @@ fn process_snapshots(
                     }
                 }
             }
+            noctyrn_shared::protocol::GameEvent::PlayerRespawned { player_id, position } => {
+                info!("Player {player_id} respawned at ({:.1},{:.1},{:.1})", position[0], position[1], position[2]);
+                if let Some(lid) = local_player_id {
+                    if *player_id == lid {
+                        // Remove local death state so the client can resume playing.
+                        commands.remove_resource::<crate::gameplay::KillerInfo>();
+                    }
+                }
+            }
+            noctyrn_shared::protocol::GameEvent::PlayerDamaged { target_id, damage, source_id } => {
+                if let Some(lid) = local_player_id {
+                    if *target_id == lid {
+                        info!("YOU took {damage} damage from {source_id}");
+                    }
+                }
+            }
             noctyrn_shared::protocol::GameEvent::MatchStateUpdate { scores, .. } => {
                 for (player_id, player_score) in scores {
                     scoreboard.scores.insert(*player_id, *player_score);
                 }
             }
-            _ => {}
         }
     }
 
@@ -447,6 +495,56 @@ fn process_snapshots(
     for (entity, rp, _) in remote_query.iter_mut() {
         if !snapshot.players.iter().any(|p| p.id == rp.server_id) {
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+/// Separate system for prediction buffer reconciliation.
+///
+/// Runs after `process_snapshots` to avoid exceeding Bevy's system-parameter
+/// limit. Compares the predicted local-player position with the server's
+/// authoritative position and corrects if needed.
+fn reconcile_prediction(
+    udp: Res<udp::UdpClient>,
+    mut pred_buf: ResMut<prediction::PredictionBuffer>,
+    mut local_query: Query<
+        (&mut PhysicalTranslation, &mut PreviousPhysicalTranslation, &mut Velocity),
+        With<crate::player::LocalPlayer>,
+    >,
+) {
+    let snapshot = {
+        let guard = udp.latest_snapshot.lock().unwrap();
+        guard.clone()
+    };
+    let Some(ref snapshot) = snapshot else {
+        return;
+    };
+
+    let local_player_id = match *udp.player_id.lock().unwrap() {
+        Some(id) => id,
+        None => return,
+    };
+
+    let server_pos = match snapshot.players.iter().find(|p| p.id == local_player_id) {
+        Some(p) => p,
+        None => return,
+    };
+
+    if let Ok((mut phys, mut prev_phys, mut velocity)) = local_query.single_mut() {
+        let buf = &mut *pred_buf;
+        if let Some(correction) = buf.reconcile(
+            snapshot.last_processed_input,
+            server_pos.position,
+            0.2,
+        ) {
+            let correction_vec = Vec3::new(correction[0], correction[1], correction[2]);
+            phys.0 = correction_vec;
+            prev_phys.0 = correction_vec;
+            velocity.0 = Vec3::new(
+                server_pos.velocity[0],
+                server_pos.velocity[1],
+                server_pos.velocity[2],
+            );
         }
     }
 }

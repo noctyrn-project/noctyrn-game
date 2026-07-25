@@ -221,6 +221,8 @@ impl Plugin for NetworkPlugin {
 
         app.add_systems(Update, (handle_network_events, http::poll_pending_requests));
         app.add_systems(Update, process_snapshots.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, assign_spectator_target.after(process_snapshots).run_if(in_state(GameState::Playing)));
+        app.add_systems(OnEnter(GameState::Playing), send_loadout);
         app.add_systems(Update, reconcile_prediction.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, cleanup_muzzle_flashes.run_if(in_state(GameState::Playing)));
     }
@@ -374,59 +376,76 @@ fn process_snapshots(
     for event in &snapshot.events {
         match event {
             noctyrn_shared::protocol::GameEvent::PlayerKilled { killer_id, victim_id, weapon } => {
-                info!("KILL: {} killed {} with {}", scoreboard.get_or_name(killer_id), scoreboard.get_or_name(victim_id), weapon);
+                let killer_name = scoreboard.get_or_name(killer_id);
+                let victim_name = scoreboard.get_or_name(victim_id);
+                info!("KILL: {killer_name} killed {victim_name} with {weapon}");
                 *scoreboard.kills.entry(*killer_id).or_insert(0) += 1;
                 *scoreboard.deaths.entry(*victim_id).or_insert(0) += 1;
+
+                // TODO: Write DeathEvent for kill feed (separate system needed).
+
+                // Set KillerInfo if the local player was killed.
+                if let Some(lid) = local_player_id {
+                    if *victim_id == lid {
+                        commands.insert_resource(crate::gameplay::KillerInfo { name: killer_name.clone(), server_id: Some(*killer_id) });
+                    }
+                }
             }
-            noctyrn_shared::protocol::GameEvent::ProjectileFired { owner_id, origin, direction, weapon } => {
+            noctyrn_shared::protocol::GameEvent::ProjectileFired { owner_id, origin, direction, weapon, seed, pellet_count } => {
                 if let Some(lid) = local_player_id { if *owner_id == lid { continue; } }
-                // Spawn a projectile at the reported origin/direction with proper velocity.
                 let speed = registry.weapons.get(weapon)
                     .and_then(|w| w.attachments.ammo.as_ref().map(|a| a.velocity))
                     .unwrap_or(600.0);
-                let dir = Vec3::new(direction[0], direction[1], direction[2]);
                 let origin_v = Vec3::new(origin[0], origin[1], origin[2]);
-
                 let show_trail = speed > 200.0;
-                if show_trail {
-                    // Tracer: elongated sphere or capsule that travels
-                    commands.spawn((
-                        Mesh3d(meshes.add(Capsule3d::new(0.04, 0.2))),
-                        MeshMaterial3d(materials.add(StandardMaterial {
-                            base_color: Color::srgb(1.0, 0.8, 0.2),
-                            emissive: LinearRgba::rgb(2.0, 1.0, 0.3),
-                            ..default()
-                        })),
-                        Transform::from_translation(origin_v)
-                            .with_rotation(Quat::from_scaled_axis(Vec3::Y.into())),
-                        crate::player::shooting::Projectile {
-                            velocity: dir * speed,
-                            timer: Timer::from_seconds(
-                                (140.0 / speed.max(1.0)).min(3.0),
-                                TimerMode::Once,
-                            ),
-                            damage: 0.0, // server handles damage
-                            from_player: false,
-                            source_name: String::new(),
-                        },
-                    ));
-                } else {
-                    // Just a muzzle flash for slow projectiles
-                    let origin_entity = commands.spawn((
-                        Mesh3d(meshes.add(Sphere::new(0.12))),
-                        MeshMaterial3d(materials.add(StandardMaterial {
-                            base_color: Color::srgb(1.0, 0.9, 0.3),
-                            emissive: LinearRgba::rgb(3.0, 2.0, 0.5),
-                            ..default()
-                        })),
-                        Transform::from_translation(origin_v),
-                        MuzzleFlash { lifetime: 0.12 },
-                    )).id();
-                    // Try to parent to the remote player if found
-                    for (entity, rp, _) in remote_query.iter() {
-                        if rp.server_id == *owner_id {
-                            commands.entity(entity).add_child(origin_entity);
-                            break;
+                let pellets = (*pellet_count).max(1) as u32;
+                let spread_rad = registry.weapons.get(weapon)
+                    .and_then(|w| Some(w.attributes.spread_cone))
+                    .unwrap_or(0.0)
+                    .to_radians();
+
+                for i in 0..pellets {
+                    let dir = crate::player::shooting::apply_spread_seeded(
+                        &direction, spread_rad, *seed, i,
+                    );
+                    let dir_v = Vec3::new(dir[0], dir[1], dir[2]);
+                    if show_trail {
+                        commands.spawn((
+                            Mesh3d(meshes.add(Capsule3d::new(0.04, 0.2))),
+                            MeshMaterial3d(materials.add(StandardMaterial {
+                                base_color: Color::srgb(1.0, 0.8, 0.2),
+                                emissive: LinearRgba::rgb(2.0, 1.0, 0.3),
+                                ..default()
+                            })),
+                            Transform::from_translation(origin_v)
+                                .with_rotation(Quat::from_scaled_axis(Vec3::Y.into())),
+                            crate::player::shooting::Projectile {
+                                velocity: dir_v * speed,
+                                timer: Timer::from_seconds(
+                                    (140.0 / speed.max(1.0)).min(3.0),
+                                    TimerMode::Once,
+                                ),
+                                damage: 0.0,
+                                from_player: false,
+                                source_name: String::new(),
+                            },
+                        ));
+                    } else {
+                        let origin_entity = commands.spawn((
+                            Mesh3d(meshes.add(Sphere::new(0.12))),
+                            MeshMaterial3d(materials.add(StandardMaterial {
+                                base_color: Color::srgb(1.0, 0.9, 0.3),
+                                emissive: LinearRgba::rgb(3.0, 2.0, 0.5),
+                                ..default()
+                            })),
+                            Transform::from_translation(origin_v),
+                            MuzzleFlash { lifetime: 0.12 },
+                        )).id();
+                        for (entity, rp, _) in remote_query.iter() {
+                            if rp.server_id == *owner_id {
+                                commands.entity(entity).add_child(origin_entity);
+                                break;
+                            }
                         }
                     }
                 }
@@ -489,7 +508,6 @@ fn process_snapshots(
             Transform::from_xyz(p.position[0], p.position[1], p.position[2])
                 .with_rotation(Quat::from_rotation_y(p.yaw)),
             Visibility::default(),
-            crate::gameplay::PlayerBody,
         )).id();
 
         commands.entity(remote).with_children(|parent| {
@@ -528,13 +546,26 @@ fn process_snapshots(
                 if let Some(config) = registry.weapons.get(&p.weapon_id) {
                     let mf = config.meta.model_path.split('#').next().unwrap_or("");
                     if !mf.is_empty() && std::path::Path::new(&format!("assets/{mf}")).exists() {
+                        // Apply the weapon config's position_offset and rotation_offset
+                        // (same as spawn_weapon_visual_skinned does for first-person).
+                        let pos = Vec3::new(
+                            config.meta.position_offset[0] * 2.0 + 0.2,
+                            config.meta.position_offset[1] * 2.0 + 1.0,
+                            config.meta.position_offset[2] * 2.0,
+                        );
+                        let rot = Quat::from_euler(
+                            bevy::math::EulerRot::XYZ,
+                            config.meta.rotation_offset[0],
+                            config.meta.rotation_offset[1],
+                            config.meta.rotation_offset[2],
+                        );
                         parent.spawn((
                             WorldAssetRoot(asset_server.load(&config.meta.model_path)),
-                            Transform::from_xyz(0.5, 1.0, 0.0)
-                                .with_scale(Vec3::splat(0.35)),
+                            Transform::from_translation(pos)
+                                .with_rotation(rot)
+                                .with_scale(Vec3::splat(config.meta.scale * 0.7)),
                         ));
                     } else {
-                        // Model file missing — gray block fallback.
                         parent.spawn((
                             Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(0.25)))),
                             MeshMaterial3d(materials.add(StandardMaterial {
@@ -546,7 +577,6 @@ fn process_snapshots(
                     }
                 }
             } else {
-                // Unknown weapon_id — gray block.
                 parent.spawn((
                     Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(0.25)))),
                     MeshMaterial3d(materials.add(StandardMaterial {
@@ -561,6 +591,8 @@ fn process_snapshots(
 
     for (entity, rp, _) in remote_query.iter_mut() {
         if !snapshot.players.iter().any(|p| p.id == rp.server_id) {
+            let name = scoreboard.names.get(&rp.server_id).cloned().unwrap_or_else(|| "Unknown".to_string());
+            info!("Player left: {name}");
             commands.entity(entity).despawn();
         }
     }
@@ -575,6 +607,37 @@ fn process_snapshots(
 ///    - Error > 2.0  → hard snap (network teleport / major desync)
 ///    - Error > 0.1  → lerp 15% toward correction each frame (exponential smoothing)
 ///    - Error ≤ 0.1  → trust local prediction
+
+/// Send the player's loadout to the server when entering a match.
+fn send_loadout(
+    tcp: Option<Res<tcp::TcpClient>>,
+    rt: Option<Res<TokioRuntime>>,
+    loadout: Option<Res<crate::weapons::PlayerLoadout>>,
+    registry: Option<Res<crate::weapons::WeaponRegistry>>,
+) {
+    if let (Some(tcp), Some(rt), Some(registry)) = (tcp, rt, registry) {
+        let tc = (*tcp).clone();
+        let rt_h = rt.0.clone();
+        let primary = loadout.as_ref().map(|l| l.primary.clone()).unwrap_or_else(|| "colt_m4a1".to_string());
+        let secondary = registry.by_slot.get(&crate::weapons::WeaponSlot::Secondary)
+            .and_then(|ids| ids.first()).cloned().unwrap_or_default();
+        let melee = registry.by_slot.get(&crate::weapons::WeaponSlot::Melee)
+            .and_then(|ids| ids.first()).cloned().unwrap_or_default();
+        let equipment = registry.by_slot.get(&crate::weapons::WeaponSlot::Equipment)
+            .and_then(|ids| ids.first()).cloned().unwrap_or_default();
+
+        rt_h.spawn(async move {
+            let msg = noctyrn_shared::protocol::ClientMessage::SetLoadout {
+                primary,
+                secondary,
+                melee,
+                equipment,
+            };
+            let _ = tc.send(&msg).await;
+        });
+    }
+}
+
 fn reconcile_prediction(
     udp: Res<udp::UdpClient>,
     mut pred_buf: ResMut<prediction::PredictionBuffer>,
@@ -628,6 +691,22 @@ fn reconcile_prediction(
                 );
             }
             // Error ≤ 0.1: trust local prediction, do nothing.
+        }
+    }
+}
+
+/// After processing snapshots, assign `SpectatorTarget` to the killer's remote
+/// entity so the death-cam follows them.
+fn assign_spectator_target(
+    killer_info: Option<Res<crate::gameplay::KillerInfo>>,
+    remote_query: Query<(Entity, &crate::player::RemotePlayer)>,
+    mut commands: Commands,
+) {
+    let Some(killer) = killer_info.as_ref() else { return };
+    let Some(killer_id) = killer.server_id else { return };
+    for (entity, rp) in remote_query.iter() {
+        if rp.server_id == killer_id {
+            commands.entity(entity).insert(crate::gameplay::SpectatorTarget);
         }
     }
 }

@@ -2,9 +2,11 @@ use bevy::prelude::*;
 use bevy::settings::*;
 use bevy::input::keyboard::NativeKeyCode;
 
+use std::collections::HashMap;
 use crate::defaults;
 use crate::settings::GameSettings;
 use crate::player::{PhysicalTranslation, Velocity};
+use crate::weapons::{PlayerLoadout, WeaponSlot};
 
 #[derive(Resource, SettingsGroup, Reflect, Debug, Clone)]
 #[reflect(Resource, SettingsGroup, Default)]
@@ -291,6 +293,13 @@ pub fn send_player_input(
 ///
 /// Runs on each tick the mouse button is held, but the server implements
 /// fire-rate limiting so rapid clicks are handled correctly.
+/// Tracks the last tick each weapon slot was fired (for client-side fire rate limiting).
+#[derive(Resource, Default)]
+pub struct LocalFireState {
+    pub last_shot_tick: HashMap<WeaponSlot, u64>,
+    pub tick_counter: u64,
+}
+
 pub fn send_shot_fired(
     mouse_input: Res<ButtonInput<MouseButton>>,
     udp: Res<crate::net::udp::UdpClient>,
@@ -298,13 +307,46 @@ pub fn send_shot_fired(
     rt: Res<crate::net::TokioRuntime>,
     inventory: Single<&crate::player::inventory::Inventory>,
     registry: Res<crate::weapons::WeaponRegistry>,
+    loadout: Res<PlayerLoadout>,
+    mut fire_state: ResMut<LocalFireState>,
 ) {
     if !udp.is_connected() {
         return;
     }
-    if !mouse_input.just_pressed(MouseButton::Left) {
+
+    fire_state.tick_counter += 1;
+
+    let should_fire = mouse_input.pressed(MouseButton::Left);
+
+    if !should_fire {
         return;
     }
+
+    let slot = inventory.active_slot;
+    let weapon_id = match slot {
+        WeaponSlot::Primary => loadout.primary.clone(),
+        WeaponSlot::Secondary => loadout.secondary.clone(),
+        WeaponSlot::Melee => loadout.melee.clone(),
+        WeaponSlot::Equipment => loadout.equipment.clone(),
+    };
+
+    // Auto-fire / fire-rate limiting: use the weapon's fire_rate from the
+    // weapon config. Default to 5 ticks if unknown.
+    let fire_rate_ticks = registry
+        .configs
+        .get(&slot)
+        .map(|c| {
+            let fr = c.attributes.fire_rate;
+            (fr * 64.0).round().max(1.0) as u64
+        })
+        .unwrap_or(5);
+
+    let current_tick = fire_state.tick_counter;
+    let last_tick = fire_state.last_shot_tick.get(&slot).copied().unwrap_or(0);
+    if current_tick - last_tick < fire_rate_ticks {
+        return;
+    }
+    fire_state.last_shot_tick.insert(slot, current_tick);
 
     let sess_id = match *udp.session_id.lock().unwrap() {
         Some(id) => id,
@@ -320,13 +362,13 @@ pub fn send_shot_fired(
     let origin = camera.translation;
     let direction = [forward.x, forward.y, forward.z];
 
-    // Get the actual weapon_id from the active inventory slot.
-    let weapon_id = registry
-        .by_slot
-        .get(&inventory.active_slot)
-        .and_then(|ids| ids.first())
-        .cloned()
-        .unwrap_or_else(|| "colt_m4a1".to_string());
+    let pellet_count = registry
+        .configs
+        .get(&slot)
+        .map(|c| c.attributes.pellet_count)
+        .filter(|&p| p > 0)
+        .unwrap_or(1) as u8;
+    let seed = rand::random::<u64>();
 
     let shot = noctyrn_shared::protocol::ShotFired::new(
         player_id,
@@ -335,6 +377,8 @@ pub fn send_shot_fired(
         direction,
         weapon_id,
         0.0, // timestamp
+        seed,
+        pellet_count,
     );
 
     let udp_clone = udp.clone();

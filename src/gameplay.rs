@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::player::GameState;
 use crate::player::shooting::Projectile;
+use crate::player::WeaponModel;
 use bevy::ecs::relationship::Relationship;
 use crate::ui_config::UiConfig;
 use crate::menu::{GameMode, SelectedGameMode};
@@ -295,6 +296,7 @@ impl Plugin for GameplayPlugin {
         app.add_systems(Update, (
             update_health_bars,
             update_player_health_ui,
+            update_player_visibility_on_death,
             turret_fire,
             handle_death,
             assign_team_spawn,
@@ -323,7 +325,10 @@ impl Plugin for GameplayPlugin {
 }
 
 #[derive(Resource)]
-pub struct KillerInfo(pub String);
+pub struct KillerInfo {
+    pub name: String,
+    pub server_id: Option<uuid::Uuid>,
+}
 
 fn despawn_gameplay_entities(
     mut commands: Commands,
@@ -555,6 +560,22 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
             ));
         });
     });
+}
+
+fn update_player_visibility_on_death(
+    player_query: Query<&Health, (With<PlayerBody>, Changed<Health>)>,
+    mut player_vis: Query<&mut Visibility, (With<PlayerBody>, Without<WeaponModel>)>,
+    mut weapon_vis: Query<&mut Visibility, With<WeaponModel>>,
+) {
+    for health in player_query.iter() {
+        let hidden = health.current <= 0.0;
+        for mut vis in player_vis.iter_mut() {
+            *vis = if hidden { Visibility::Hidden } else { Visibility::Inherited };
+        }
+        for mut vis in weapon_vis.iter_mut() {
+            *vis = if hidden { Visibility::Hidden } else { Visibility::Inherited };
+        }
+    }
 }
 
 fn update_player_health_ui(
@@ -841,15 +862,17 @@ fn spectate_camera(
 ) {
     if let Some(timer) = timer.as_mut() {
         timer.0.tick(time.delta());
-        
+
         if let Some(mut cam_transform) = camera_query.iter_mut().next() {
-            // Find a target to spectate (just pick first for now)
             if let Some(target) = targets.iter().next() {
                 let target_pos = target.translation();
+                // Third-person behind: 3m behind and 1.5m above the target
+                let behind = target.forward() * -3.0 + Vec3::Y * 1.5;
+                let cam_pos = target_pos + behind;
                 let target_look = target_pos + Vec3::Y * 1.0;
-                let cam_pos = target_pos + Vec3::new(0.0, 5.0, 5.0);
-                
-                cam_transform.translation = cam_transform.translation.lerp(cam_pos, time.delta_secs() * 2.0);
+
+                let lerp_factor = (time.delta_secs() * 3.0).min(1.0);
+                cam_transform.translation = cam_transform.translation.lerp(cam_pos, lerp_factor);
                 cam_transform.look_at(target_look, Vec3::Y);
             }
         }
@@ -863,7 +886,12 @@ fn respawn_player(
     player_team: Option<Res<PlayerTeam>>,
     spawn_areas: Query<&TeamSpawnArea>,
     selected_mode: Res<SelectedGameMode>,
+    tcp: Option<Res<crate::net::tcp::TcpClient>>,
 ) {
+    // In multiplayer, the server controls respawns via PlayerRespawned events.
+    // Don't auto-respawn locally — it desyncs with the server's timer.
+    if tcp.is_some() { return; }
+
     if let Some(timer) = timer {
         if timer.0.is_finished() {
             if let Some((mut health, mut transform, mut phys, mut prev_phys, mut velocity)) = query.iter_mut().next() {
@@ -892,7 +920,7 @@ fn update_death_screen(
             timer_text.0 = format!("Respawning in {:.1}s", remaining.max(0.0));
         }
         if let Ok(mut killer_text) = killer_text_query.single_mut() {
-            let name = killer_info.as_ref().map(|k| k.0.as_str()).unwrap_or("Unknown");
+            let name = killer_info.as_ref().map(|k| k.name.as_str()).unwrap_or("Unknown");
             killer_text.0 = name.to_string();
         }
     }

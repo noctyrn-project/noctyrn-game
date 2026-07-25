@@ -30,7 +30,8 @@ use movement::{
 use input::{AccumulatedInput, accumulate_input, clear_input, send_player_input, send_shot_fired, PlayerToggleState, InputSequence};
 pub use input::Keybinds;
 use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
-use inventory::{Inventory, WeaponModel, handle_weapon_switching, SwitchState};
+pub use inventory::WeaponModel;
+use inventory::{Inventory, handle_weapon_switching, SwitchState};
 use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil, Projectile, MuzzleFlash, Grenade, ExplosionParticle};
 
 pub use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation};
@@ -157,6 +158,7 @@ impl Plugin for Player {
         app.init_resource::<PauseMenuOpen>();
         app.init_resource::<CameraSway>();
         app.init_resource::<InputSequence>();
+        app.init_resource::<input::LocalFireState>();
         
         app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed));
         app.add_systems(OnExit(GameState::Playing), (despawn_gameplay_ui, cleanup_pause_menu_on_exit, crate::menu::close_chat));

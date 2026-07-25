@@ -3,7 +3,7 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use super::inventory::{Inventory, WeaponModel};
 use super::movement::Velocity;
 use crate::weapons::{WeaponSlot, WeaponRecoil, BaseWeaponTransform, FireMode};
-use crate::gameplay::{Health, PlayerBody, Enemy, Regenerating};
+use crate::gameplay::{Health, KillerInfo, PlayerBody, Enemy, Regenerating};
 use crate::player::{spawn_hit_marker, spawn_damage_number};
 use std::collections::HashMap;
 use rand::Rng;
@@ -1242,7 +1242,7 @@ pub fn move_projectiles(
                 }
                 // Track who killed the player
                 if is_player.is_some() && health.current <= 0.0 {
-                    commands.insert_resource(crate::gameplay::KillerInfo(projectile.source_name.clone()));
+                    commands.insert_resource(KillerInfo { name: projectile.source_name.clone(), server_id: None });
                 }
                 commands.entity(entity).despawn();
                 break;
@@ -1258,5 +1258,44 @@ pub fn move_projectiles(
     // Despawn shattered glass entities
     for glass_entity in glass_to_despawn {
         commands.entity(glass_entity).despawn();
+    }
+}
+
+/// Deterministic cone spread using a random seed + pellet index.
+/// Matches the server's `apply_spread_seeded` in `noctyrn-server/src/game/combat.rs`.
+pub fn apply_spread_seeded(dir: &[f32; 3], spread_rad: f32, seed: u64, index: u32) -> [f32; 3] {
+    if spread_rad <= 0.0 {
+        return *dir;
+    }
+    let mix = seed as f32 * 1.618034 + index as f32 * 3.141593;
+    let theta = (mix * 6.283185).fract() * 6.283185;
+    let r = (mix.fract() * 1.618034).fract().sqrt();
+    let phi = r * spread_rad;
+
+    let (sin_t, cos_t) = theta.sin_cos();
+    let (sin_p, cos_p) = phi.sin_cos();
+
+    let up = [0.0, 1.0, 0.0];
+    let right = [dir[1] * up[2] - dir[2] * up[1], dir[2] * up[0] - dir[0] * up[2], dir[0] * up[1] - dir[1] * up[0]];
+    let right_len = (right[0] * right[0] + right[1] * right[1] + right[2] * right[2]).sqrt();
+    let (right, up_local) = if right_len > 0.001 {
+        let r = [right[0] / right_len, right[1] / right_len, right[2] / right_len];
+        let u = [r[1] * dir[2] - r[2] * dir[1], r[2] * dir[0] - r[0] * dir[2], r[0] * dir[1] - r[1] * dir[0]];
+        (r, u)
+    } else {
+        ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+    };
+
+    let spread_dir = [
+        dir[0] * cos_p + (right[0] * cos_t + up_local[0] * sin_t) * sin_p,
+        dir[1] * cos_p + (right[1] * cos_t + up_local[1] * sin_t) * sin_p,
+        dir[2] * cos_p + (right[2] * cos_t + up_local[2] * sin_t) * sin_p,
+    ];
+
+    let len = (spread_dir[0] * spread_dir[0] + spread_dir[1] * spread_dir[1] + spread_dir[2] * spread_dir[2]).sqrt();
+    if len > 0.001 {
+        [spread_dir[0] / len, spread_dir[1] / len, spread_dir[2] / len]
+    } else {
+        *dir
     }
 }

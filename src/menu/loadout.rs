@@ -7,6 +7,8 @@ use crate::weapons::{
 };
 use crate::menu::MenuCamera;
 
+const PREVIEW_DIST: f32 = 1.5;
+
 #[derive(Resource)]
 pub struct LoadoutUiState {
     pub active_slot: WeaponSlot,
@@ -36,6 +38,7 @@ pub struct LoadoutDragState {
     pub last_pos: Vec2,
     pub rotation_y: f32,
     pub rotation_x: f32,
+    pub rotation_z: f32,
     pub zoom: f32,
 }
 
@@ -46,7 +49,8 @@ impl Default for LoadoutDragState {
             last_pos: Vec2::ZERO,
             rotation_y: 0.0,
             rotation_x: 0.0,
-            zoom: 2.5,
+            rotation_z: 0.0,
+            zoom: 1.5,
         }
     }
 }
@@ -105,15 +109,12 @@ pub struct ColorPickerCloseButton;
 pub struct SkinPanel;
 
 #[derive(Component)]
-pub struct LoadoutPreviewCamera;
-
-#[derive(Component)]
 pub struct LoadoutPreviewModel;
 
-#[derive(Component)]
-pub struct LoadoutPreviewLight;
-
-const PREVIEW_ORIGIN: Vec3 = Vec3::new(500.0, 500.0, 500.0);
+/// Default rotation offset so the weapon is viewed from the side (90° Y).
+fn base_rotation() -> Quat {
+    Quat::from_axis_angle(Vec3::Y, std::f32::consts::FRAC_PI_2)
+}
 
 pub fn setup_loadout_scene(
     mut commands: Commands,
@@ -124,51 +125,15 @@ pub fn setup_loadout_scene(
         commands.entity(entity).despawn();
     }
     *drag_state = LoadoutDragState::default();
-
-    commands.spawn((
-        Camera3d::default(),
-        Camera {
-            clear_color: ClearColorConfig::Custom(Color::srgb(0.12, 0.12, 0.18)),
-            ..default()
-        },
-        Transform::from_translation(PREVIEW_ORIGIN + Vec3::new(0.0, 0.3, 2.5))
-            .looking_at(PREVIEW_ORIGIN + Vec3::new(0.0, 0.1, 0.0), Vec3::Y),
-        LoadoutPreviewCamera,
-    ));
-
-    commands.spawn((
-        PointLight {
-            color: Color::srgb(0.95, 0.95, 1.0),
-            intensity: 50_000.0,
-            range: 20.0,
-            shadow_maps_enabled: true,
-            ..default()
-        },
-        Transform::from_translation(PREVIEW_ORIGIN + Vec3::new(2.0, 3.0, 3.0)),
-        LoadoutPreviewLight,
-    ));
-    commands.spawn((
-        PointLight {
-            color: Color::srgb(0.4, 0.5, 0.8),
-            intensity: 20_000.0,
-            range: 15.0,
-            shadow_maps_enabled: false,
-            ..default()
-        },
-        Transform::from_translation(PREVIEW_ORIGIN + Vec3::new(-2.0, 1.0, -1.0)),
-        LoadoutPreviewLight,
-    ));
+    // 3D camera + scene are handled by the Menu3dCamera (persistent lobby camera).
+    // Weapon preview model is spawned by update_loadout_preview_model.
 }
 
 pub fn cleanup_loadout_scene(
     mut commands: Commands,
-    camera_query: Query<Entity, With<LoadoutPreviewCamera>>,
     model_query: Query<Entity, With<LoadoutPreviewModel>>,
-    light_query: Query<Entity, With<LoadoutPreviewLight>>,
 ) {
-    for entity in camera_query.iter() { commands.entity(entity).despawn(); }
     for entity in model_query.iter() { commands.entity(entity).despawn(); }
-    for entity in light_query.iter() { commands.entity(entity).despawn(); }
 }
 
 pub fn spawn_loadout_menu(
@@ -1139,12 +1104,13 @@ fn format_loadout_summary(loadout: &PlayerLoadout, registry: &WeaponRegistry) ->
 
 pub fn handle_loadout_drag(
     mouse_input: Res<ButtonInput<MouseButton>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     windows: Query<&Window>,
     mut drag_state: ResMut<LoadoutDragState>,
     mut model_query: Query<&mut Transform, With<LoadoutPreviewModel>>,
-    mut camera_query: Query<&mut Transform, (With<LoadoutPreviewCamera>, Without<LoadoutPreviewModel>)>,
     mut scroll_events: MessageReader<bevy::input::mouse::MouseWheel>,
     time: Res<Time>,
+    cam_pose: Res<crate::menu::main_menu::CameraPose>,
 ) {
     let Ok(window) = windows.single() else { return };
 
@@ -1163,7 +1129,12 @@ pub fn handle_loadout_drag(
     if drag_state.dragging {
         if let Some(pos) = window.cursor_position() {
             let delta = pos - drag_state.last_pos;
-            drag_state.rotation_y += delta.x * 0.01;
+            // Shift + horizontal drag → roll; otherwise → yaw
+            if keyboard_input.pressed(KeyCode::ShiftLeft) || keyboard_input.pressed(KeyCode::ShiftRight) {
+                drag_state.rotation_z += delta.x * 0.01;
+            } else {
+                drag_state.rotation_y += delta.x * 0.01;
+            }
             drag_state.rotation_x = (drag_state.rotation_x + delta.y * 0.01).clamp(-1.2, 1.2);
             drag_state.last_pos = pos;
         }
@@ -1171,8 +1142,10 @@ pub fn handle_loadout_drag(
         let speed = 4.0 * time.delta_secs();
         drag_state.rotation_y += (0.0 - drag_state.rotation_y) * speed;
         drag_state.rotation_x += (0.0 - drag_state.rotation_x) * speed;
+        drag_state.rotation_z += (0.0 - drag_state.rotation_z) * speed;
         if drag_state.rotation_y.abs() < 0.001 { drag_state.rotation_y = 0.0; }
         if drag_state.rotation_x.abs() < 0.001 { drag_state.rotation_x = 0.0; }
+        if drag_state.rotation_z.abs() < 0.001 { drag_state.rotation_z = 0.0; }
     }
 
     let cursor_over_list = if let Some(cursor_pos) = window.cursor_position() {
@@ -1183,20 +1156,18 @@ pub fn handle_loadout_drag(
 
     if !cursor_over_list {
         for event in scroll_events.read() {
-            drag_state.zoom = (drag_state.zoom - event.y * 0.15).clamp(0.5, 5.0);
+            drag_state.zoom = (drag_state.zoom - event.y * 0.15).clamp(-0.5, 1.5);
         }
     }
 
+    // Position the weapon preview model in front of the lobby camera.
+    let preview_pos = cam_pose.translation + cam_pose.forward * (PREVIEW_DIST + drag_state.zoom);
     for mut transform in model_query.iter_mut() {
-        transform.translation = PREVIEW_ORIGIN;
-        transform.rotation = Quat::from_rotation_y(drag_state.rotation_y)
-            * Quat::from_rotation_x(drag_state.rotation_x);
-    }
-
-    for mut cam_transform in camera_query.iter_mut() {
-        let offset = Vec3::new(0.0, 0.3, drag_state.zoom);
-        cam_transform.translation = PREVIEW_ORIGIN + offset;
-        cam_transform.look_at(PREVIEW_ORIGIN + Vec3::new(0.0, 0.1, 0.0), Vec3::Y);
+        transform.translation = preview_pos;
+        transform.rotation = base_rotation()
+            * Quat::from_rotation_y(drag_state.rotation_y)
+            * Quat::from_rotation_x(drag_state.rotation_x)
+            * Quat::from_rotation_z(drag_state.rotation_z);
     }
 }
 
@@ -1209,6 +1180,7 @@ pub fn update_loadout_preview_model(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     drag_state: Res<LoadoutDragState>,
+    cam_pose: Res<crate::menu::main_menu::CameraPose>,
 ) {
     if !ui_state.preview_needs_update {
         return;
@@ -1219,20 +1191,25 @@ pub fn update_loadout_preview_model(
         commands.entity(entity).despawn();
     }
 
+    let preview_pos = cam_pose.translation + cam_pose.forward * (PREVIEW_DIST + drag_state.zoom);
+
     if let Some(weapon_id) = &ui_state.selected_weapon_id {
         if let Some(config) = registry.weapons.get(weapon_id) {
             let model_file = config.meta.model_path.split('#').next().unwrap_or("");
             let model_exists = !model_file.is_empty()
                 && std::path::Path::new(&format!("assets/{}", model_file)).exists();
 
-            let scale = config.meta.scale * 3.0;
-            let rotation = Quat::from_rotation_y(drag_state.rotation_y);
+            let scale = 0.3;
+            let rotation = base_rotation()
+                * Quat::from_rotation_y(drag_state.rotation_y)
+                * Quat::from_rotation_x(drag_state.rotation_x)
+                * Quat::from_rotation_z(drag_state.rotation_z);
 
             if model_exists {
                 let skin = ui_state.selected_skin;
                 commands.spawn((
                     WorldAssetRoot(asset_server.load(&config.meta.model_path)),
-                    Transform::from_translation(PREVIEW_ORIGIN)
+                    Transform::from_translation(preview_pos)
                         .with_rotation(rotation)
                         .with_scale(Vec3::splat(scale)),
                     LoadoutPreviewModel,
@@ -1260,7 +1237,7 @@ pub fn update_loadout_preview_model(
                 commands.spawn((
                     Mesh3d(mesh),
                     MeshMaterial3d(mat),
-                    Transform::from_translation(PREVIEW_ORIGIN)
+                    Transform::from_translation(preview_pos)
                         .with_rotation(rotation)
                         .with_scale(Vec3::ONE),
                     LoadoutPreviewModel,

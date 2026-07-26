@@ -206,10 +206,12 @@ fn tcp_message_to_event(msg: noctyrn_shared::protocol::ServerMessage) -> Network
             lobby_id,
             server_addr,
             udp_port,
+            map_id,
         } => NetworkEvent::MatchFound {
             lobby_id,
             server_addr,
             udp_port,
+            map_id,
         },
         ServerMessage::LobbyError { message } | ServerMessage::AuthError { message } | ServerMessage::Error { message } => {
             NetworkEvent::ConnectionError { message }

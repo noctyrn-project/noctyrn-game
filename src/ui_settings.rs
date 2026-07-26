@@ -339,6 +339,8 @@ fn spawn_debug_settings(commands: &mut Commands, parent: Entity, settings: &Game
     spawn_toggle(commands, parent, "Show Vertex Count", settings.debug.show_vertex_count, SettingAction::ToggleVertexCount);
     spawn_toggle(commands, parent, "Show Entity Count", settings.debug.show_resource_usage, SettingAction::ToggleResourceUsage);
     spawn_toggle(commands, parent, "Show Speed", settings.debug.show_speed, SettingAction::ToggleSpeed);
+    spawn_toggle(commands, parent, "Show Coordinates", settings.debug.show_coords, SettingAction::ToggleCoords);
+    spawn_toggle(commands, parent, "Show Rotation", settings.debug.show_rotation, SettingAction::ToggleRotation);
     spawn_toggle(commands, parent, "Show Hitboxes", settings.debug.show_hitboxes, SettingAction::ToggleHitboxes);
     spawn_toggle(commands, parent, "Debug Crosshair Info", settings.debug.show_crosshair_debug, SettingAction::ToggleCrosshairDebug);
     spawn_toggle(commands, parent, "Show Wireframe", settings.debug.show_wireframe, SettingAction::ToggleWireframe);
@@ -554,6 +556,8 @@ pub enum SettingAction {
     ToggleVertexCount,
     TogglePing,
     ToggleSpeed,
+    ToggleCoords,
+    ToggleRotation,
     ToggleCrosshairDebug,
     CycleResolution,
     CycleTextureQuality,
@@ -647,6 +651,8 @@ pub fn handle_settings_interaction(
                 SettingAction::ToggleVertexCount => game_settings.debug.show_vertex_count,
                 SettingAction::TogglePing => game_settings.debug.show_ping,
                 SettingAction::ToggleSpeed => game_settings.debug.show_speed,
+                SettingAction::ToggleCoords => game_settings.debug.show_coords,
+                SettingAction::ToggleRotation => game_settings.debug.show_rotation,
                 SettingAction::ToggleCrosshairDebug => game_settings.debug.show_crosshair_debug,
                 _ => false,
             };
@@ -685,6 +691,8 @@ pub fn handle_settings_interaction(
                     for entity in menu_query.iter() {
                         commands.entity(entity).despawn();
                     }
+                    // Signal the menu camera system to revert to default view.
+                    commands.insert_resource(crate::menu::main_menu::PendingCameraRevert(true));
                 } else if let Some(toggle) = toggle {
                     match toggle.action {
                         SettingAction::ToggleSprint => game_settings.gameplay.toggle_sprint = !game_settings.gameplay.toggle_sprint,
@@ -701,6 +709,8 @@ pub fn handle_settings_interaction(
                         SettingAction::ToggleVertexCount => game_settings.debug.show_vertex_count = !game_settings.debug.show_vertex_count,
                         SettingAction::TogglePing => game_settings.debug.show_ping = !game_settings.debug.show_ping,
                         SettingAction::ToggleSpeed => game_settings.debug.show_speed = !game_settings.debug.show_speed,
+                        SettingAction::ToggleCoords => game_settings.debug.show_coords = !game_settings.debug.show_coords,
+                        SettingAction::ToggleRotation => game_settings.debug.show_rotation = !game_settings.debug.show_rotation,
                         SettingAction::ToggleCrosshairDebug => game_settings.debug.show_crosshair_debug = !game_settings.debug.show_crosshair_debug,
                         _ => {}
                     }

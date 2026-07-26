@@ -254,6 +254,9 @@ impl Plugin for MenuPlugin {
         app.init_resource::<chat::ChatInput>();
         app.init_resource::<chat::ChatOpen>();
         app.init_resource::<ActiveInput>();
+        app.init_resource::<main_menu::MenuCameraAnim>();
+        app.init_resource::<main_menu::CameraPose>();
+        app.init_resource::<main_menu::PendingCameraRevert>();
 
         // Chat system (runs in all states)
 
@@ -264,7 +267,10 @@ impl Plugin for MenuPlugin {
         ));
         app.add_systems(OnExit(GameState::MainMenu), (
             main_menu::despawn_main_menu,
-            main_menu::cleanup_main_menu_scene,
+            // Keep the 3D scene (camera + lobby GLB + lights) alive across
+            // sub-menu states so it serves as the background everywhere.
+            // Only cleanup_main_menu_scene is removed — the scene persists
+            // until `OnEnter(Playing)` calls `cleanup_menu_3d`.
             main_menu::despawn_escape_menu,
             main_menu::despawn_server_notification,
             party::despawn_party_indicator,
@@ -278,12 +284,31 @@ impl Plugin for MenuPlugin {
         app.add_systems(Update, main_menu::main_menu_hover.run_if(in_state(GameState::MainMenu)));
         app.add_systems(Update, main_menu::main_menu_profile_handler.run_if(in_state(GameState::MainMenu)));
         app.add_systems(Update, (
-            main_menu::rotate_main_menu_pill,
             main_menu::matchmaking_notifier_update,
             main_menu::main_menu_matchmaking_handler,
             main_menu::game_mode_selector_visibility,
             main_menu::server_connection_notification,
         ).run_if(in_state(GameState::MainMenu)));
+
+        // Camera animation + freecam run during any menu state.
+        app.add_systems(Update, main_menu::update_menu_camera.run_if(
+            in_state(GameState::MainMenu)
+            .or(in_state(GameState::LoadoutSelect))
+            .or(in_state(GameState::CrateOpening))
+            .or(in_state(GameState::GameModeSelect))
+            .or(in_state(GameState::Cosmetics)),
+        ));
+        app.add_systems(Update, (
+            main_menu::menu_camera_look,
+            main_menu::menu_freecam_movement,
+            main_menu::menu_freecam_toggle,
+        ).run_if(
+            in_state(GameState::MainMenu)
+            .or(in_state(GameState::LoadoutSelect))
+            .or(in_state(GameState::CrateOpening))
+            .or(in_state(GameState::GameModeSelect))
+            .or(in_state(GameState::Cosmetics)),
+        ));
 
         // Profile overlay (within MainMenu)
         app.add_systems(Update, (
@@ -310,11 +335,13 @@ impl Plugin for MenuPlugin {
 
         app.add_systems(OnEnter(GameState::LoadoutSelect), (
             loadout::setup_loadout_scene,
+            main_menu::setup_loadout_camera,
             loadout::spawn_loadout_menu,
         ));
         app.add_systems(OnExit(GameState::LoadoutSelect), (
             loadout::despawn_loadout_menu,
             loadout::cleanup_loadout_scene,
+            main_menu::revert_menu_camera,
         ));
         app.add_systems(Update, (
             loadout::loadout_interaction,
@@ -327,7 +354,10 @@ impl Plugin for MenuPlugin {
         app.add_systems(OnEnter(GameState::CrateOpening), (
             ensure_menu_camera, crate_menu::spawn_crate_menu,
         ));
-        app.add_systems(OnExit(GameState::CrateOpening), crate_menu::despawn_crate_menu);
+        app.add_systems(OnExit(GameState::CrateOpening), (
+            crate_menu::despawn_crate_menu,
+            main_menu::revert_menu_camera,
+        ));
         app.add_systems(Update, (
             crate_menu::crate_interaction,
             crate_menu::update_crate_animation,
@@ -338,7 +368,10 @@ impl Plugin for MenuPlugin {
         app.add_systems(OnEnter(GameState::GameModeSelect), (
             ensure_menu_camera, gamemode::spawn_gamemode_menu,
         ));
-        app.add_systems(OnExit(GameState::GameModeSelect), gamemode::despawn_gamemode_menu);
+        app.add_systems(OnExit(GameState::GameModeSelect), (
+            gamemode::despawn_gamemode_menu,
+            main_menu::revert_menu_camera,
+        ));
         app.add_systems(Update, (
             gamemode::gamemode_interaction,
             gamemode::gamemode_hover,
@@ -347,14 +380,20 @@ impl Plugin for MenuPlugin {
         app.add_systems(OnEnter(GameState::Cosmetics), (
             ensure_menu_camera, cosmetics::spawn_cosmetics_menu,
         ));
-        app.add_systems(OnExit(GameState::Cosmetics), cosmetics::despawn_cosmetics_menu);
+        app.add_systems(OnExit(GameState::Cosmetics), (
+            cosmetics::despawn_cosmetics_menu,
+            main_menu::revert_menu_camera,
+        ));
         app.add_systems(Update, (
             cosmetics::cosmetics_interaction,
             cosmetics::cosmetics_hover,
             cosmetics::sell_confirm_interaction,
         ).run_if(in_state(GameState::Cosmetics)));
 
-        app.add_systems(OnEnter(GameState::Playing), despawn_menu_camera);
+        app.add_systems(OnEnter(GameState::Playing), (
+            main_menu::cleanup_menu_3d,
+            despawn_menu_camera,
+        ));
 
         // Party indicator overlay (spawn/despawn based on party_state)
         app.add_systems(Update, party::spawn_party_indicator.run_if(in_state(GameState::MainMenu)));

@@ -8,6 +8,7 @@ mod world;
 mod weapons;
 mod gameplay;
 mod gamemodes;
+mod maps;
 mod ui_config;
 mod settings;
 mod ui_settings;

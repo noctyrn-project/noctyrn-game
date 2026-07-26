@@ -80,17 +80,23 @@ pub fn spawn_cosmetics_menu(
         }
     }
 
+    // Centered card with dark background — lobby scene shows through around it.
     commands.spawn((
         Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
+            position_type: PositionType::Absolute,
+            left: Val::Percent(5.0),
+            top: Val::Percent(5.0),
+            width: Val::Percent(90.0),
+            height: Val::Percent(90.0),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             padding: UiRect::all(Val::Px(40.0)),
             row_gap: Val::Px(16.0),
+            border: UiRect::all(Val::Px(1.0)),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.03, 0.03, 0.06)),
+        BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.96)),
+        BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
         CosmeticsMenuUi,
     )).with_children(|root| {
         root.spawn(Node {

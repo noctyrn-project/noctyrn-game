@@ -182,7 +182,7 @@ pub enum NetworkEvent {
     PartyUpdate { party: noctyrn_shared::lobby::PartyInfo },
     PartyError { message: String },
     MatchmakingUpdate { players_in_queue: u32 },
-    MatchFound { lobby_id: uuid::Uuid, server_addr: String, udp_port: u16 },
+    MatchFound { lobby_id: uuid::Uuid, server_addr: String, udp_port: u16, map_id: String },
     LobbyUpdate { lobby: noctyrn_shared::lobby::LobbyState },
     TcpAuthenticated,
     TcpDisconnected,

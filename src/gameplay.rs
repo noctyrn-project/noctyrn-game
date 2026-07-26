@@ -8,8 +8,15 @@ use crate::ui_config::UiConfig;
 use crate::menu::{GameMode, SelectedGameMode};
 use crate::weapons::PlayerCredits;
 use crate::player::{MainCamera, PhysicalTranslation, PreviousPhysicalTranslation, Velocity};
-use crate::gamemodes::team_deathmatch::TeamSpawnArea;
 use rand::Rng;
+
+/// Spawn area for a team. Placed per-map by the map loader.
+#[derive(Component)]
+pub struct TeamSpawnArea {
+    pub center: Vec3,
+    pub radius: f32,
+    pub team: u8,
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Match State & Scoring

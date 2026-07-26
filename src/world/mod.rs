@@ -7,52 +7,73 @@ use bevy::{
 use bevy::camera::visibility::RenderLayers;
 
 pub mod objects;
+
 use crate::settings::GameSettings;
 use crate::player::GameState;
 use crate::menu::SelectedGameMode;
 use crate::gamemodes;
+use crate::maps;
 
 /// Marker component for all game-world entities that should be cleaned up between maps.
 #[derive(Component)]
 pub struct GameWorldEntity;
 
+/// Marker for the main directional light that users can configure shadow quality on.
+#[derive(Component)]
+pub struct MainLight;
+
+/// Name of the currently active map (loaded by MapId).
+/// Stored as a resource so `spawn_game_map` knows which map to build.
+#[derive(Resource, Clone)]
+pub struct SelectedMapId(pub String);
+
+impl Default for SelectedMapId {
+    fn default() -> Self {
+        Self("testing_grounds".into())
+    }
+}
+
 pub struct World;
 
 impl Plugin for World {
     fn build(&self, app: &mut App) {
+        app.init_resource::<SelectedMapId>();
         app.add_systems(OnEnter(GameState::Playing), spawn_game_map);
         app.add_systems(OnExit(GameState::Playing), despawn_game_map);
-        app.add_systems(Update, (update_lighting, objects::update_moving_targets, objects::update_popup_targets, objects::update_glass_shards)
-            .run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, (
+            update_lighting,
+            objects::update_moving_targets,
+            objects::update_popup_targets,
+            objects::update_glass_shards,
+        ).run_if(in_state(GameState::Playing)));
     }
 }
 
-/// Spawn the appropriate map based on the selected gamemode.
+/// Spawn the appropriate map based on the selected MapId + GameMode.
 fn spawn_game_map(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    selected_map: Res<SelectedMapId>,
     selected_mode: Res<SelectedGameMode>,
+    asset_server: Res<AssetServer>,
 ) {
-    // Always spawn ground + lighting
-    init(&mut commands, &mut meshes, &mut materials, &mut images);
-
-    // Delegate to per-gamemode module for map geometry
-    gamemodes::spawn_map_for_mode(
-        selected_mode.mode,
+    // Try GLB-based map first.
+    let handled = maps::spawn_map_by_id(
+        &selected_map.0,
         &mut commands,
         &mut meshes,
         &mut materials,
+        &asset_server,
     );
 
-    // Spawn mode-specific entities (flags, zones, etc.)
-    gamemodes::spawn_mode_entities(
-        selected_mode.mode,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    );
+    if !handled {
+        // Fall back to procedural map (ground + per-gamemode geometry).
+        init(&mut commands, &mut meshes, &mut materials, &mut images);
+        gamemodes::spawn_map_for_mode(selected_mode.mode, &mut commands, &mut meshes, &mut materials);
+        gamemodes::spawn_mode_entities(selected_mode.mode, &mut commands, &mut meshes, &mut materials);
+    }
 }
 
 /// Despawn all game-world entities when leaving Playing state.
@@ -94,8 +115,6 @@ fn update_lighting(
                 "Low" => false,
                 _ => true,
             };
-            // You could also adjust shadow map size here if Bevy exposed it easily on the component,
-            // but usually that's a resource configuration. For now, toggling shadows is a good start.
         }
     }
 }
@@ -112,7 +131,7 @@ pub fn init(
 
     // Create a material with the grid texture
     let material_handle = materials.add(StandardMaterial {
-        base_color: Color::WHITE, // Tint
+        base_color: Color::WHITE,
         base_color_texture: Some(texture_handle),
         perceptual_roughness: 0.8,
         metallic: 0.2,
@@ -141,7 +160,7 @@ pub fn init(
     for (i, pos) in light_positions.iter().enumerate() {
         commands.spawn((
             PointLight {
-                shadow_maps_enabled: i == 0, // Only main light casts shadows
+                shadow_maps_enabled: i == 0,
                 intensity: 15_000_000.0,
                 range: 200.0,
                 ..default()
@@ -163,13 +182,12 @@ fn create_grid_image() -> Image {
         depth_or_array_layers: 1,
     };
     let mut pixel_data = Vec::with_capacity((width * height * 4) as usize);
-    
+
     let dark_grey = [40, 40, 40, 255];
     let light_grey = [100, 100, 100, 255];
 
     for y in 0..height {
         for x in 0..width {
-            // Draw a grid line every 20 pixels (50 cells total)
             if x % 20 < 2 || y % 20 < 2 {
                 pixel_data.extend_from_slice(&light_grey);
             } else {
@@ -185,16 +203,10 @@ fn create_grid_image() -> Image {
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::RENDER_WORLD,
     );
-    
-    // Set the sampler to repeat (though we map 0..1 so it doesn't matter much, but good practice)
     image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
         address_mode_u: ImageAddressMode::Repeat,
         address_mode_v: ImageAddressMode::Repeat,
         ..default()
     });
-    
     image
 }
-
-#[derive(Component)]
-pub struct MainLight;

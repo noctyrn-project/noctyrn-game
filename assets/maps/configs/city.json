@@ -1,0 +1,12 @@
+{
+  "glb": "maps/city.glb#Scene0",
+  "scale": 1.0,
+  "lights": [
+    {"position": [0.0, 40.0, 0.0], "intensity": 30000000.0, "shadows": true},
+    {"position": [60.0, 30.0, 60.0], "intensity": 15000000.0, "shadows": false},
+    {"position": [-60.0, 30.0, -60.0], "intensity": 15000000.0, "shadows": false}
+  ],
+  "colliders": [
+    
+  ]
+}

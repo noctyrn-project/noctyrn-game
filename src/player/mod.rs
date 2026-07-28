@@ -141,6 +141,8 @@ pub struct LocalPlayer;
 #[derive(Component)]
 pub struct RemotePlayer {
     pub server_id: uuid::Uuid,
+    pub health: f32,
+    pub username: String,
 }
 
 impl Plugin for Player {
@@ -624,6 +626,7 @@ fn despawn_gameplay_ui(
     health_ui_query: Query<Entity, Or<(With<crate::gameplay::PlayerHealthUi>, With<crate::gameplay::PlayerHealthBar>, With<crate::gameplay::DeathScreen>)>>,
     camera_query: Query<Entity, With<Camera>>,
     player_query: Query<Entity, With<PlayerBody>>,
+    remote_player_query: Query<Entity, With<RemotePlayer>>,
     projectile_query: Query<Entity, With<Projectile>>,
     flash_query: Query<Entity, With<MuzzleFlash>>,
     grenade_query: Query<Entity, With<Grenade>>,
@@ -635,6 +638,7 @@ fn despawn_gameplay_ui(
         .chain(health_ui_query.iter())
         .chain(camera_query.iter())
         .chain(player_query.iter())
+        .chain(remote_player_query.iter())
         .chain(projectile_query.iter())
         .chain(flash_query.iter())
         .chain(grenade_query.iter())
@@ -776,6 +780,8 @@ fn pause_menu_action(
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
     mut pause_open: ResMut<PauseMenuOpen>,
     mut player_query: Query<(&mut Health, &mut PhysicalTranslation, &mut Velocity), With<PlayerBody>>,
+    tcp: Option<Res<crate::net::tcp::TcpClient>>,
+    rt: Option<Res<crate::net::TokioRuntime>>,
 ) {
     if !pause_open.0 { return; }
 
@@ -803,6 +809,13 @@ fn pause_menu_action(
                 }
                 PauseMenuButton::MainMenu => {
                     pause_open.0 = false;
+                    if let (Some(tcp_res), Some(rt_res)) = (tcp.as_ref(), rt.as_ref()) {
+                        let tc = (*tcp_res).clone();
+                        let rt_handle = rt_res.0.clone();
+                        rt_handle.spawn(async move {
+                            let _ = tc.send(&noctyrn_shared::protocol::ClientMessage::LeaveGame).await;
+                        });
+                    }
                     next_state.set(GameState::MainMenu);
                 }
                 PauseMenuButton::Quit => {

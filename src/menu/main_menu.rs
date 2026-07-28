@@ -95,8 +95,8 @@ pub const CAMERA_LOADOUT_LOOK_AT: Vec3 = Vec3::new(-11.0, 1.7, 4.0);
 pub const CAMERA_SETTINGS_TRANSLATION: Vec3 = Vec3::new(0.0, 1.7, 3.0);
 pub const CAMERA_SETTINGS_LOOK_AT: Vec3 = Vec3::new(0.0, 1.7, 16.0);
 // MATCHMAKING: pan 90° right.
-pub const CAMERA_MATCHMAKING_TRANSLATION: Vec3 = Vec3::new(-2.0, 1.7, 5.0);
-pub const CAMERA_MATCHMAKING_LOOK_AT: Vec3 = Vec3::new(11.0, 1.7, 6.0);
+pub const CAMERA_MATCHMAKING_TRANSLATION: Vec3 = Vec3::new(-2.0, 1.7, 4.0);
+pub const CAMERA_MATCHMAKING_LOOK_AT: Vec3 = Vec3::new(11.0, 1.7, 4.0);
 #[derive(Component)]
 pub struct ServerDisconnectedNotif;
 

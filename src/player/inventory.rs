@@ -51,6 +51,8 @@ pub fn handle_weapon_switching(
     asset_server: Res<AssetServer>,
     weapon_registry: Res<WeaponRegistry>,
     loadout: Res<PlayerLoadout>,
+    tcp: Option<Res<crate::net::tcp::TcpClient>>,
+    rt: Option<Res<crate::net::TokioRuntime>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -125,13 +127,24 @@ pub fn handle_weapon_switching(
                 if inventory.switch_state == SwitchState::Idle {
                     inventory.target_slot = Some(t);
                     inventory.switch_state = SwitchState::Unequipping;
-                    
+
                     // Set timer based on current weapon unequip speed (using equip_speed for now)
                     let speed = weapon_registry.configs.get(&inventory.active_slot)
                         .map(|c| c.attributes.equip_speed)
                         .unwrap_or(0.5);
                     inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));
                     inventory.switch_timer.reset();
+
+                    // Notify server immediately so other clients see the weapon change
+                    // without waiting for the equip animation to finish.
+                    if let (Some(tcp_res), Some(rt_res)) = (tcp.as_ref(), rt.as_ref()) {
+                        let tc = (*tcp_res).clone();
+                        let rt_handle = rt_res.0.clone();
+                        let wid = loadout.get_id_for_slot(t).to_string();
+                        rt_handle.spawn(async move {
+                            let _ = tc.send(&noctyrn_shared::protocol::ClientMessage::SwitchWeapon { weapon_id: wid }).await;
+                        });
+                    }
                     
                 } else if inventory.switch_state == SwitchState::Unequipping {
                      // Change target mid-unequip

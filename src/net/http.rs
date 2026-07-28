@@ -92,7 +92,9 @@ pub fn spawn_http_request(
 
 /// Async function: login request
 pub async fn async_login(base_url: String, email: String, password: String) -> NetworkEvent {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build().unwrap_or_else(|_| reqwest::Client::new());
     let url = format!("{}/auth/login", base_url);
 
     match client.post(&url).json(&LoginRequest { email, password }).send().await {
@@ -122,7 +124,9 @@ pub async fn async_login(base_url: String, email: String, password: String) -> N
 
 /// Async function: register request
 pub async fn async_register(base_url: String, username: String, email: String, password: String) -> NetworkEvent {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build().unwrap_or_else(|_| reqwest::Client::new());
     let url = format!("{}/auth/register", base_url);
 
     match client.post(&url).json(&RegisterRequest { username, email, password }).send().await {

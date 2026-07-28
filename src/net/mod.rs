@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use std::sync::Arc;
+use rand::Rng;
 use crate::player::GameState;
 use crate::gameplay::Health;
 use crate::player::{PhysicalTranslation, PreviousPhysicalTranslation, Velocity};
@@ -9,6 +10,12 @@ pub mod tcp;
 pub mod udp;
 pub mod prediction;
 pub mod interpolation;
+
+#[derive(Component)]
+pub struct RemoteHealthBarFill;
+
+#[derive(Component)]
+pub struct RemoteHealthBarBg;
 
 // ---------------------------------------------------------------------------
 // Server connection configuration
@@ -225,6 +232,8 @@ impl Plugin for NetworkPlugin {
         app.add_systems(OnEnter(GameState::Playing), send_loadout);
         app.add_systems(Update, reconcile_prediction.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, cleanup_muzzle_flashes.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, update_remote_health_bars.after(process_snapshots).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, update_3d_damage_numbers.after(process_snapshots).run_if(in_state(GameState::Playing)));
     }
 }
 
@@ -298,7 +307,7 @@ fn handle_network_events(
 fn process_snapshots(
     udp: Res<udp::UdpClient>,
     mut commands: Commands,
-    mut remote_query: Query<(Entity, &mut crate::player::RemotePlayer, &mut Transform)>,
+    mut remote_query: Query<(Entity, &mut crate::player::RemotePlayer, &mut Transform, &mut Visibility)>,
     mut local_query: Query<
         (Entity, &mut Transform, &mut PhysicalTranslation, &mut PreviousPhysicalTranslation, &mut Velocity, &mut Health),
         (With<crate::player::LocalPlayer>, Without<crate::player::RemotePlayer>),
@@ -410,15 +419,21 @@ fn process_snapshots(
                     );
                     let dir_v = Vec3::new(dir[0], dir[1], dir[2]);
                     if show_trail {
-                        commands.spawn((
-                            Mesh3d(meshes.add(Capsule3d::new(0.04, 0.2))),
+                        let dir_norm = dir_v.normalize_or_zero();
+                        let rot = if dir_norm.length_squared() > 0.001 {
+                            Quat::from_rotation_arc(Vec3::Z, dir_norm)
+                        } else {
+                            Quat::IDENTITY
+                        };
+                        let beam = commands.spawn((
+                            Mesh3d(meshes.add(Cuboid::new(0.02, 0.02, 2.5))),
                             MeshMaterial3d(materials.add(StandardMaterial {
-                                base_color: Color::srgb(1.0, 0.8, 0.2),
-                                emissive: LinearRgba::rgb(2.0, 1.0, 0.3),
+                                base_color: Color::srgb(1.0, 0.85, 0.2),
+                                emissive: LinearRgba::rgb(5.0, 2.5, 0.4),
                                 ..default()
                             })),
                             Transform::from_translation(origin_v)
-                                .with_rotation(Quat::from_scaled_axis(Vec3::Y.into())),
+                                .with_rotation(rot),
                             crate::player::shooting::Projectile {
                                 velocity: dir_v * speed,
                                 timer: Timer::from_seconds(
@@ -429,7 +444,17 @@ fn process_snapshots(
                                 from_player: false,
                                 source_name: String::new(),
                             },
-                        ));
+                        )).with_children(|b| {
+                            b.spawn((
+                                PointLight {
+                                    color: Color::srgb(1.0, 0.8, 0.2),
+                                    intensity: 600.0,
+                                    range: 3.0,
+                                    shadow_maps_enabled: false,
+                                    ..default()
+                                },
+                            ));
+                        });
                     } else {
                         let origin_entity = commands.spawn((
                             Mesh3d(meshes.add(Sphere::new(0.12))),
@@ -441,7 +466,7 @@ fn process_snapshots(
                             Transform::from_translation(origin_v),
                             MuzzleFlash { lifetime: 0.12 },
                         )).id();
-                        for (entity, rp, _) in remote_query.iter() {
+                        for (entity, rp, _, _) in remote_query.iter() {
                             if rp.server_id == *owner_id {
                                 commands.entity(entity).add_child(origin_entity);
                                 break;
@@ -454,8 +479,8 @@ fn process_snapshots(
                 info!("Player {player_id} respawned at ({:.1},{:.1},{:.1})", position[0], position[1], position[2]);
                 if let Some(lid) = local_player_id {
                     if *player_id == lid {
-                        // Remove local death state so the client can resume playing.
                         commands.remove_resource::<crate::gameplay::KillerInfo>();
+                        commands.remove_resource::<crate::gameplay::RespawnTimer>();
                     }
                 }
             }
@@ -463,6 +488,32 @@ fn process_snapshots(
                 if let Some(lid) = local_player_id {
                     if *target_id == lid {
                         info!("YOU took {damage} damage from {source_id}");
+                    } else if *source_id == lid {
+                        // We damaged someone — show floating damage number at their position.
+                        if let Some(p) = snapshot.players.iter().find(|p| p.id == *target_id) {
+                            let pos = Vec3::new(p.position[0], p.position[1] + 1.5, p.position[2]);
+                            let color = if *damage >= 50.0 {
+                                Color::srgb(1.0, 0.2, 0.2)
+                            } else {
+                                Color::srgb(1.0, 1.0, 0.3)
+                            };
+                            let mut rng = rand::rng();
+                            commands.spawn((
+                                Text2d::new(format!("{:.0}", damage)),
+                                TextFont { font_size: FontSize::Px(36.0), ..default() },
+                                TextColor(color),
+                                Transform::from_translation(pos),
+                                crate::gameplay::Billboard,
+                                crate::player::DamageNumber {
+                                    timer: Timer::from_seconds(1.0, TimerMode::Once),
+                                    velocity: Vec3::new(
+                                        rng.random_range(-0.5..0.5),
+                                        rng.random_range(1.0..2.0),
+                                        rng.random_range(-0.5..0.5),
+                                    ),
+                                },
+                            ));
+                        }
                     }
                 }
             }
@@ -471,19 +522,66 @@ fn process_snapshots(
                     scoreboard.scores.insert(*player_id, *player_score);
                 }
             }
+            noctyrn_shared::protocol::GameEvent::GrenadeExploded { owner_id, position, weapon, damage, radius } => {
+                info!("Grenade exploded at ({:.1},{:.1},{:.1}) from {owner_id} ({weapon}, dmg={damage})", position[0], position[1], position[2]);
+                let center = Vec3::new(position[0], position[1], position[2]);
+                let mut rng = rand::rng();
+                for _ in 0..25 {
+                    let dir = Vec3::new(
+                        rng.random_range(-1.0..1.0),
+                        rng.random_range(-1.0..1.0),
+                        rng.random_range(-1.0..1.0),
+                    ).normalize_or_zero();
+                    let speed = rng.random_range(2.0..8.0);
+                    let life = rng.random_range(1.0..2.5);
+                    let s = rng.random_range(0.5..1.5);
+                    let sx = rng.random_range(0.4..1.6);
+                    let sy = rng.random_range(0.4..1.6);
+                    let sz = rng.random_range(0.4..1.6);
+                    commands.spawn((
+                        Mesh3d(meshes.add(Cuboid::new(sx, sy, sz))),
+                        MeshMaterial3d(materials.add(StandardMaterial {
+                            base_color: Color::srgba(1.0, 1.0, 0.8, 0.8),
+                            alpha_mode: AlphaMode::Blend,
+                            unlit: true,
+                            ..default()
+                        })),
+                        Transform::from_translation(center)
+                            .with_scale(Vec3::splat(0.1))
+                            .with_rotation(Quat::from_euler(
+                                EulerRot::XYZ,
+                                rng.random_range(0.0..std::f32::consts::TAU),
+                                rng.random_range(0.0..std::f32::consts::TAU),
+                                rng.random_range(0.0..std::f32::consts::TAU),
+                            )),
+                        crate::player::shooting::ExplosionParticle {
+                            velocity: dir * speed,
+                            timer: Timer::from_seconds(life, TimerMode::Once),
+                            max_time: life,
+                            start_scale: 0.1,
+                            end_scale: s,
+                        },
+                    ));
+                }
+            }
         }
     }
 
     let known_ids: std::collections::HashSet<uuid::Uuid> =
-        remote_query.iter().map(|(_, rp, _)| rp.server_id).collect();
+        remote_query.iter().map(|(_, rp, _, _)| rp.server_id).collect();
 
-    // Update existing remote players: position, rotation, despawn if gone
-    for (entity, rp, mut transform) in remote_query.iter_mut() {
+    // Update existing remote players: position, rotation, health, despawn if gone
+    for (entity, mut rp, mut transform, mut visibility) in remote_query.iter_mut() {
         if let Some(p) = snapshot.players.iter().find(|p| p.id == rp.server_id) {
+            rp.health = p.health;
             let target = Vec3::new(p.position[0], p.position[1], p.position[2]);
             transform.translation = transform.translation.lerp(target, 0.3);
-            // Apply yaw rotation (around Y axis)
-            transform.rotation = Quat::from_rotation_y(p.yaw);
+            transform.rotation = Quat::from_euler(bevy::math::EulerRot::YXZ, p.yaw, p.pitch, 0.0);
+            *visibility = if p.health <= 0.0 {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
         } else {
             commands.entity(entity).despawn();
         }
@@ -503,12 +601,12 @@ fn process_snapshots(
 
         info!("Spawning remote player {} ({}) health={:.0}", p.username, p.id, p.health);
 
-        let remote = commands.spawn((
-            crate::player::RemotePlayer { server_id: p.id },
-            Transform::from_xyz(p.position[0], p.position[1], p.position[2])
-                .with_rotation(Quat::from_rotation_y(p.yaw)),
-            Visibility::default(),
-        )).id();
+            let remote = commands.spawn((
+                crate::player::RemotePlayer { server_id: p.id, health: p.health, username: p.username.clone() },
+                Transform::from_xyz(p.position[0], p.position[1], p.position[2])
+                    .with_rotation(Quat::from_euler(bevy::math::EulerRot::YXZ, p.yaw, p.pitch, 0.0)),
+                Visibility::default(),
+            )).id();
 
         commands.entity(remote).with_children(|parent| {
             parent.spawn((
@@ -532,12 +630,14 @@ fn process_snapshots(
                 MeshMaterial3d(bar_bg_mat.clone()),
                 Transform::from_translation(Vec3::new(0.0, 1.9, 0.0)),
                 crate::gameplay::Billboard,
+                RemoteHealthBarBg,
             ));
             parent.spawn((
                 Mesh3d(bar_mesh.clone()),
                 MeshMaterial3d(bar_fill_mat.clone()),
                 Transform::from_translation(Vec3::new(0.0, 1.9, 0.01)),
                 crate::gameplay::Billboard,
+                RemoteHealthBarFill,
             ));
 
             // Weapon model at right hip, ~1m above ground, facing forward.
@@ -589,10 +689,14 @@ fn process_snapshots(
         });
     }
 
-    for (entity, rp, _) in remote_query.iter_mut() {
+    for (entity, rp, _, _) in remote_query.iter_mut() {
         if !snapshot.players.iter().any(|p| p.id == rp.server_id) {
             let name = scoreboard.names.get(&rp.server_id).cloned().unwrap_or_else(|| "Unknown".to_string());
             info!("Player left: {name}");
+            scoreboard.kills.remove(&rp.server_id);
+            scoreboard.deaths.remove(&rp.server_id);
+            scoreboard.scores.remove(&rp.server_id);
+            scoreboard.names.remove(&rp.server_id);
             commands.entity(entity).despawn();
         }
     }
@@ -722,6 +826,40 @@ pub fn cleanup_muzzle_flashes(
     for (entity, mut flash) in query.iter_mut() {
         flash.lifetime -= time.delta_secs();
         if flash.lifetime <= 0.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+pub fn update_remote_health_bars(
+    remote_query: Query<(&crate::player::RemotePlayer, &Children)>,
+    mut fill_query: Query<&mut Transform, With<RemoteHealthBarFill>>,
+) {
+    for (rp, children) in remote_query.iter() {
+        let ratio = (rp.health / 100.0).clamp(0.0, 1.0);
+        for child in children.iter() {
+            if let Ok(mut transform) = fill_query.get_mut(child) {
+                transform.scale.x = ratio;
+            }
+        }
+    }
+}
+
+pub fn update_3d_damage_numbers(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut crate::player::DamageNumber, &mut Transform, &mut TextColor)>,
+) {
+    for (entity, mut number, mut transform, mut color) in query.iter_mut() {
+        number.timer.tick(time.delta());
+        let dt = time.delta_secs();
+        transform.translation += number.velocity * dt;
+        number.velocity.y *= 0.98;
+        number.velocity.x *= 0.95;
+        number.velocity.z *= 0.95;
+        let alpha = 1.0 - number.timer.fraction();
+        color.0 = color.0.with_alpha(alpha);
+        if number.timer.is_finished() {
             commands.entity(entity).despawn();
         }
     }

@@ -458,6 +458,9 @@ pub struct DeathScreenKillerText;
 pub struct DeathScreenTimerText;
 
 #[derive(Component)]
+pub struct DeathScreenHintText;
+
+#[derive(Component)]
 pub struct DeathScreenRespawnButton;
 
 fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
@@ -543,6 +546,13 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
             TextFont { font_size: FontSize::Px(24.0), ..default() },
             TextColor(Color::srgba(0.9, 0.9, 0.9, 1.0)),
             DeathScreenTimerText,
+        ));
+        // "Press SPACE to respawn" hint
+        parent.spawn((
+            Text::new("Press SPACE or click RESPAWN to respawn"),
+            TextFont { font_size: FontSize::Px(16.0), ..default() },
+            TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8)),
+            DeathScreenHintText,
         ));
         // Respawn button
         parent.spawn((
@@ -936,6 +946,7 @@ fn update_death_screen(
 fn death_screen_respawn_button(
     mut commands: Commands,
     interaction_query: Query<&Interaction, (Changed<Interaction>, With<DeathScreenRespawnButton>)>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<(&mut Health, &mut Transform, &mut PhysicalTranslation, &mut PreviousPhysicalTranslation, &mut Velocity), With<PlayerBody>>,
     timer: Option<Res<RespawnTimer>>,
     player_team: Option<Res<PlayerTeam>>,
@@ -945,34 +956,33 @@ fn death_screen_respawn_button(
     rt: Option<Res<crate::net::TokioRuntime>>,
 ) {
     if timer.is_none() { return; }
-    for interaction in interaction_query.iter() {
-        if *interaction == Interaction::Pressed {
-            // In multiplayer mode, send RequestRespawn to the server instead of
-            // respawning locally.
-            if let Some(tcp_res) = tcp.as_ref() {
-                if let Some(rt_res) = rt.as_ref() {
-                    let tc = (*tcp_res).clone();
-                    let rt_handle = rt_res.0.clone();
-                    rt_handle.spawn(async move {
-                        let msg = noctyrn_shared::protocol::ClientMessage::RequestRespawn;
-                        let _ = tc.send(&msg).await;
-                    });
-                    return;
-                }
-            }
-
-            // Single-player: local respawn
-            if let Some((mut health, mut transform, mut phys, mut prev_phys, mut velocity)) = player_query.iter_mut().next() {
-                health.current = health.max;
-                velocity.0 = Vec3::ZERO;
-                let spawn_pos = team_spawn_pos(&player_team, &spawn_areas, selected_mode.mode);
-                transform.translation = spawn_pos;
-                phys.0 = spawn_pos;
-                prev_phys.0 = spawn_pos;
-                commands.remove_resource::<RespawnTimer>();
-                commands.remove_resource::<KillerInfo>();
-            }
+    let should_respawn = interaction_query.iter().any(|i| *i == Interaction::Pressed)
+        || keyboard.just_pressed(KeyCode::Space);
+    if !should_respawn { return; }
+    // In multiplayer mode, send RequestRespawn to the server instead of
+    // respawning locally.
+    if let Some(tcp_res) = tcp.as_ref() {
+        if let Some(rt_res) = rt.as_ref() {
+            let tc = (*tcp_res).clone();
+            let rt_handle = rt_res.0.clone();
+            rt_handle.spawn(async move {
+                let msg = noctyrn_shared::protocol::ClientMessage::RequestRespawn;
+                let _ = tc.send(&msg).await;
+            });
+            return;
         }
+    }
+
+    // Single-player: local respawn
+    if let Some((mut health, mut transform, mut phys, mut prev_phys, mut velocity)) = player_query.iter_mut().next() {
+        health.current = health.max;
+        velocity.0 = Vec3::ZERO;
+        let spawn_pos = team_spawn_pos(&player_team, &spawn_areas, selected_mode.mode);
+        transform.translation = spawn_pos;
+        phys.0 = spawn_pos;
+        prev_phys.0 = spawn_pos;
+        commands.remove_resource::<RespawnTimer>();
+        commands.remove_resource::<KillerInfo>();
     }
 }
 

@@ -302,6 +302,7 @@ pub struct LocalFireState {
 
 pub fn send_shot_fired(
     mouse_input: Res<ButtonInput<MouseButton>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     udp: Res<crate::net::udp::UdpClient>,
     camera: Single<&Transform, With<super::MainCamera>>,
     rt: Res<crate::net::TokioRuntime>,
@@ -309,6 +310,7 @@ pub fn send_shot_fired(
     registry: Res<crate::weapons::WeaponRegistry>,
     loadout: Res<PlayerLoadout>,
     mut fire_state: ResMut<LocalFireState>,
+    keybinds: Res<super::Keybinds>,
 ) {
     if !udp.is_connected() {
         return;
@@ -316,7 +318,10 @@ pub fn send_shot_fired(
 
     fire_state.tick_counter += 1;
 
-    let should_fire = mouse_input.pressed(MouseButton::Left);
+    let slot = inventory.active_slot;
+    let is_grenade = slot == WeaponSlot::Equipment
+        && (keyboard_input.just_released(keybinds.grenade) || inventory.throw_queued);
+    let should_fire = mouse_input.pressed(MouseButton::Left) || is_grenade;
 
     if !should_fire {
         return;

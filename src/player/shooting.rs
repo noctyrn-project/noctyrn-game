@@ -685,11 +685,7 @@ pub fn fire_weapon(
                     .unwrap_or(0.0);
 
                 let num_projectiles = if pellet_count > 0 { pellet_count } else { 1 };
-                let per_pellet_damage = if pellet_count > 0 {
-                    damage / pellet_count as f32
-                } else {
-                    damage
-                };
+                let per_pellet_damage = damage;
 
                 let right = transform.right();
                 let up = transform.up();
@@ -708,15 +704,22 @@ pub fn fire_weapon(
                     let r1 = rng.random_range(-base_spread..base_spread);
                     let r2 = rng.random_range(-base_spread..base_spread);
                     let final_velocity = (forward.as_vec3() + right.as_vec3() * r1 + up.as_vec3() * r2).normalize() * speed;
+                    let dir_norm = final_velocity.normalize_or_zero();
+                    let rot = if dir_norm.length_squared() > 0.001 {
+                        Quat::from_rotation_arc(Vec3::Z, dir_norm)
+                    } else {
+                        Quat::IDENTITY
+                    };
 
                     commands.spawn((
-                        Mesh3d(meshes.add(Sphere::new(size))),
+                        Mesh3d(meshes.add(Cuboid::new(0.02, 0.02, 2.5))),
                         MeshMaterial3d(materials.add(StandardMaterial {
-                            base_color: color,
-                            emissive: LinearRgba::from(color) * 5.0,
+                            base_color: Color::srgb(1.0, 0.85, 0.2),
+                            emissive: LinearRgba::rgb(5.0, 2.5, 0.4),
                             ..default()
                         })),
-                        Transform::from_translation(spawn_pos),
+                        Transform::from_translation(spawn_pos)
+                            .with_rotation(rot),
                         Projectile {
                             velocity: final_velocity,
                             timer: Timer::from_seconds(3.0, TimerMode::Once),
@@ -724,7 +727,17 @@ pub fn fire_weapon(
                             from_player: true,
                             source_name: "Player".to_string(),
                         },
-                    ));
+                    )).with_children(|b| {
+                        b.spawn((
+                            PointLight {
+                                color: Color::srgb(1.0, 0.8, 0.2),
+                                intensity: 600.0,
+                                range: 3.0,
+                                shadow_maps_enabled: false,
+                                ..default()
+                            },
+                        ));
+                    });
                 }
 
                 // Apply Camera Recoil
@@ -1262,40 +1275,7 @@ pub fn move_projectiles(
 }
 
 /// Deterministic cone spread using a random seed + pellet index.
-/// Matches the server's `apply_spread_seeded` in `noctyrn-server/src/game/combat.rs`.
+/// Matches the implementation in `noctyrn_shared::spread`.
 pub fn apply_spread_seeded(dir: &[f32; 3], spread_rad: f32, seed: u64, index: u32) -> [f32; 3] {
-    if spread_rad <= 0.0 {
-        return *dir;
-    }
-    let mix = seed as f32 * 1.618034 + index as f32 * 3.141593;
-    let theta = (mix * 6.283185).fract() * 6.283185;
-    let r = (mix.fract() * 1.618034).fract().sqrt();
-    let phi = r * spread_rad;
-
-    let (sin_t, cos_t) = theta.sin_cos();
-    let (sin_p, cos_p) = phi.sin_cos();
-
-    let up = [0.0, 1.0, 0.0];
-    let right = [dir[1] * up[2] - dir[2] * up[1], dir[2] * up[0] - dir[0] * up[2], dir[0] * up[1] - dir[1] * up[0]];
-    let right_len = (right[0] * right[0] + right[1] * right[1] + right[2] * right[2]).sqrt();
-    let (right, up_local) = if right_len > 0.001 {
-        let r = [right[0] / right_len, right[1] / right_len, right[2] / right_len];
-        let u = [r[1] * dir[2] - r[2] * dir[1], r[2] * dir[0] - r[0] * dir[2], r[0] * dir[1] - r[1] * dir[0]];
-        (r, u)
-    } else {
-        ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
-    };
-
-    let spread_dir = [
-        dir[0] * cos_p + (right[0] * cos_t + up_local[0] * sin_t) * sin_p,
-        dir[1] * cos_p + (right[1] * cos_t + up_local[1] * sin_t) * sin_p,
-        dir[2] * cos_p + (right[2] * cos_t + up_local[2] * sin_t) * sin_p,
-    ];
-
-    let len = (spread_dir[0] * spread_dir[0] + spread_dir[1] * spread_dir[1] + spread_dir[2] * spread_dir[2]).sqrt();
-    if len > 0.001 {
-        [spread_dir[0] / len, spread_dir[1] / len, spread_dir[2] / len]
-    } else {
-        *dir
-    }
+    noctyrn_shared::spread::apply_spread_seeded(dir, spread_rad, seed, index)
 }

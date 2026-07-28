@@ -19,6 +19,9 @@ pub(crate) struct LoginFieldText(LoginField);
 #[derive(Component)]
 pub(crate) struct LoginErrorText;
 
+#[derive(Component)]
+pub(crate) struct LoginSubmitButtonText;
+
 #[derive(Component, Clone)]
 pub enum LoginButton {
     Login,
@@ -136,7 +139,7 @@ pub fn spawn_login_overlay(mut commands: Commands, login_state: Res<LoginUiState
                 BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
                 if is_register { LoginButton::Register } else { LoginButton::Login },
             )).with_children(|btn| {
-                btn.spawn((Text::new(if login_state.loading { "LOADING..." } else if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::WHITE)));
+                btn.spawn((Text::new(if login_state.loading { "LOADING..." } else if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::WHITE), LoginSubmitButtonText));
             });
 
             card.spawn((Text::new(login_state.error_message.as_deref().unwrap_or("")), TextFont { font_size: FontSize::Px(13.0), ..default() }, TextColor(Color::srgb(0.9, 0.2, 0.2)), LoginErrorText));
@@ -301,6 +304,9 @@ pub fn login_text_input(
     mut login_state: ResMut<LoginUiState>,
     mut active_input: ResMut<ActiveInput>,
     mut clipboard: ResMut<Clipboard>,
+    rt: Res<TokioRuntime>,
+    server_config: Res<ServerConfig>,
+    pending: Res<PendingRequests>,
 ) {
     if !login_state.show_overlay {
         active_input.set_if_neq(ActiveInput::None);
@@ -345,6 +351,11 @@ pub fn login_text_input(
                         LoginMode::Login => {
                             login_state.loading = true;
                             login_state.error_message = None;
+                            http::spawn_http_request(
+                                &rt,
+                                &pending,
+                                http::async_login(server_config.http_url.clone(), login_state.email.clone(), login_state.password.clone()),
+                            );
                         }
                         LoginMode::Register => {
                             if login_state.password != login_state.confirm_password {
@@ -357,6 +368,11 @@ pub fn login_text_input(
                             }
                             login_state.loading = true;
                             login_state.error_message = None;
+                            http::spawn_http_request(
+                                &rt,
+                                &pending,
+                                http::async_register(server_config.http_url.clone(), login_state.username.clone(), login_state.email.clone(), login_state.password.clone()),
+                            );
                         }
                     }
                 }
@@ -435,6 +451,7 @@ pub(crate) fn key_to_char(key: &KeyCode) -> Option<char> {
 pub fn update_login_display(
     login_state: Res<LoginUiState>,
     mut field_query: Query<(&mut Text, &LoginFieldText)>,
+    mut button_text_query: Query<&mut Text, (With<LoginSubmitButtonText>, Without<LoginFieldText>)>,
 ) {
     for (mut text, field) in field_query.iter_mut() {
         let (value, is_password) = match field.0 {
@@ -455,6 +472,16 @@ pub fn update_login_display(
             " ".to_string()
         } else {
             display
+        };
+    }
+    if let Ok(mut btn) = button_text_query.single_mut() {
+        let is_register = login_state.mode == LoginMode::Register;
+        **btn = if login_state.loading {
+            "LOADING...".to_string()
+        } else if is_register {
+            "CREATE ACCOUNT".to_string()
+        } else {
+            "LOGIN".to_string()
         };
     }
 }
@@ -534,6 +561,11 @@ pub fn login_handle_network_events(
             | NetworkEvent::ConnectionError { message } => {
                 login_state.loading = false;
                 login_state.error_message = Some(message.clone());
+                // If the overlay isn't visible, show it (e.g. expiring token).
+                if !login_state.show_overlay {
+                    login_state.show_overlay = true;
+                    login_state.focused_field = Some(LoginField::Email);
+                }
             }
             _ => {}
         }

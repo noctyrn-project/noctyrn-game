@@ -321,7 +321,7 @@ fn category_display_name(category: &str) -> &str {
         "carbine" => "Carbines",
         "smg" => "SMGs",
         "pdw" => "PDWs",
-        "lmg" => "LMBGs",
+        "lmg" => "LMGs",
         "dmr" => "DMRs",
         "sniper" => "Snipers",
         "shotgun" => "Shotguns",

@@ -1,19 +1,19 @@
 use serde::Deserialize;
 
 /// Per-map configuration loaded from `assets/maps/configs/{name}.json`.
+/// Only contains client-side visual data (GLB path, lighting).
+/// Colliders, spawns, and other gameplay data come from
+/// `noctyrn_shared::map_data`.
 #[derive(Debug, Deserialize)]
 pub struct MapConfig {
     /// Path to the GLB scene (with `#Scene0` label).
     pub glb: String,
-    /// Uniform scale applied to the entire map and its colliders.
+    /// Uniform scale applied to the entire map.
     #[serde(default = "default_scale")]
     pub scale: f32,
     /// Scene lighting.
     #[serde(default)]
     pub lights: Vec<LightConfig>,
-    /// Simplified AABB collision boxes.
-    #[serde(default)]
-    pub colliders: Vec<ColliderBox>,
 }
 
 fn default_scale() -> f32 {
@@ -35,12 +35,6 @@ fn default_light_intensity() -> f32 {
 
 fn default_shadows() -> bool {
     false
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ColliderBox {
-    pub center: [f32; 3],
-    pub half_extents: [f32; 3],
 }
 
 /// Load a map config from the assets/maps/configs/ directory via include_str.

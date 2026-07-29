@@ -29,7 +29,7 @@ use movement::{
 };
 use input::{AccumulatedInput, accumulate_input, clear_input, send_player_input, send_shot_fired, PlayerToggleState, InputSequence};
 pub use input::Keybinds;
-use camera::{CameraSensitivity, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
+use camera::{CameraSensitivity, CameraRotation, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
 pub use inventory::WeaponModel;
 use inventory::{Inventory, handle_weapon_switching, SwitchState};
 use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil, Projectile, MuzzleFlash, Grenade, ExplosionParticle};
@@ -38,7 +38,7 @@ pub use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation};
 
 /// Tag component for the main (world) camera. Used to distinguish from weapon camera.
 #[derive(Component)]
-#[require(Camera3d, CameraSensitivity, CameraRecoil)]
+#[require(Camera3d, CameraSensitivity, CameraRotation, CameraRecoil)]
 pub struct MainCamera;
 
 /// Marker for entities that should render on the weapon layer (layer 1).
@@ -143,6 +143,7 @@ pub struct RemotePlayer {
     pub server_id: uuid::Uuid,
     pub health: f32,
     pub username: String,
+    pub weapon_id: String,
 }
 
 impl Plugin for Player {
@@ -211,7 +212,7 @@ impl Plugin for Player {
         ).run_if(in_state(GameState::Playing)));
 
         app.add_systems(Update, handle_camera_recoil.run_if(in_state(GameState::Playing)));
-        app.add_systems(Update, (apply_camera_sway, apply_camera_shake, apply_lean).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, apply_camera_shake.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, ensure_weapon_render_layers.run_if(in_state(GameState::Playing)));
         
         app.add_systems(Update, (
@@ -237,7 +238,9 @@ impl Plugin for Player {
             (
                 (
                     rotate_camera,
+                    apply_camera_sway,
                     accumulate_input,
+                    apply_lean,
                 )
                     .chain()
                     .in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop)
@@ -286,6 +289,7 @@ fn spawn_player(
     // Spawn Camera with settings-based FOV
     let camera_entity = commands.spawn((
         MainCamera,
+        CameraRotation::default(),
         Transform::from_xyz(0.0, 0.0, 0.0), // Initial pos, will be updated by translate_camera
         Projection::Perspective(PerspectiveProjection {
             fov: game_settings.graphics.fov.to_radians(),
@@ -832,20 +836,30 @@ fn debug_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut debug_settings: ResMut<DebugSettings>,
     mut game_settings: ResMut<GameSettings>,
+    mut chat_history: Option<ResMut<crate::menu::chat::ChatHistory>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyH) {
         debug_settings.show_hitboxes = !debug_settings.show_hitboxes;
         game_settings.debug.show_hitboxes = debug_settings.show_hitboxes;
-        println!("Hitboxes: {}", debug_settings.show_hitboxes);
+        if let Some(ref mut ch) = chat_history.as_mut() {
+            let val = if debug_settings.show_hitboxes { "ON" } else { "OFF" };
+            ch.add_system("Debug: Hitboxes", val);
+        }
     }
     if keyboard_input.just_pressed(KeyCode::KeyJ) {
         debug_settings.show_directions = !debug_settings.show_directions;
-        println!("Directions: {}", debug_settings.show_directions);
+        if let Some(ref mut ch) = chat_history.as_mut() {
+            let val = if debug_settings.show_directions { "ON" } else { "OFF" };
+            ch.add_system("Debug: Directions", val);
+        }
     }
     if keyboard_input.just_pressed(KeyCode::KeyK) {
         debug_settings.free_cam = !debug_settings.free_cam;
         game_settings.debug.free_cam = debug_settings.free_cam;
-        println!("Free Cam: {}", debug_settings.free_cam);
+        if let Some(ref mut ch) = chat_history.as_mut() {
+            let val = if debug_settings.free_cam { "ON" } else { "OFF" };
+            ch.add_system("Debug: Free Cam", val);
+        }
     }
 }
 
@@ -1020,12 +1034,23 @@ fn ensure_weapon_render_layers(
 fn draw_hitboxes(
     mut gizmos: Gizmos,
     enemy_query: Query<(&GlobalTransform, Option<&crate::gameplay::Turret>), With<crate::gameplay::Enemy>>,
+    remote_query: Query<&GlobalTransform, With<RemotePlayer>>,
     collider_query: Query<(&GlobalTransform, &crate::world::objects::StaticCollider)>,
     ramp_query: Query<(&GlobalTransform, &crate::world::objects::RampCollider)>,
     debug_settings: Res<DebugSettings>,
 ) {
     if !debug_settings.show_hitboxes {
         return;
+    }
+
+    // Draw remote player hitboxes (orange capsule)
+    for transform in remote_query.iter() {
+        let pos = transform.translation();
+        gizmos.cube(
+            Transform::from_translation(pos + Vec3::new(0.0, 0.9, 0.0))
+                .with_scale(Vec3::new(0.6, 1.2, 0.6)),
+            Color::srgba(1.0, 0.5, 0.0, 0.4),
+        );
     }
 
     // Draw all static colliders (green wireframe) — respecting rotation
@@ -1059,7 +1084,11 @@ fn draw_hitboxes(
         if turret.is_some() {
             gizmos.cube(Transform::from_translation(pos).with_scale(Vec3::splat(1.0)), color);
         } else {
-            gizmos.cube(Transform::from_translation(pos + Vec3::new(0.0, 1.0, 0.0)).with_scale(Vec3::new(0.5, 2.0, 0.5)), color);
+            // Capsule approximation for testing grounds dummies (radius 0.3, height 0.6)
+            gizmos.cube(
+                Transform::from_translation(pos).with_scale(Vec3::new(0.6, 0.6, 0.6)),
+                color,
+            );
         }
     }
 }

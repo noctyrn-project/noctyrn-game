@@ -8,6 +8,16 @@ use crate::settings::GameSettings;
 use crate::player::CameraMode;
 use crate::gameplay::PlayerBody;
 
+/// Tracks the "clean" camera yaw/pitch before lean + sway are applied.
+/// `apply_lean` reads this as its base and adds lean/sway on top, avoiding
+/// both gimbal-lock flickering (Euler decompose/recompose) and compounding
+/// (quaternion multiplication on an already-modified rotation).
+#[derive(Component, Default)]
+pub struct CameraRotation {
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
 #[derive(Debug, Component, Deref, DerefMut)]
 pub struct CameraSensitivity(Vec2);
 
@@ -21,13 +31,13 @@ impl Default for CameraSensitivity {
 
 pub fn rotate_camera(
     accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
-    player: Single<(&mut Transform, &CameraSensitivity), With<super::MainCamera>>,
+    player: Single<(&mut Transform, &mut CameraRotation, &CameraSensitivity), With<super::MainCamera>>,
     settings: Res<GameSettings>,
     terminal_open: Res<WeaponTerminalOpen>,
     pause_open: Res<super::PauseMenuOpen>,
 ) {
     if terminal_open.0 || pause_open.0 { return; }
-    let (mut transform, camera_sensitivity) = player.into_inner();
+    let (mut transform, mut cam_rot, camera_sensitivity) = player.into_inner();
 
     let delta = accumulated_mouse_motion.delta;
 
@@ -36,13 +46,12 @@ pub fn rotate_camera(
         let delta_yaw = -delta.x * camera_sensitivity.x * sensitivity_mult;
         let delta_pitch = -delta.y * camera_sensitivity.y * sensitivity_mult;
 
-        let (yaw, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
-        let yaw = yaw + delta_yaw;
-
+        cam_rot.yaw += delta_yaw;
         const PITCH_LIMIT: f32 = FRAC_PI_2 - 0.01;
-        let pitch = (pitch + delta_pitch).clamp(-PITCH_LIMIT, PITCH_LIMIT);
+        cam_rot.pitch = (cam_rot.pitch + delta_pitch).clamp(-PITCH_LIMIT, PITCH_LIMIT);
 
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, roll);
+        // Set the raw rotation without lean/sway. apply_lean will add those on top.
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, cam_rot.yaw, cam_rot.pitch, 0.0);
     }
 }
 
@@ -273,14 +282,14 @@ pub fn spawn_camera_shake(commands: &mut Commands, intensity: f32, duration: f32
 pub fn apply_lean(
     time: Res<Time>,
     sway: Res<CameraSway>,
-    mut camera: Query<&mut Transform, With<super::MainCamera>>,
+    mut camera: Query<(&mut Transform, &CameraRotation), With<super::MainCamera>>,
     mut player: Query<(&mut super::movement::LeanState, &AccumulatedInput, &super::movement::MovementConfig), With<PlayerBody>>,
     debug_settings: Res<DebugSettings>,
 ) {
     if debug_settings.free_cam { return; }
 
     let Ok((mut lean, input, config)) = player.single_mut() else { return };
-    let Ok(mut cam_transform) = camera.single_mut() else { return };
+    let Ok((mut cam_transform, cam_rot)) = camera.single_mut() else { return };
 
     // Determine lean target
     lean.target = if input.lean_left && !input.lean_right {
@@ -291,12 +300,17 @@ pub fn apply_lean(
         0.0
     };
 
-    // Smoothly interpolate
+    // Smoothly interpolate toward target, clamped to configured angle.
     let dt = time.delta_secs();
-    lean.current = lean.current + (lean.target - lean.current) * dt * config.lean_speed;
+    lean.current = (lean.current + (lean.target - lean.current) * dt * config.lean_speed)
+        .clamp(-config.lean_angle, config.lean_angle);
 
-    // Combine lean roll with sway roll + sway pitch, applied as the single roll/pitch authority
+    // Build final rotation from the clean CameraRotation base plus lean + sway.
     let combined_roll = lean.current + sway.roll_offset;
-    let (yaw, pitch, _roll) = cam_transform.rotation.to_euler(EulerRot::YXZ);
-    cam_transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw + sway.yaw_offset, pitch + sway.pitch_offset, combined_roll);
+    cam_transform.rotation = Quat::from_euler(
+        EulerRot::YXZ,
+        cam_rot.yaw + sway.yaw_offset,
+        cam_rot.pitch + sway.pitch_offset,
+        combined_roll,
+    );
 }

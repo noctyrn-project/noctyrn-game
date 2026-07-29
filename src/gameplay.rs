@@ -298,7 +298,7 @@ impl Plugin for GameplayPlugin {
         app.init_resource::<PlayerHasFlag>();
         app.init_resource::<PlayerTeam>();
         app.add_message::<DeathEvent>();
-        app.add_systems(OnEnter(GameState::Playing), (init_match_state, spawn_enemies, spawn_player_ui, spawn_match_hud, spawn_objectives));
+        app.add_systems(OnEnter(GameState::Playing), (init_match_state, crate::gamemodes::testing_grounds::spawn_enemies, spawn_player_ui, spawn_match_hud, spawn_objectives));
         app.add_systems(OnExit(GameState::Playing), despawn_gameplay_entities);
         app.add_systems(Update, (
             update_health_bars,
@@ -335,6 +335,12 @@ impl Plugin for GameplayPlugin {
 pub struct KillerInfo {
     pub name: String,
     pub server_id: Option<uuid::Uuid>,
+}
+
+/// Set by the networking layer when the server declares the match over.
+#[derive(Resource)]
+pub struct MatchOverFromServer {
+    pub winner: Option<uuid::Uuid>,
 }
 
 fn despawn_gameplay_entities(
@@ -375,6 +381,7 @@ fn despawn_gameplay_entities(
     commands.remove_resource::<RespawnTimer>();
     commands.remove_resource::<KillerInfo>();
     commands.remove_resource::<MatchState>();
+    commands.remove_resource::<MatchOverFromServer>();
 }
 
 #[derive(Resource)]
@@ -649,105 +656,6 @@ pub struct Turret {
 #[derive(Component)]
 pub struct HealthBarForeground;
 
-fn spawn_enemies(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    selected_mode: Res<SelectedGameMode>,
-) {
-    // Only spawn test enemies/turret for testing grounds
-    if selected_mode.mode != GameMode::TestingGrounds {
-        return;
-    }
-    let healths = [1.0, 50.0, 100.0, 500.0];
-    let start_x = -5.0;
-    let spacing = 3.0;
-
-    // Create Health Bar Materials
-    let bg_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.2, 0.0, 0.0), // Dark Red
-        unlit: true,
-        ..default()
-    });
-    let fg_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.0, 1.0, 0.0), // Green
-        unlit: true,
-        ..default()
-    });
-    let bar_mesh = meshes.add(Rectangle::new(1.0, 0.15));
-
-    for (i, &hp) in healths.iter().enumerate() {
-        let pos = Vec3::new(start_x + i as f32 * spacing, 0.0, -10.0);
-        
-        let enemy = commands.spawn((
-            WorldAssetRoot(asset_server.load("characters/default.glb#Scene0")),
-            Transform::from_translation(pos).with_scale(Vec3::splat(1.0)),
-            Visibility::default(),
-            Enemy,
-            Health { current: hp, max: hp },
-        )).id();
-
-        commands.entity(enemy).with_children(|parent| {
-            parent.spawn((
-                Transform::from_translation(Vec3::new(0.0, 2.2, 0.0)),
-                HealthBar { target: enemy, offset: Vec3::new(0.0, 2.2, 0.0) },
-                Billboard,
-                Visibility::Inherited,
-            )).with_children(|hb_parent| {
-                // Background
-                hb_parent.spawn((
-                    Mesh3d(bar_mesh.clone()),
-                    MeshMaterial3d(bg_material.clone()),
-                    Transform::from_translation(Vec3::new(0.0, 0.0, -0.01)), // Slightly behind
-                ));
-                // Foreground
-                hb_parent.spawn((
-                    Mesh3d(bar_mesh.clone()),
-                    MeshMaterial3d(fg_material.clone()),
-                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-                    HealthBarForeground,
-                ));
-            });
-        });
-    }
-
-    // Spawn Turret
-    let turret = commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.1, 0.1))),
-        Transform::from_xyz(7.0, 0.5, -10.0).looking_at(Vec3::new(7.0, 0.5, 0.0), Vec3::Y),
-        Visibility::default(),
-        Turret {
-            fire_timer: Timer::from_seconds(2.0, TimerMode::Repeating),
-        },
-        Health { current: 200.0, max: 200.0 },
-        Enemy,
-    )).id();
-
-    commands.entity(turret).with_children(|parent| {
-        parent.spawn((
-            Transform::from_translation(Vec3::new(0.0, 1.5, 0.0)),
-            HealthBar { target: turret, offset: Vec3::new(0.0, 1.5, 0.0) },
-            Billboard,
-            Visibility::Inherited,
-        )).with_children(|hb_parent| {
-            // Background
-            hb_parent.spawn((
-                Mesh3d(bar_mesh.clone()),
-                MeshMaterial3d(bg_material.clone()),
-                Transform::from_translation(Vec3::new(0.0, 0.0, -0.01)),
-            ));
-            // Foreground
-            hb_parent.spawn((
-                Mesh3d(bar_mesh.clone()),
-                MeshMaterial3d(fg_material.clone()),
-                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-                HealthBarForeground,
-            ));
-        });
-    });
-}
 
 fn update_health_bars(
     mut query: Query<(&mut Transform, &ChildOf), With<HealthBarForeground>>,
@@ -930,11 +838,23 @@ fn update_death_screen(
     killer_info: Option<Res<KillerInfo>>,
     mut killer_text_query: Query<&mut Text, (With<DeathScreenKillerText>, Without<DeathScreenTimerText>)>,
     mut timer_text_query: Query<&mut Text, (With<DeathScreenTimerText>, Without<DeathScreenKillerText>)>,
+    mut hint_text_query: Query<&mut Text, (With<DeathScreenHintText>, Without<DeathScreenKillerText>, Without<DeathScreenTimerText>)>,
 ) {
     if let Some(timer) = timer {
         let remaining = timer.0.duration().as_secs_f32() - timer.0.elapsed_secs();
         if let Ok(mut timer_text) = timer_text_query.single_mut() {
-            timer_text.0 = format!("Respawning in {:.1}s", remaining.max(0.0));
+            if remaining > 0.0 {
+                timer_text.0 = format!("Respawning in {:.1}s", remaining);
+            } else {
+                timer_text.0 = String::new();
+            }
+        }
+        if let Ok(mut hint_text) = hint_text_query.single_mut() {
+            if remaining <= 0.0 {
+                hint_text.0 = "Press SPACE or click RESPAWN to respawn".to_string();
+            } else {
+                hint_text.0 = " ".to_string();
+            }
         }
         if let Ok(mut killer_text) = killer_text_query.single_mut() {
             let name = killer_info.as_ref().map(|k| k.name.as_str()).unwrap_or("Unknown");
@@ -1285,27 +1205,33 @@ fn check_match_over(
     existing: Query<Entity, With<MatchOverScreen>>,
     mut progression: ResMut<PlayerProgression>,
     mut credits: ResMut<PlayerCredits>,
+    server_over: Option<Res<MatchOverFromServer>>,
 ) {
-    let Some(ms) = match_state else { return };
-    if !ms.is_over() { return; }
     if !existing.is_empty() { return; } // Already showing
-    
-    let won = ms.player_won();
+    let is_over = match (&match_state, &server_over) {
+        (_, Some(_)) => true,
+        (Some(ms), None) => ms.is_over(),
+        (None, None) => return,
+    };
+    if !is_over { return; }
+
+    let won = server_over.is_some() || match_state.as_ref().map_or(false, |ms| ms.player_won());
     let title = if won { "VICTORY" } else { "DEFEAT" };
     let title_color = if won { Color::srgb(0.2, 0.8, 0.3) } else { Color::srgb(0.9, 0.2, 0.2) };
-    
-    // Award XP from match
-    if ms.xp_earned > 0 {
-        progression.add_xp(ms.xp_earned);
+
+    // Award XP from match (only if we have a MatchState)
+    if let Some(ms) = match_state.as_ref() {
+        if ms.xp_earned > 0 {
+            progression.add_xp(ms.xp_earned);
+        }
+        // Award credits for winning
+        if won && ms.mode != GameMode::TestingGrounds {
+            let credit_reward = if ms.mode.is_team_mode() { 50 } else { 150 };
+            credits.balance += credit_reward;
+            credits.save();
+        }
     }
-    
-    // Award credits for winning
-    if won && ms.mode != GameMode::TestingGrounds {
-        let credit_reward = if ms.mode.is_team_mode() { 50 } else { 150 };
-        credits.balance += credit_reward;
-        credits.save();
-    }
-    
+
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
@@ -1331,21 +1257,23 @@ fn check_match_over(
                 TextFont { font_size: FontSize::Px(52.0), ..default() },
                 TextColor(title_color),
             ));
-            card.spawn((
-                Text::new(format!("Mode: {}", ms.mode.display_name())),
-                TextFont { font_size: FontSize::Px(16.0), ..default() },
-                TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
-            ));
-            card.spawn((
-                Text::new(format!("Score: {} - {}", ms.player_score, ms.enemy_score)),
-                TextFont { font_size: FontSize::Px(24.0), ..default() },
-                TextColor(Color::WHITE),
-            ));
-            card.spawn((
-                Text::new(format!("K/D: {} / {}   Assists: {}", ms.kills, ms.deaths, ms.assists)),
-                TextFont { font_size: FontSize::Px(16.0), ..default() },
-                TextColor(Color::srgba(0.6, 0.6, 0.7, 0.9)),
-            ));
+            if let Some(ms) = match_state.as_ref() {
+                card.spawn((
+                    Text::new(format!("Mode: {}", ms.mode.display_name())),
+                    TextFont { font_size: FontSize::Px(16.0), ..default() },
+                    TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
+                ));
+                card.spawn((
+                    Text::new(format!("Score: {} - {}", ms.player_score, ms.enemy_score)),
+                    TextFont { font_size: FontSize::Px(24.0), ..default() },
+                    TextColor(Color::WHITE),
+                ));
+                card.spawn((
+                    Text::new(format!("K/D: {} / {}   Assists: {}", ms.kills, ms.deaths, ms.assists)),
+                    TextFont { font_size: FontSize::Px(16.0), ..default() },
+                    TextColor(Color::srgba(0.6, 0.6, 0.7, 0.9)),
+                ));
+            }
 
             // Return to menu button
             card.spawn((

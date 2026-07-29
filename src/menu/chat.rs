@@ -37,6 +37,22 @@ impl Default for ChatHistory {
     }
 }
 
+impl ChatHistory {
+    /// Add a system-generated message (not from a player).
+    pub fn add_system(&mut self, prefix: &str, val: &str) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+        self.messages.push(MessageEntry {
+            from: "SYSTEM".to_string(),
+            content: format!("{prefix} = {val}"),
+            created_at: now,
+        });
+        self.generation += 1;
+    }
+}
+
 #[derive(Resource)]
 pub struct ChatInput {
     pub input: String,

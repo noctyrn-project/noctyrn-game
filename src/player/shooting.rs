@@ -1243,7 +1243,8 @@ pub fn move_projectiles(
             if projectile.from_player && is_player.is_some() { continue; }
             if !projectile.from_player && is_enemy.is_some() { continue; }
 
-            if transform.translation.distance(target_transform.translation()) < 1.5 {
+            let hit_radius = if is_enemy.is_some() { 0.6 } else { 1.5 };
+            if transform.translation.distance(target_transform.translation()) < hit_radius {
                 health.current -= projectile.damage;
                 if let Some(r) = regen.as_mut() {
                     r.timer.reset();

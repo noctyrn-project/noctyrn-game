@@ -87,6 +87,7 @@ fn despawn_game_map(
     moving_target_query: Query<Entity, With<objects::MovingTarget>>,
     popup_target_query: Query<Entity, With<objects::PopUpTarget>>,
     distance_marker_query: Query<Entity, With<objects::DistanceMarker>>,
+    target_query: Query<Entity, With<crate::player::shooting::Target>>,
     main_light_query: Query<Entity, With<MainLight>>,
 ) {
     for entity in world_query.iter()
@@ -97,6 +98,7 @@ fn despawn_game_map(
         .chain(moving_target_query.iter())
         .chain(popup_target_query.iter())
         .chain(distance_marker_query.iter())
+        .chain(target_query.iter())
         .chain(main_light_query.iter())
     {
         if let Ok(mut cmds) = commands.get_entity(entity) {

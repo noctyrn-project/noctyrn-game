@@ -17,6 +17,16 @@ pub struct RemoteHealthBarFill;
 #[derive(Component)]
 pub struct RemoteHealthBarBg;
 
+#[derive(Component)]
+pub struct RemoteHealthBar {
+    pub server_id: uuid::Uuid,
+}
+
+#[derive(Component)]
+pub struct RemoteUsername {
+    pub server_id: uuid::Uuid,
+}
+
 // ---------------------------------------------------------------------------
 // Server connection configuration
 // ---------------------------------------------------------------------------
@@ -232,7 +242,8 @@ impl Plugin for NetworkPlugin {
         app.add_systems(OnEnter(GameState::Playing), send_loadout);
         app.add_systems(Update, reconcile_prediction.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, cleanup_muzzle_flashes.run_if(in_state(GameState::Playing)));
-        app.add_systems(Update, update_remote_health_bars.after(process_snapshots).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, sync_remote_ui.after(process_snapshots).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, update_remote_weapons.after(sync_remote_ui).run_if(in_state(GameState::Playing)));
         app.add_systems(Update, update_3d_damage_numbers.after(process_snapshots).run_if(in_state(GameState::Playing)));
     }
 }
@@ -312,6 +323,8 @@ fn process_snapshots(
         (Entity, &mut Transform, &mut PhysicalTranslation, &mut PreviousPhysicalTranslation, &mut Velocity, &mut Health),
         (With<crate::player::LocalPlayer>, Without<crate::player::RemotePlayer>),
     >,
+    bar_ui_query: Query<(Entity, &RemoteHealthBar)>,
+    name_ui_query: Query<(Entity, &RemoteUsername)>,
     mut scoreboard: ResMut<ScoreboardData>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -391,12 +404,26 @@ fn process_snapshots(
                 *scoreboard.kills.entry(*killer_id).or_insert(0) += 1;
                 *scoreboard.deaths.entry(*victim_id).or_insert(0) += 1;
 
-                // TODO: Write DeathEvent for kill feed (separate system needed).
-
                 // Set KillerInfo if the local player was killed.
                 if let Some(lid) = local_player_id {
                     if *victim_id == lid {
                         commands.insert_resource(crate::gameplay::KillerInfo { name: killer_name.clone(), server_id: Some(*killer_id) });
+                    }
+                    // Show Kill +100 notification if local player got the kill.
+                    if *killer_id == lid {
+                        let score_text = format!("KILL +100");
+                        // Use the kill feed: push a DeathEvent so the kill-feed UI shows it.
+                        commands.spawn((
+                            Text2d::new(score_text),
+                            TextFont { font_size: FontSize::Px(42.0), ..default() },
+                            TextColor(Color::srgb(1.0, 1.0, 0.3)),
+                            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                            crate::gameplay::Billboard,
+                            crate::player::DamageNumber {
+                                timer: Timer::from_seconds(2.0, TimerMode::Once),
+                                velocity: Vec3::new(0.0, 1.5, 0.0),
+                            },
+                        ));
                     }
                 }
             }
@@ -522,6 +549,13 @@ fn process_snapshots(
                     scoreboard.scores.insert(*player_id, *player_score);
                 }
             }
+            noctyrn_shared::protocol::GameEvent::MatchOver { winner_id, scores } => {
+                info!("Match over! Winner={winner_id:?} scores={scores:?}");
+                // The existing check_match_over system in gameplay.rs will
+                // detect the match end via MatchState or the MatchOverScreen.
+                // We set a resource to signal game-over to that system.
+                commands.insert_resource(crate::gameplay::MatchOverFromServer { winner: *winner_id });
+            }
             noctyrn_shared::protocol::GameEvent::GrenadeExploded { owner_id, position, weapon, damage, radius } => {
                 info!("Grenade exploded at ({:.1},{:.1},{:.1}) from {owner_id} ({weapon}, dmg={damage})", position[0], position[1], position[2]);
                 let center = Vec3::new(position[0], position[1], position[2]);
@@ -574,6 +608,7 @@ fn process_snapshots(
     for (entity, mut rp, mut transform, mut visibility) in remote_query.iter_mut() {
         if let Some(p) = snapshot.players.iter().find(|p| p.id == rp.server_id) {
             rp.health = p.health;
+            rp.weapon_id.clone_from(&p.weapon_id);
             let target = Vec3::new(p.position[0], p.position[1], p.position[2]);
             transform.translation = transform.translation.lerp(target, 0.3);
             transform.rotation = Quat::from_euler(bevy::math::EulerRot::YXZ, p.yaw, p.pitch, 0.0);
@@ -602,12 +637,45 @@ fn process_snapshots(
         info!("Spawning remote player {} ({}) health={:.0}", p.username, p.id, p.health);
 
             let remote = commands.spawn((
-                crate::player::RemotePlayer { server_id: p.id, health: p.health, username: p.username.clone() },
+                crate::player::RemotePlayer {
+                    server_id: p.id,
+                    health: p.health,
+                    username: p.username.clone(),
+                    weapon_id: p.weapon_id.clone(),
+                },
                 Transform::from_xyz(p.position[0], p.position[1], p.position[2])
                     .with_rotation(Quat::from_euler(bevy::math::EulerRot::YXZ, p.yaw, p.pitch, 0.0)),
                 Visibility::default(),
             )).id();
 
+        // Spawn username text as a SEPARATE top-level entity (not a child),
+        // so it doesn't inherit the player's rotation. Billboard handles
+        // camera-facing; a sync system updates its position each frame.
+        let username_pos = Vec3::new(p.position[0], p.position[1] + 2.3, p.position[2]);
+        commands.spawn((
+            Text2d::new(p.username.clone()),
+            TextFont { font_size: FontSize::Px(24.0), ..default() },
+            TextColor(Color::WHITE),
+            Transform::from_translation(username_pos),
+            crate::gameplay::Billboard,
+            RemoteUsername { server_id: p.id },
+        ));
+
+        // Health bar fill as a separate entity, same approach.
+        let bar_pos = Vec3::new(p.position[0], p.position[1] + 1.9, p.position[2]);
+        let bar_width = 0.8;
+        commands.spawn((
+            Mesh3d(meshes.add(Rectangle::new(bar_width, 0.08))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.2, 0.8, 0.2),
+                ..default()
+            })),
+            Transform::from_translation(bar_pos),
+            crate::gameplay::Billboard,
+            RemoteHealthBar { server_id: p.id },
+        ));
+
+        // Weapon model as a CHILD (should rotate with player body).
         commands.entity(remote).with_children(|parent| {
             parent.spawn((
                 Mesh3d(pill_mesh.clone()),
@@ -615,77 +683,8 @@ fn process_snapshots(
                 Transform::from_xyz(0.0, 0.9, 0.0),
             ));
 
-            // Username text with Billboard so it always faces the camera
-            parent.spawn((
-                Text2d::new(p.username.clone()),
-                TextFont { font_size: FontSize::Px(24.0), ..default() },
-                TextColor(Color::WHITE),
-                Transform::from_translation(Vec3::new(0.0, 2.3, 0.0)),
-                crate::gameplay::Billboard,
-            ));
-
-            // Health bar (Billboard already applied)
-            parent.spawn((
-                Mesh3d(bar_mesh.clone()),
-                MeshMaterial3d(bar_bg_mat.clone()),
-                Transform::from_translation(Vec3::new(0.0, 1.9, 0.0)),
-                crate::gameplay::Billboard,
-                RemoteHealthBarBg,
-            ));
-            parent.spawn((
-                Mesh3d(bar_mesh.clone()),
-                MeshMaterial3d(bar_fill_mat.clone()),
-                Transform::from_translation(Vec3::new(0.0, 1.9, 0.01)),
-                crate::gameplay::Billboard,
-                RemoteHealthBarFill,
-            ));
-
-            // Weapon model at right hip, ~1m above ground, facing forward.
-            let weapon_exists = registry.weapons.contains_key(&p.weapon_id);
-            if weapon_exists {
-                if let Some(config) = registry.weapons.get(&p.weapon_id) {
-                    let mf = config.meta.model_path.split('#').next().unwrap_or("");
-                    if !mf.is_empty() && std::path::Path::new(&format!("assets/{mf}")).exists() {
-                        // Apply the weapon config's position_offset and rotation_offset
-                        // (same as spawn_weapon_visual_skinned does for first-person).
-                        let pos = Vec3::new(
-                            config.meta.position_offset[0] * 2.0 + 0.2,
-                            config.meta.position_offset[1] * 2.0 + 1.0,
-                            config.meta.position_offset[2] * 2.0,
-                        );
-                        let rot = Quat::from_euler(
-                            bevy::math::EulerRot::XYZ,
-                            config.meta.rotation_offset[0],
-                            config.meta.rotation_offset[1],
-                            config.meta.rotation_offset[2],
-                        );
-                        parent.spawn((
-                            WorldAssetRoot(asset_server.load(&config.meta.model_path)),
-                            Transform::from_translation(pos)
-                                .with_rotation(rot)
-                                .with_scale(Vec3::splat(config.meta.scale * 0.7)),
-                        ));
-                    } else {
-                        parent.spawn((
-                            Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(0.25)))),
-                            MeshMaterial3d(materials.add(StandardMaterial {
-                                base_color: Color::srgb(0.4, 0.4, 0.4),
-                                ..default()
-                            })),
-                            Transform::from_xyz(0.5, 1.0, 0.0),
-                        ));
-                    }
-                }
-            } else {
-                parent.spawn((
-                    Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(0.25)))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgb(0.4, 0.4, 0.4),
-                        ..default()
-                    })),
-                    Transform::from_xyz(0.5, 1.0, 0.0),
-                ));
-            }
+            // Weapon model at right hip
+            spawn_remote_weapon(parent, &asset_server, &mut meshes, &mut materials, &registry, &p.weapon_id);
         });
     }
 
@@ -697,6 +696,18 @@ fn process_snapshots(
             scoreboard.deaths.remove(&rp.server_id);
             scoreboard.scores.remove(&rp.server_id);
             scoreboard.names.remove(&rp.server_id);
+            // Despawn remote player entity and its associated UI entities.
+            // We find the UI entities by their server_id — they're top-level.
+            for (e, bar) in bar_ui_query.iter() {
+                if bar.server_id == rp.server_id {
+                    commands.entity(e).despawn();
+                }
+            }
+            for (e, name_comp) in name_ui_query.iter() {
+                if name_comp.server_id == rp.server_id {
+                    commands.entity(e).despawn();
+                }
+            }
             commands.entity(entity).despawn();
         }
     }
@@ -831,20 +842,6 @@ pub fn cleanup_muzzle_flashes(
     }
 }
 
-pub fn update_remote_health_bars(
-    remote_query: Query<(&crate::player::RemotePlayer, &Children)>,
-    mut fill_query: Query<&mut Transform, With<RemoteHealthBarFill>>,
-) {
-    for (rp, children) in remote_query.iter() {
-        let ratio = (rp.health / 100.0).clamp(0.0, 1.0);
-        for child in children.iter() {
-            if let Ok(mut transform) = fill_query.get_mut(child) {
-                transform.scale.x = ratio;
-            }
-        }
-    }
-}
-
 pub fn update_3d_damage_numbers(
     mut commands: Commands,
     time: Res<Time>,
@@ -861,6 +858,120 @@ pub fn update_3d_damage_numbers(
         color.0 = color.0.with_alpha(alpha);
         if number.timer.is_finished() {
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+/// Helper: spawn a weapon model as a child of a remote player entity.
+pub fn spawn_remote_weapon(
+    parent: &mut ChildSpawnerCommands,
+    asset_server: &AssetServer,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    registry: &crate::weapons::WeaponRegistry,
+    weapon_id: &str,
+) {
+    if let Some(config) = registry.weapons.get(weapon_id) {
+        let mf = config.meta.model_path.split('#').next().unwrap_or("");
+        if !mf.is_empty() && std::path::Path::new(&format!("assets/{mf}")).exists() {
+            let pos = Vec3::new(
+                config.meta.position_offset[0] * 2.0 + 0.2,
+                config.meta.position_offset[1] * 2.0 + 1.0,
+                config.meta.position_offset[2] * 2.0,
+            );
+            let rot = Quat::from_euler(
+                bevy::math::EulerRot::XYZ,
+                config.meta.rotation_offset[0],
+                config.meta.rotation_offset[1],
+                config.meta.rotation_offset[2],
+            );
+            parent.spawn(RemoteWeaponModel { weapon_id: weapon_id.to_string() }).with_children(|w| {
+                w.spawn((
+                    WorldAssetRoot(asset_server.load(&config.meta.model_path)),
+                    Transform::from_translation(pos).with_rotation(rot).with_scale(Vec3::splat(config.meta.scale * 0.7)),
+                ));
+            });
+        } else {
+            parent.spawn((
+                Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(0.25)))),
+                MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::srgb(0.4, 0.4, 0.4), ..default() })),
+                Transform::from_xyz(0.5, 1.0, 0.0),
+                RemoteWeaponModel { weapon_id: weapon_id.to_string() },
+            ));
+        }
+    } else {
+        parent.spawn((
+            Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(0.25)))),
+            MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::srgb(0.4, 0.4, 0.4), ..default() })),
+            Transform::from_xyz(0.5, 1.0, 0.0),
+            RemoteWeaponModel { weapon_id: weapon_id.to_string() },
+        ));
+    }
+}
+
+/// Marker on the weapon-model child, storing which weapon_id was rendered.
+#[derive(Component)]
+pub struct RemoteWeaponModel {
+    pub weapon_id: String,
+}
+
+/// Syncs username text and health bar positions for remote players.
+/// These entities are top-level (not children) so they don't inherit
+/// the player's body rotation. Billboard makes them face the camera.
+pub fn sync_remote_ui(
+    remote_query: Query<(&crate::player::RemotePlayer, &GlobalTransform)>,
+    mut bar_query: Query<(&mut Transform, &RemoteHealthBar), Without<RemoteUsername>>,
+    mut name_query: Query<(&mut Transform, &RemoteUsername), Without<RemoteHealthBar>>,
+) {
+    for (rp, global) in remote_query.iter() {
+        let pos = global.translation();
+        let ratio = (rp.health / 100.0).clamp(0.0, 1.0);
+        let bar_width = 0.8;
+
+        for (mut transform, bar) in bar_query.iter_mut() {
+            if bar.server_id == rp.server_id {
+                // Position above player head; shift left as health decreases
+                // so the bar shrinks toward the left edge.
+                transform.translation = pos + Vec3::new((ratio - 1.0) * bar_width * 0.5, 1.9, 0.0);
+                transform.scale.x = ratio;
+            }
+        }
+    for (mut transform, name) in name_query.iter_mut() {
+            if name.server_id == rp.server_id {
+                transform.translation = pos + Vec3::new(0.0, 2.3, 0.0);
+            }
+        }
+    }
+}
+
+/// Updates remote player weapon models when their weapon_id changes.
+/// Despawns the old weapon child and spawns a new one with the correct model.
+pub fn update_remote_weapons(
+    mut commands: Commands,
+    remote_query: Query<(Entity, &crate::player::RemotePlayer, &Children)>,
+    weapon_query: Query<(Entity, &RemoteWeaponModel)>,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    registry: Res<crate::weapons::WeaponRegistry>,
+) {
+    for (entity, rp, children) in remote_query.iter() {
+        let mut existing_weapon: Option<Entity> = None;
+        for child in children.iter() {
+            if let Ok((we, wm)) = weapon_query.get(child) {
+                if wm.weapon_id == rp.weapon_id {
+                    existing_weapon = None; // already correct
+                } else {
+                    existing_weapon = Some(we); // needs replacement
+                }
+                break;
+            }
+        }
+        if let Some(old) = existing_weapon {
+            commands.entity(old).despawn();
+            commands.entity(entity).with_children(|parent| {
+                spawn_remote_weapon(parent, &asset_server, &mut meshes, &mut materials, &registry, &rp.weapon_id);
+            });
         }
     }
 }

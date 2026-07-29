@@ -9,6 +9,10 @@
 //! use GLB-based maps selected from the global map pool.
 
 pub mod testing_grounds;
+pub mod ffa;
+pub mod tdm;
+pub mod kc;
+pub mod ctf;
 
 use bevy::prelude::*;
 use crate::menu::GameMode;
@@ -29,6 +33,7 @@ pub fn spawn_map_for_mode(
 }
 
 /// Convenience: spawn mode-specific entities (objectives, zones, enemies).
+/// Called from gameplay's OnEnter(Playing) alongside spawn_objectives.
 pub fn spawn_mode_entities(
     mode: GameMode,
     commands: &mut Commands,
@@ -36,7 +41,8 @@ pub fn spawn_mode_entities(
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     match mode {
-        GameMode::TestingGrounds => {} // enemies spawned via gameplay.rs spawn_enemies
-        _ => {} // Other modes use GLB-based maps; entities TBD.
+        GameMode::TestingGrounds => {}
+        GameMode::CaptureTheFlag => ctf::spawn_flags(commands, meshes, materials),
+        _ => {}
     }
 }

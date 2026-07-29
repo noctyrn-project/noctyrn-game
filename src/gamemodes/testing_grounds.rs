@@ -1,10 +1,11 @@
 use bevy::prelude::*;
 use rand::Rng;
 use crate::player::shooting::Target;
-use crate::gameplay::Billboard;
+use crate::gameplay::{Billboard, Health, Enemy, HealthBar, HealthBarForeground, Turret};
 use crate::world::objects::*;
 use crate::world::GameWorldEntity;
 use crate::weapons::WeaponSlot;
+use crate::menu::GameMode;
 
 /// Spawn the full testing-grounds geometry.
 /// Layout (looking from origin +Z):
@@ -290,4 +291,74 @@ fn spawn_material_test_area(
             Target,
         ));
     }
+}
+
+/// Spawn test target dummies (as pill capsules) and a turret.
+pub fn spawn_enemies(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    selected_mode: Res<crate::menu::SelectedGameMode>,
+) {
+    if selected_mode.mode != crate::menu::GameMode::TestingGrounds {
+        return;
+    }
+    let healths = [1.0, 50.0, 100.0, 500.0];
+    let start_x = -5.0;
+    let spacing = 3.0;
+
+    // Pill capsule mesh for dummies (same as remote player bodies)
+    let pill = meshes.add(Capsule3d::new(0.3, 0.6));
+    let dummy_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.15, 0.2, 0.35),
+        ..default()
+    });
+    let bg = materials.add(StandardMaterial { base_color: Color::srgb(0.2, 0.0, 0.0), unlit: true, ..default() });
+    let fg = materials.add(StandardMaterial { base_color: Color::srgb(0.0, 1.0, 0.0), unlit: true, ..default() });
+    let bar = meshes.add(Rectangle::new(1.0, 0.15));
+
+    for (i, &hp) in healths.iter().enumerate() {
+        let pos = Vec3::new(start_x + i as f32 * spacing, 0.0, -10.0);
+
+        let enemy = commands.spawn((
+            Mesh3d(pill.clone()),
+            MeshMaterial3d(dummy_mat.clone()),
+            Transform::from_translation(pos + Vec3::new(0.0, 0.9, 0.0)),
+            Visibility::default(),
+            Enemy,
+            Health { current: hp, max: hp },
+        )).id();
+
+        commands.entity(enemy).with_children(|parent| {
+            parent.spawn((
+                Transform::from_translation(Vec3::new(0.0, 2.2, 0.0)),
+                HealthBar { target: enemy, offset: Vec3::new(0.0, 2.2, 0.0) },
+                Billboard,
+                Visibility::Inherited,
+            )).with_children(|hb_parent| {
+                hb_parent.spawn((
+                    Mesh3d(bar.clone()),
+                    MeshMaterial3d(bg.clone()),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, -0.01)),
+                ));
+                hb_parent.spawn((
+                    Mesh3d(bar.clone()),
+                    MeshMaterial3d(fg.clone()),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                    HealthBarForeground,
+                ));
+            });
+        });
+    }
+
+    // Spawn Turret as a red cube
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.1, 0.1))),
+        Transform::from_xyz(7.0, 0.5, -10.0).looking_at(Vec3::new(7.0, 0.5, 0.0), Vec3::Y),
+        Visibility::default(),
+        Turret { fire_timer: Timer::from_seconds(2.0, TimerMode::Repeating) },
+        Enemy,
+        Health { current: 100.0, max: 100.0 },
+    ));
 }

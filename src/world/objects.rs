@@ -1,11 +1,31 @@
 use bevy::prelude::*;
 use rand::Rng;
 use crate::player::shooting::Target;
+use bevy_rapier3d::rapier::parry::shape::TriMesh;
+use bevy_rapier3d::rapier::parry::math::Vector;
 
 /// Axis-aligned bounding box for simple collision detection.
 #[derive(Component, Clone, Debug)]
 pub struct StaticCollider {
     pub half_extents: Vec3,
+}
+
+/// Triangle mesh collider — accurate collision surface for one mesh node.
+/// parry3d builds a BVH internally so collision queries are O(log n).
+#[derive(Component, Clone, Debug)]
+pub struct MeshCollider {
+    pub mesh: TriMesh,
+}
+
+impl MeshCollider {
+    pub fn from_json(data: &noctyrn_shared::map_data::TriangleMesh, scale: f32) -> Option<Self> {
+        let vertices: Vec<Vector> = data.vertices.iter().map(|v| {
+            Vector::new(v[0] * scale, v[1] * scale, v[2] * scale)
+        }).collect();
+        let indices: Vec<[u32; 3]> = data.indices.clone();
+
+        TriMesh::new(vertices, indices).ok().map(|mesh| MeshCollider { mesh })
+    }
 }
 
 /// Ramp collider for inclined surfaces.

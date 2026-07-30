@@ -1,8 +1,11 @@
 use bevy::prelude::*;
+use bevy_rapier3d::rapier::parry::shape::Capsule;
+use bevy_rapier3d::rapier::parry::math::Pose;
+use bevy_rapier3d::rapier::parry::query::distance;
 
 use super::components::*;
 use super::config::MovementConfig;
-use crate::world::objects::{RampCollider, StaticCollider};
+use crate::world::objects::{MeshCollider, RampCollider, StaticCollider};
 
 /// Updates [`GroundedState`] by checking the player's position against
 /// the floor plane, static box colliders, and ramp surfaces.
@@ -14,8 +17,7 @@ use crate::world::objects::{RampCollider, StaticCollider};
 ///
 /// Uses a small `foot_margin` below the player's feet. If any surface
 /// is within this margin and the player is not moving upward too fast,
-/// they are considered grounded. This is a simple but effective approach
-/// that works well with AABB colliders.
+/// they are considered grounded. Works with both AABB and OBB colliders.
 pub fn detect_ground(
     fixed_time: Res<Time<Fixed>>,
     mut query: Query<(
@@ -26,6 +28,7 @@ pub fn detect_ground(
     )>,
     collider_query: Query<(&Transform, &StaticCollider)>,
     ramp_query: Query<(&Transform, &RampCollider)>,
+    mesh_query: Query<&MeshCollider>,
 ) {
     let dt = fixed_time.delta_secs();
 
@@ -43,23 +46,52 @@ pub fn detect_ground(
             ground.is_grounded = true;
         }
 
-        // ── Static collider top surfaces ──
+        // ── Static collider top surfaces (supports rotated OBBs) ──
         for (col_transform, collider) in collider_query.iter() {
             let col_pos = col_transform.translation;
+            let col_rot = col_transform.rotation;
             let he = collider.half_extents;
-            let col_max_y = col_pos.y + he.y;
 
-            // Check horizontal overlap (AABB test)
-            let overlaps_xz = position.x + player_radius > col_pos.x - he.x
-                && position.x - player_radius < col_pos.x + he.x
-                && position.z + player_radius > col_pos.z - he.z
-                && position.z - player_radius < col_pos.z + he.z;
+            // Fast AABB path for unrotated colliders
+            let angle = col_rot.to_axis_angle().1.abs();
+            let is_rotated = angle > 0.01;
 
-            if overlaps_xz {
-                let feet_dist = position.y - col_max_y;
-                // Within margin and not moving upward significantly
-                if feet_dist.abs() < foot_margin && velocity.y <= 0.1 {
-                    ground.is_grounded = true;
+            if !is_rotated {
+                let col_max_y = col_pos.y + he.y;
+                let overlaps_xz = position.x + player_radius > col_pos.x - he.x
+                    && position.x - player_radius < col_pos.x + he.x
+                    && position.z + player_radius > col_pos.z - he.z
+                    && position.z - player_radius < col_pos.z + he.z;
+
+                if overlaps_xz {
+                    let feet_dist = position.y - col_max_y;
+                    if feet_dist.abs() < foot_margin && velocity.y <= 0.1 {
+                        ground.is_grounded = true;
+                    }
+                }
+            } else {
+                // OBB path: transform player into local space of the collider.
+                // The top face of the OBB in local space is at local_y = he.y.
+                let inv_rot = col_rot.inverse();
+                let local_pos = inv_rot * (position.0 - col_pos);
+
+                // Check horizontal (local XZ) overlap with the OBB's footprint,
+                // with a margin for the player radius (approximated as a sphere
+                // in local XZ).
+                if local_pos.x.abs() < he.x + player_radius
+                    && local_pos.z.abs() < he.z + player_radius
+                {
+                    // Compute the world-space Y of the OBB's top surface
+                    // at the player's local X position.
+                    let surface_local = Vec3::new(local_pos.x, he.y, local_pos.z);
+                    let surface_world =
+                        col_rot * surface_local + col_pos;
+                    let feet_dist = position.y - surface_world.y;
+
+                    if feet_dist.abs() < foot_margin * 3.0 && velocity.y <= 0.1 {
+                        ground.is_grounded = true;
+                        ground.ground_normal = (col_rot * Vec3::Y).normalize();
+                    }
                 }
             }
         }
@@ -74,6 +106,19 @@ pub fn detect_ground(
                     ground.is_grounded = true;
                     // Set the ground normal to the ramp's surface normal
                     ground.ground_normal = ramp_transform.rotation * Vec3::Y;
+                }
+            }
+        }
+
+        // ── Mesh collider ground detection ──
+        let foot_capsule = Capsule::new_y(0.01, player_radius);
+        for mesh in mesh_query.iter() {
+            let foot_pos = Vec3::new(position.x, position.y + 0.01, position.z);
+            let iso = Pose::translation(foot_pos.x, foot_pos.y, foot_pos.z);
+            if let Ok(d) = distance(&iso, &foot_capsule, &Pose::identity(), &mesh.mesh) {
+                if d < foot_margin * 3.0 && velocity.y <= 0.1 {
+                    ground.is_grounded = true;
+                    break;
                 }
             }
         }

@@ -13,6 +13,7 @@ serde_json = "1.0.145"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "net", "sync", "macros"] }
 uuid = { version = "1.12", features = ["v4", "serde"] }
 dirs = "6.0"
+bevy_rapier3d = "0.35.0"
 
 [features]
 # When developing locally we want dynamic linking (smaller edit-compile iteration for Bevy internals).

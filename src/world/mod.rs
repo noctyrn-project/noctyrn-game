@@ -82,6 +82,7 @@ fn despawn_game_map(
     world_query: Query<Entity, With<GameWorldEntity>>,
     collider_query: Query<Entity, With<objects::StaticCollider>>,
     ramp_query: Query<Entity, With<objects::RampCollider>>,
+    mesh_query: Query<Entity, With<objects::MeshCollider>>,
     terminal_query: Query<Entity, With<objects::WeaponTerminal>>,
     material_query: Query<Entity, With<objects::MaterialType>>,
     moving_target_query: Query<Entity, With<objects::MovingTarget>>,
@@ -93,6 +94,7 @@ fn despawn_game_map(
     for entity in world_query.iter()
         .chain(collider_query.iter())
         .chain(ramp_query.iter())
+        .chain(mesh_query.iter())
         .chain(terminal_query.iter())
         .chain(material_query.iter())
         .chain(moving_target_query.iter())

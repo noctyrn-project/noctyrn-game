@@ -1148,6 +1148,7 @@ pub fn move_projectiles(
     terminal_query: Query<(&GlobalTransform, &crate::world::objects::WeaponTerminal), Without<Projectile>>,
     mut terminal_open: ResMut<crate::player::WeaponTerminalOpen>,
     collider_query: Query<(Entity, &Transform, &crate::world::objects::StaticCollider, Option<&crate::world::objects::MaterialType>), Without<Projectile>>,
+    mesh_query: Query<(Entity, &crate::world::objects::MeshCollider, Option<&crate::world::objects::MaterialType>), Without<Projectile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -1234,6 +1235,42 @@ pub fn move_projectiles(
                     hit_collider = true;
                     break;
                 }
+            }
+        }
+        if hit_collider { continue; }
+
+        // Triangle mesh collider hit-test (ray vs TriMesh)
+        for (_col_entity, mesh_collider, material_type) in mesh_query.iter() {
+            use bevy_rapier3d::rapier::parry::query::{Ray, RayCast};
+            use bevy_rapier3d::rapier::parry::math::Vector;
+
+            let origin = Vector::new(new_pos.x, new_pos.y, new_pos.z);
+            let vel = projectile.velocity;
+            let dir = Vector::new(vel.x, vel.y, vel.z);
+            let ray = Ray::new(origin, dir);
+            let max_toi = dir.length() * time.delta_secs();
+            if max_toi <= 0.0 { break; }
+
+            if let Some(_hit) = mesh_collider.mesh.cast_local_ray(&ray, max_toi, true) {
+                let bullet_dir = (vel / vel.length()).into();
+                if let Some(mat_type) = material_type {
+                    if mat_type.shatters() {
+                        crate::world::objects::spawn_glass_shatter(&mut commands, &mut meshes, &mut materials, new_pos, bullet_dir);
+                        glass_to_despawn.push(_col_entity);
+                        projectile.damage *= mat_type.damage_falloff();
+                        projectile.velocity *= 0.7;
+                        continue;
+                    }
+                    let bullet_pen = projectile.damage / 100.0;
+                    if bullet_pen > mat_type.resistance() * 0.5 {
+                        projectile.damage *= mat_type.damage_falloff();
+                        projectile.velocity *= 0.7;
+                        continue;
+                    }
+                }
+                commands.entity(entity).despawn();
+                hit_collider = true;
+                break;
             }
         }
         if hit_collider { continue; }

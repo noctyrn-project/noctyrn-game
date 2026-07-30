@@ -1037,6 +1037,7 @@ fn draw_hitboxes(
     remote_query: Query<&GlobalTransform, With<RemotePlayer>>,
     collider_query: Query<(&GlobalTransform, &crate::world::objects::StaticCollider)>,
     ramp_query: Query<(&GlobalTransform, &crate::world::objects::RampCollider)>,
+    mesh_query: Query<&crate::world::objects::MeshCollider>,
     debug_settings: Res<DebugSettings>,
 ) {
     if !debug_settings.show_hitboxes {
@@ -1075,6 +1076,21 @@ fn draw_hitboxes(
                 .with_scale(size),
             Color::srgba(0.0, 1.0, 1.0, 0.4),
         );
+    }
+
+    // Draw mesh collider triangles (green wireframe)
+    for mesh in mesh_query.iter() {
+        use bevy_rapier3d::rapier::parry::math::Vector;
+        let color = Color::srgba(0.0, 1.0, 0.0, 0.4);
+        let verts = mesh.mesh.vertices();
+        for tri in mesh.mesh.indices() {
+            let a: Vec3 = (*verts.get(tri[0] as usize).unwrap_or(&Vector::ZERO)).into();
+            let b: Vec3 = (*verts.get(tri[1] as usize).unwrap_or(&Vector::ZERO)).into();
+            let c: Vec3 = (*verts.get(tri[2] as usize).unwrap_or(&Vector::ZERO)).into();
+            gizmos.line(a, b, color);
+            gizmos.line(b, c, color);
+            gizmos.line(c, a, color);
+        }
     }
 
     // Draw enemy hitboxes (red)

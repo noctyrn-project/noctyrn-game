@@ -116,9 +116,6 @@ pub struct MovementConfig {
     /// Small margin below feet used for ground surface detection (units).
     pub foot_margin: f32,
 
-    /// Half-extent of the playable map area. Players are clamped within ±this value.
-    pub map_half_extent: f32,
-
     // ── Prone ──
 
     /// Maximum horizontal speed when prone (units/sec).
@@ -175,7 +172,6 @@ impl Default for MovementConfig {
             // Collision
             player_radius: 0.4,
             foot_margin: 0.08,
-            map_half_extent: 140.0,
 
             // Prone
             max_prone_speed: 2.5,

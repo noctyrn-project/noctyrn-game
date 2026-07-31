@@ -48,15 +48,15 @@ mod gravity;
 mod ground_detection;
 mod integration;
 mod jump;
+mod mantling;
 mod sliding;
 mod state_transitions;
 
 // ── Re-export all public types ──
-// These are used by other modules (camera, shooting, player spawning, etc.)
 
 pub use components::{
-    CrouchHeight, GroundedState, JumpState, LeanState, MovementState, PhysicalTranslation,
-    PreviousPhysicalTranslation, SlideState, Velocity,
+    CrouchHeight, DiveState, GroundedState, JumpState, LeanState, MantleState, MovementState,
+    PhysicalTranslation, PreviousPhysicalTranslation, SlideState, Velocity,
 };
 pub use config::MovementConfig;
 
@@ -69,38 +69,21 @@ pub use gravity::apply_gravity;
 pub use ground_detection::detect_ground;
 pub use integration::{integrate_velocity, interpolate_rendered_transform};
 pub use jump::handle_jump;
+pub use mantling::update_mantle;
 pub use sliding::apply_slide_physics;
 pub use state_transitions::transition_movement_state;
 
 use bevy::prelude::*;
 
-/// System set labels for ordering the movement pipeline within `FixedUpdate`.
-///
-/// Each label corresponds to one logical stage of a movement tick.
-/// The player plugin chains these sets to guarantee execution order:
-///
-/// ```text
-/// GroundDetection → StateTransitions → Jump → Acceleration →
-/// Sliding → Friction → Gravity → Integration → Collision
-/// ```
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MovementSet {
-    /// Check ground contact against world geometry.
     GroundDetection,
-    /// Determine movement state from input + physics.
     StateTransitions,
-    /// Handle jumping with coyote time and buffering.
     Jump,
-    /// Apply Quake-style ground/air acceleration.
     Acceleration,
-    /// Apply slide-specific physics.
     Sliding,
-    /// Apply ground friction (skips sliding state).
     Friction,
-    /// Apply manual gravity.
     Gravity,
-    /// Clamp speed and integrate velocity into position.
     Integration,
-    /// Resolve collisions with world geometry.
     Collision,
 }

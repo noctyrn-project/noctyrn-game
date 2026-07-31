@@ -468,6 +468,7 @@ fn spawn_keybinds_settings(commands: &mut Commands, parent: Entity, keybinds: &K
             ("Sprint", keybinds.sprint),
             ("Crouch", keybinds.crouch),
             ("Prone", keybinds.prone),
+            ("Dive", keybinds.dive),
             ("Lean Left", keybinds.lean_left),
             ("Lean Right", keybinds.lean_right),
             ("Reload", keybinds.reload),

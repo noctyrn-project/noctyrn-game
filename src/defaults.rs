@@ -24,7 +24,7 @@ pub fn default_ammo_size() -> [f32; 2] { [100.0, 30.0] }
 
 pub fn default_kill_feed_position() -> [f32; 2] { [20.0, 20.0] }
 
-pub fn default_keybinds() -> [(String, KeyCode); 17] {
+pub fn default_keybinds() -> [(String, KeyCode); 18] {
     [
         ("move_forward".into(), KeyCode::KeyW),
         ("move_backward".into(), KeyCode::KeyS),
@@ -40,6 +40,7 @@ pub fn default_keybinds() -> [(String, KeyCode); 17] {
         ("pause".into(), KeyCode::Escape),
         ("reload".into(), KeyCode::KeyR),
         ("prone".into(), KeyCode::KeyZ),
+        ("dive".into(), KeyCode::KeyC),
         ("lean_left".into(), KeyCode::KeyQ),
         ("lean_right".into(), KeyCode::KeyE),
         ("scoreboard".into(), KeyCode::Tab),

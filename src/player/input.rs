@@ -27,6 +27,7 @@ pub struct Keybinds {
     pub ads: MouseButton,
     pub reload: KeyCode,
     pub prone: KeyCode,
+    pub dive: KeyCode,
     pub lean_left: KeyCode,
     pub lean_right: KeyCode,
     pub scoreboard: KeyCode,
@@ -51,6 +52,7 @@ impl Default for Keybinds {
             pause: find_key("pause", &keys),
             reload: find_key("reload", &keys),
             prone: find_key("prone", &keys),
+            dive: find_key("dive", &keys),
             lean_left: find_key("lean_left", &keys),
             lean_right: find_key("lean_right", &keys),
             scoreboard: find_key("scoreboard", &keys),
@@ -74,12 +76,15 @@ pub struct AccumulatedInput {
     pub raw_movement: Vec2,
     pub jump: bool,
     pub sprint: bool,
+    pub sprint_pressed: bool,
     pub crouch: bool,
+    pub crouch_pressed: bool,
     pub fire: bool,
     pub aim: bool,
     pub stats: bool,
     pub pause: bool,
     pub prone: bool,
+    pub dive: bool,
     pub lean_left: bool,
     pub lean_right: bool,
 }
@@ -89,13 +94,14 @@ pub fn accumulate_input(
     mouse_input: Res<ButtonInput<MouseButton>>,
     keybinds: Res<Keybinds>,
     game_settings: Res<GameSettings>,
-    player: Single<(&mut AccumulatedInput, &mut PlayerToggleState)>,
+    player: Single<(&mut AccumulatedInput, &mut PlayerToggleState, Entity)>,
     camera: Single<&Transform, With<super::MainCamera>>,
     pause_open: Res<super::PauseMenuOpen>,
     chat_open: Res<crate::menu::chat::ChatOpen>,
+    mut commands: Commands,
 ) {
     if pause_open.0 || chat_open.0 { return; }
-    let (mut input, mut toggle_state) = player.into_inner();
+    let (mut input, mut toggle_state, entity) = player.into_inner();
     let mut movement = Vec3::ZERO;
     if keyboard_input.pressed(keybinds.move_forward) {
         movement.y += 1.0;
@@ -125,6 +131,8 @@ pub fn accumulate_input(
     input.movement = wish_dir;
     input.raw_movement = Vec2::new(movement.x, movement.y);
     input.jump = keyboard_input.pressed(keybinds.jump);
+    input.sprint_pressed = keyboard_input.just_pressed(keybinds.sprint);
+    input.crouch_pressed = keyboard_input.just_pressed(keybinds.crouch);
 
     if game_settings.gameplay.toggle_ads {
         if mouse_input.just_pressed(keybinds.ads) {
@@ -163,8 +171,16 @@ pub fn accumulate_input(
     input.stats = keyboard_input.just_pressed(keybinds.stats);
     input.pause = keyboard_input.just_pressed(keybinds.pause);
     input.prone = keyboard_input.just_pressed(keybinds.prone);
+    input.dive = keyboard_input.pressed(keybinds.dive);
     input.lean_left = keyboard_input.pressed(keybinds.lean_left);
     input.lean_right = keyboard_input.pressed(keybinds.lean_right);
+
+    // Manage ADSActive marker component
+    if input.aim {
+        commands.entity(entity).insert(ADSActive);
+    } else {
+        commands.entity(entity).remove::<ADSActive>();
+    }
 }
 
 pub fn clear_input(mut input: Single<&mut AccumulatedInput>) {
@@ -188,6 +204,7 @@ impl Keybinds {
             "Pause" => self.pause = key,
             "Reload" => self.reload = key,
             "Prone" => self.prone = key,
+            "Dive" => self.dive = key,
             "Lean Left" => self.lean_left = key,
             "Lean Right" => self.lean_right = key,
             "Scoreboard" => self.scoreboard = key,
@@ -211,6 +228,7 @@ impl Keybinds {
             "Pause" => self.pause,
             "Reload" => self.reload,
             "Prone" => self.prone,
+            "Dive" => self.dive,
             "Lean Left" => self.lean_left,
             "Lean Right" => self.lean_right,
             "Scoreboard" => self.scoreboard,
@@ -225,6 +243,10 @@ pub struct PlayerToggleState {
     pub crouch: bool,
     pub ads: bool,
 }
+
+/// Marker component added when the player is aiming down sights.
+#[derive(Component)]
+pub struct ADSActive;
 
 #[derive(Resource, Default)]
 pub struct InputSequence(pub u32);

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_rapier3d::rapier::parry::query::{cast_shapes, ShapeCastOptions};
+use bevy_rapier3d::rapier::parry::query::{cast_shapes, ShapeCastOptions, Ray, RayCast};
 use bevy_rapier3d::rapier::parry::shape::Capsule;
 use bevy_rapier3d::rapier::parry::math::{Pose, Vector};
 
@@ -196,19 +196,109 @@ pub fn resolve_collisions(
             }
 
             if earliest_toi <= 1.0 {
-                // Move to the hit position minus a small margin
-                let hit_offset = sweep_dir * earliest_toi;
-                let margin = best_normal * 0.001;
-                position.0 = old_center + hit_offset + Vec3::new(margin.x, margin.y, margin.z) - Vec3::Y * player_half_height;
+                let hit_pos = old_center + sweep_dir * earliest_toi;
+                let normal = Vec3::new(best_normal.x, best_normal.y, best_normal.z);
 
-                // Kill velocity along the hit normal
-                let vn = velocity.0.dot(Vec3::new(best_normal.x, best_normal.y, best_normal.z));
-                if vn < 0.0 {
-                    velocity.0 -= Vec3::new(best_normal.x, best_normal.y, best_normal.z) * vn;
+                // ── Auto step-up ──
+                // If the hit is a wall (mostly horizontal normal) and we're near
+                // the ground, try stepping over obstacles up to `step_up_height`.
+                let wall_like = normal.y.abs() < 0.35;
+                let mut stepped = false;
+                if wall_like && velocity.y <= 0.5 {
+                    stepped = try_step_up(
+                        &mut position,
+                        old_center,
+                        sweep_dir,
+                        &capsule,
+                        &mesh_query,
+                        config,
+                        player_half_height,
+                    );
+                }
+
+                if !stepped {
+                    // Move to the hit position minus a small margin
+                    let margin = normal * 0.001;
+                    position.0 = hit_pos + margin - Vec3::Y * player_half_height;
+
+                    // Kill velocity along the hit normal
+                    let vn = velocity.0.dot(normal);
+                    if vn < 0.0 {
+                        velocity.0 -= normal * vn;
+                    }
                 }
             }
         }
     }
+}
+
+/// Attempt to step the player up onto an obstacle ≤ `step_up_height` tall.
+///
+/// Returns true if the player was stepped up. The player is moved the full
+/// sweep distance at the elevated position, and horizontal velocity is kept.
+fn try_step_up(
+    position: &mut PhysicalTranslation,
+    old_center: Vec3,
+    sweep_dir: Vec3,
+    capsule: &Capsule,
+    mesh_query: &Query<&MeshCollider>,
+    config: &MovementConfig,
+    player_half_height: f32,
+) -> bool {
+    // Probe forward at step height (slightly above so a max-height step clears).
+    let probe_center = old_center + Vec3::Y * (config.step_up_height * 1.1);
+
+    let options = ShapeCastOptions {
+        max_time_of_impact: 1.0,
+        target_distance: 0.001,
+        stop_at_penetration: true,
+        compute_impact_geometry_on_penetration: true,
+    };
+
+    for mesh_collider in mesh_query.iter() {
+        if let Ok(Some(_)) = cast_shapes(
+            &Pose::translation(probe_center.x, probe_center.y, probe_center.z),
+            Vector::new(sweep_dir.x, sweep_dir.y, sweep_dir.z),
+            capsule,
+            &Pose::identity(),
+            Vector::ZERO,
+            &mesh_collider.mesh,
+            options,
+        ) {
+            // Something taller than the step blocks the way.
+            return false;
+        }
+    }
+
+    // Find the surface under the step destination.
+    let final_center = probe_center + sweep_dir;
+    let down_ray = Ray::new(
+        Vector::new(final_center.x, final_center.y + 0.5, final_center.z),
+        Vector::new(0.0, -1.0, 0.0),
+    );
+
+    let mut surface_y: Option<f32> = None;
+    for mesh_collider in mesh_query.iter() {
+        if let Some(toi) = mesh_collider.mesh.cast_local_ray(&down_ray, 2.0, true) {
+            let y = down_ray.origin.y - toi;
+            surface_y = Some(match surface_y {
+                Some(prev) => prev.max(y),
+                None => y,
+            });
+        }
+    }
+
+    let Some(surface_y) = surface_y else { return false };
+
+    let original_feet_y = old_center.y - player_half_height;
+    let step_height = surface_y - original_feet_y;
+    if step_height > config.step_up_height + 0.05 || step_height < -0.1 {
+        return false;
+    }
+
+    // Land on the surface at the full forward sweep distance.
+    position.0 = Vec3::new(final_center.x, surface_y + player_half_height, final_center.z);
+    true
 }
 
 #[cfg(test)]

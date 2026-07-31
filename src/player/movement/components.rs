@@ -79,28 +79,18 @@ impl Default for GroundedState {
     }
 }
 
-/// The player's current movement state.
-///
-/// Drives which movement physics are applied each frame.
-/// State transitions are handled by a dedicated system—movement
-/// systems read this but never write it (clean data flow).
 #[derive(Debug, Component, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum MovementState {
-    /// No movement input; grounded.
     #[default]
     Idle,
-    /// Moving at walk speed; grounded.
     Walking,
-    /// Moving at sprint speed; grounded.
     Sprinting,
-    /// Crouched; grounded. Reduced speed and lower eye height.
     Crouching,
-    /// Momentum slide triggered by sprint+crouch. Reduced friction.
     Sliding,
-    /// Not touching any ground surface.
     Airborne,
-    /// Prone position. Lowest speed and eye height.
     Prone,
+    Diving,
+    Mantling,
 }
 
 /// Tracks jump mechanics: coyote time and input buffering.
@@ -118,16 +108,17 @@ pub enum MovementState {
 #[derive(Debug, Component, Clone, Copy, PartialEq)]
 pub struct JumpState {
     /// Time remaining in the coyote window.
-    /// Set to `coyote_time` on ground contact; counts down while airborne.
     pub coyote_timer: f32,
 
     /// Time remaining in the jump buffer window.
-    /// Set to `jump_buffer_time` when jump is pressed; counts down each frame.
     pub buffer_timer: f32,
 
     /// Whether the player has consumed their jump this airborne period.
-    /// Reset when grounded again. Prevents double-jumping from coyote time.
     pub has_jumped: bool,
+
+    /// When true, jump inputs are ignored until the jump key is released.
+    /// Used to prevent "stand up from prone" from also launching a jump.
+    pub suppress_jump: bool,
 }
 
 impl Default for JumpState {
@@ -136,6 +127,45 @@ impl Default for JumpState {
             coyote_timer: 0.0,
             buffer_timer: 0.0,
             has_jumped: false,
+            suppress_jump: false,
+        }
+    }
+}
+
+/// State for the dolphin dive mechanic.
+#[derive(Debug, Component, Clone, Copy, PartialEq)]
+pub struct DiveState {
+    pub active: bool,
+    pub timer: f32,
+}
+
+impl Default for DiveState {
+    fn default() -> Self {
+        Self {
+            active: false,
+            timer: 0.0,
+        }
+    }
+}
+
+/// State for manual mantling over obstacles.
+#[derive(Debug, Component, Clone, Copy, PartialEq)]
+pub struct MantleState {
+    pub active: bool,
+    pub start_pos: Vec3,
+    pub end_pos: Vec3,
+    pub timer: f32,
+    pub duration: f32,
+}
+
+impl Default for MantleState {
+    fn default() -> Self {
+        Self {
+            active: false,
+            start_pos: Vec3::ZERO,
+            end_pos: Vec3::ZERO,
+            timer: 0.0,
+            duration: 0.5,
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 use bevy::{input::mouse::AccumulatedMouseMotion, prelude::*};
 use super::input::AccumulatedInput;
-use super::movement::{CrouchHeight, Velocity, MovementState};
+use super::movement::{CrouchHeight, Velocity, MovementState, DiveState};
 use super::DebugSettings;
 use crate::settings::GameSettings;
 use crate::player::CameraMode;
@@ -57,7 +57,10 @@ pub fn rotate_camera(
 pub fn translate_camera(
     time: Res<Time>,
     mut camera: Single<&mut Transform, With<super::MainCamera>>,
-    player: Single<(&Transform, &mut CrouchHeight), (With<AccumulatedInput>, Without<super::MainCamera>)>,
+    player: Single<
+        (&Transform, &mut CrouchHeight, &super::movement::LeanState, &super::movement::MovementConfig),
+        (With<AccumulatedInput>, Without<super::MainCamera>),
+    >,
     debug_settings: Res<DebugSettings>,
     camera_mode: Res<CameraMode>,
 ) {
@@ -65,21 +68,26 @@ pub fn translate_camera(
         return;
     }
 
-    let (player_transform, mut crouch_height) = player.into_inner();
-    
+    let (player_transform, mut crouch_height, lean, config) = player.into_inner();
+
     // Smoothly interpolate crouch height
     let dt = time.delta_secs();
     crouch_height.current = crouch_height.current.lerp(crouch_height.target, dt * 10.0);
 
+    // Lateral lean offset so the camera peeks around cover.
+    let lean_frac = (lean.current / config.lean_angle).clamp(-1.0, 1.0);
+    let right_flat = Vec3::new(camera.forward().z, 0.0, -camera.forward().x).normalize_or_zero();
+    let lean_offset = right_flat * (lean_frac * config.lean_translate);
+
     if camera_mode.third_person {
         // 3rd person: position camera behind and above player
-        let eye_pos = player_transform.translation + Vec3::Y * crouch_height.current;
+        let eye_pos = player_transform.translation + Vec3::Y * crouch_height.current + lean_offset;
         let backward = -camera.forward().as_vec3();
         let cam_pos = eye_pos + backward * camera_mode.distance + Vec3::Y * camera_mode.height_offset;
         camera.translation = cam_pos;
     } else {
         // 1st person: camera at eye height
-        camera.translation = player_transform.translation + Vec3::Y * crouch_height.current;
+        camera.translation = player_transform.translation + Vec3::Y * crouch_height.current + lean_offset;
     }
 }
 
@@ -162,7 +170,7 @@ pub struct CameraShake {
     pub intensity: f32,
 }
 
-/// Compute camera sway offsets based on movement state (walk bob, sprint bob).
+/// Update camera sway offsets based on movement state (walk bob, sprint bob).
 /// Does NOT write to the camera transform – offsets are stored in CameraSway
 /// and applied together with lean in apply_lean to avoid roll-channel fights.
 pub fn apply_camera_sway(
@@ -276,18 +284,25 @@ pub fn spawn_camera_shake(commands: &mut Commands, intensity: f32, duration: f32
 }
 
 /// Update lean state from input and apply combined lean + sway roll to camera.
-/// This is the single authority for the camera roll channel.
 pub fn apply_lean(
     time: Res<Time>,
     sway: Res<CameraSway>,
     mut camera: Query<(&mut Transform, &CameraRotation), With<super::MainCamera>>,
-    mut player: Query<(&mut super::movement::LeanState, &AccumulatedInput, &super::movement::MovementConfig), With<PlayerBody>>,
+    mut player: Query<(
+        &mut super::movement::LeanState,
+        &AccumulatedInput,
+        &super::movement::MovementConfig,
+        &MovementState,
+        &DiveState,
+    ), With<PlayerBody>>,
     debug_settings: Res<DebugSettings>,
 ) {
     if debug_settings.free_cam { return; }
 
-    let Ok((mut lean, input, config)) = player.single_mut() else { return };
+    let Ok((mut lean, input, config, state, dive)) = player.single_mut() else { return };
     let Ok((mut cam_transform, cam_rot)) = camera.single_mut() else { return };
+
+    let dt = time.delta_secs();
 
     // Determine lean target
     lean.target = if input.lean_left && !input.lean_right {
@@ -298,17 +313,24 @@ pub fn apply_lean(
         0.0
     };
 
-    // Smoothly interpolate toward target, clamped to configured angle.
-    let dt = time.delta_secs();
+    // Smoothly interpolate toward target
     lean.current = (lean.current + (lean.target - lean.current) * dt * config.lean_speed)
         .clamp(-config.lean_angle, config.lean_angle);
 
-    // Build final rotation from the clean CameraRotation base plus lean + sway.
+    // Dive pitch-down effect (negative pitch = looking down in this codebase)
+    let dive_pitch_offset = if *state == MovementState::Diving && dive.active {
+        let frac = (dive.timer / config.dive_duration).min(1.0);
+        -frac * 0.3 // pitch down up to ~17 degrees
+    } else {
+        0.0
+    };
+
+    // Build final rotation
     let combined_roll = lean.current + sway.roll_offset;
     cam_transform.rotation = Quat::from_euler(
         EulerRot::YXZ,
         cam_rot.yaw + sway.yaw_offset,
-        cam_rot.pitch + sway.pitch_offset,
+        cam_rot.pitch + sway.pitch_offset + dive_pitch_offset,
         combined_roll,
     );
 }

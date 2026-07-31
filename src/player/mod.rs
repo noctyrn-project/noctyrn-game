@@ -22,13 +22,14 @@ pub mod shooting;
 
 use movement::{
     CrouchHeight,
-    GroundedState, MovementState, JumpState, SlideState, MovementConfig, MovementSet,
+    GroundedState, MovementState, JumpState, SlideState, DiveState, MantleState, MovementConfig, MovementSet,
     detect_ground, transition_movement_state, handle_jump, apply_acceleration,
     apply_slide_physics, apply_friction, apply_gravity, integrate_velocity,
-    resolve_collisions, interpolate_rendered_transform,
+    resolve_collisions, interpolate_rendered_transform, update_mantle,
 };
 use input::{AccumulatedInput, accumulate_input, clear_input, send_player_input, send_shot_fired, PlayerToggleState, InputSequence};
 pub use input::Keybinds;
+pub use input::ADSActive;
 use camera::{CameraSensitivity, CameraRotation, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
 pub use inventory::WeaponModel;
 use inventory::{Inventory, handle_weapon_switching, SwitchState};
@@ -144,10 +145,10 @@ impl Plugin for Player {
         app.init_resource::<InputSequence>();
         app.init_resource::<input::LocalFireState>();
         
-        app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed));
+        app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed, spawn_stance_indicator));
         app.add_systems(OnExit(GameState::Playing), (despawn_gameplay_ui, cleanup_pause_menu_on_exit, crate::menu::close_chat));
         app.add_systems(Update, grab_cursor);
-        app.add_systems(Update, (toggle_pause, debug_input, sync_settings, update_fov, toggle_camera_mode, animate_player_model).run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, (toggle_pause, debug_input, sync_settings, update_fov, toggle_camera_mode, animate_player_model, update_stance_indicator).run_if(in_state(GameState::Playing)));
         app.add_systems(Update, (manage_pause_overlay, pause_menu_action, keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::Playing)));
         app.add_systems(Update, (keybind_remapping_system, update_settings_menu, handle_settings_interaction, handle_slider_drag).run_if(in_state(GameState::MainMenu)));
 
@@ -180,6 +181,9 @@ impl Plugin for Player {
             send_player_input,
             send_shot_fired,
         ).run_if(in_state(GameState::Playing)));
+
+        // Mantle update runs after collision resolution in FixedUpdate
+        app.add_systems(FixedUpdate, update_mantle.after(MovementSet::Collision).run_if(in_state(GameState::Playing)));
         
         app.add_systems(Update, inventory::handle_weapon_switching.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, move_projectiles.run_if(in_state(GameState::Playing)));
@@ -334,6 +338,8 @@ fn spawn_player(
         MovementState::default(),
         JumpState::default(),
         SlideState::default(),
+        DiveState::default(),
+        MantleState::default(),
         movement::LeanState::default(),
     )).id();
 
@@ -373,6 +379,52 @@ fn spawn_ammo_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         },
         AmmoUi,
     ));
+}
+
+/// Bottom-right stance indicator (standing/crouching/prone rectangle).
+#[derive(Component)]
+pub struct StanceIndicator {
+    pub width: f32,
+    pub height: f32,
+}
+
+fn spawn_stance_indicator(mut commands: Commands) {
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(24.0),
+            bottom: Val::Px(24.0),
+            width: Val::Px(10.0),
+            height: Val::Px(36.0),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.85)),
+        StanceIndicator {
+            width: 10.0,
+            height: 36.0,
+        },
+        GameplayUi,
+    ));
+}
+
+fn update_stance_indicator(
+    time: Res<Time>,
+    mut indicator: Single<(&mut Node, &mut StanceIndicator)>,
+    player: Single<&MovementState, With<LocalPlayer>>,
+) {
+    let dt = time.delta_secs();
+    let (target_w, target_h) = match *player {
+        MovementState::Crouching | MovementState::Sliding => (10.0, 20.0),
+        MovementState::Prone | MovementState::Diving => (44.0, 10.0),
+        _ => (10.0, 36.0),
+    };
+
+    let (mut node, mut ind) = indicator.into_inner();
+    let t = (dt * 12.0).min(1.0);
+    ind.width += (target_w - ind.width) * t;
+    ind.height += (target_h - ind.height) * t;
+    node.width = Val::Px(ind.width);
+    node.height = Val::Px(ind.height);
 }
 
 #[derive(Component)]
@@ -865,14 +917,16 @@ fn animate_player_model(
     let Ok((state, velocity, lean)) = state_query.single() else { return };
 
     let target_pitch = match *state {
-        MovementState::Sprinting => -0.15,  // Lean forward when sprinting
-        MovementState::Crouching => -0.08,  // Slight lean forward when crouching
-        MovementState::Sliding => 0.25,     // Lean back when sliding
+        MovementState::Sprinting => -0.15,
+        MovementState::Crouching => -0.08,
+        MovementState::Sliding => 0.25,
+        MovementState::Diving => 0.8,       // Pitch forward during dive
+        MovementState::Mantling => -0.3,    // Lean back during mantle
         MovementState::Airborne => {
-            if velocity.y > 0.0 { -0.1 } else { 0.05 } // Forward on jump up, back on fall
+            if velocity.y > 0.0 { -0.1 } else { 0.05 }
         }
-        MovementState::Prone => 1.4,        // Nearly horizontal
-        _ => 0.0,                            // Upright for idle/walking
+        MovementState::Prone => 1.4,
+        _ => 0.0,
     };
 
     // Slight roll based on horizontal velocity for strafing lean

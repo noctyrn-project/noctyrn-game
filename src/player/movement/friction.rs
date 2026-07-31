@@ -65,10 +65,9 @@ pub fn apply_friction(
         }
 
         // The control value ensures friction is effective even at low speeds.
-        // min_control_speed of 4.0 means friction behaves as if the player
-        // is moving at least 4 u/s, preventing glacial deceleration.
-        let min_control_speed = 4.0;
-        let control = speed.max(min_control_speed);
+        // A floor of 6.0 means friction behaves as if the player is moving at
+        // least 6 u/s, preventing glacial deceleration.
+        let control = speed.max(6.0);
         let drop = control * config.ground_friction * dt;
         let new_speed = (speed - drop).max(0.0);
         let scale = new_speed / speed;

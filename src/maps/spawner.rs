@@ -38,7 +38,7 @@ pub fn spawn(
 
     for m in &colliders.colliders {
         if let Some(mc) = MeshCollider::from_json(m, scale) {
-            commands.spawn((mc, GameWorldEntity));
+            commands.spawn((mc, GameWorldEntity, Transform::default()));
         }
     }
 }

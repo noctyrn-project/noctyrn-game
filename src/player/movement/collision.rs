@@ -7,7 +7,7 @@ use super::components::*;
 use super::config::MovementConfig;
 use super::ground_detection::ramp_surface_y;
 use crate::gameplay::Health;
-use crate::world::objects::{MeshCollider, RampCollider, StaticCollider};
+use crate::world::objects::{MeshCollider, RampCollider};
 
 /// Resolves collisions between the player and world geometry.
 ///
@@ -40,7 +40,6 @@ pub fn resolve_collisions(
         &MovementConfig,
         Option<&Health>,
     )>,
-    collider_query: Query<(&Transform, &StaticCollider)>,
     ramp_query: Query<(&Transform, &RampCollider)>,
     mesh_query: Query<&MeshCollider>,
 ) {
@@ -65,127 +64,7 @@ pub fn resolve_collisions(
             }
         }
 
-        // ── Collision with static colliders (OBB-aware) ──
         let player_height = crouch_height.current;
-        let player_bottom = position.y;
-        let player_top = player_bottom + player_height;
-
-        for (col_transform, collider) in collider_query.iter() {
-            let col_pos = col_transform.translation;
-            let col_rot = col_transform.rotation;
-            let he = collider.half_extents;
-
-            // Check if the collider has significant rotation
-            let angle = col_rot.to_axis_angle().1.abs();
-            let is_rotated = angle > 0.01;
-
-            if !is_rotated {
-                // Fast AABB path for axis-aligned colliders
-                let player_min_x = position.x - player_radius;
-                let player_max_x = position.x + player_radius;
-                let player_min_z = position.z - player_radius;
-                let player_max_z = position.z + player_radius;
-
-                let col_min_x = col_pos.x - he.x;
-                let col_max_x = col_pos.x + he.x;
-                let col_min_y = col_pos.y - he.y;
-                let col_max_y = col_pos.y + he.y;
-                let col_min_z = col_pos.z - he.z;
-                let col_max_z = col_pos.z + he.z;
-
-                if player_max_x > col_min_x
-                    && player_min_x < col_max_x
-                    && player_top > col_min_y
-                    && player_bottom < col_max_y
-                    && player_max_z > col_min_z
-                    && player_min_z < col_max_z
-                {
-                    let pen_px = player_max_x - col_min_x;
-                    let pen_nx = col_max_x - player_min_x;
-                    let pen_py = player_top - col_min_y;
-                    let pen_ny = col_max_y - player_bottom;
-                    let pen_pz = player_max_z - col_min_z;
-                    let pen_nz = col_max_z - player_min_z;
-
-                    // Bias vertical resolution to prevent camera drift when
-                    // walking face-first into a wall. When standing on or near
-                    // a surface, pen_ny is tiny; adding bias ensures horizontal
-                    // axes are preferred for push-out.
-                    let vert_bias = 0.1;
-                    let pen_ny_biased = pen_ny + vert_bias;
-                    let pen_py_biased = pen_py + vert_bias;
-
-                    let min_pen = pen_px
-                        .min(pen_nx)
-                        .min(pen_py_biased)
-                        .min(pen_ny_biased)
-                        .min(pen_pz)
-                        .min(pen_nz);
-
-                    if min_pen == pen_ny_biased {
-                        position.y = col_max_y;
-                        if velocity.y < 0.0 { velocity.y = 0.0; }
-                    } else if min_pen == pen_py_biased {
-                        position.y = col_min_y - player_height;
-                        if velocity.y > 0.0 { velocity.y = 0.0; }
-                    } else if min_pen == pen_px {
-                        position.x -= pen_px;
-                        if velocity.x > 0.0 { velocity.x = 0.0; }
-                    } else if min_pen == pen_nx {
-                        position.x += pen_nx;
-                        if velocity.x < 0.0 { velocity.x = 0.0; }
-                    } else if min_pen == pen_pz {
-                        position.z -= pen_pz;
-                        if velocity.z > 0.0 { velocity.z = 0.0; }
-                    } else if min_pen == pen_nz {
-                        position.z += pen_nz;
-                        if velocity.z < 0.0 { velocity.z = 0.0; }
-                    }
-                }
-            } else {
-                // OBB collision for rotated colliders
-                let inv_rot = col_rot.inverse();
-                let player_center = Vec3::new(position.x, player_bottom + player_height * 0.5, position.z);
-                let local_player = inv_rot * (player_center - col_pos);
-                let player_half_h = player_height * 0.5;
-                let player_he = Vec3::new(player_radius, player_half_h, player_radius);
-
-                let overlap_x = (he.x + player_he.x) - local_player.x.abs();
-                let overlap_y = (he.y + player_he.y) - local_player.y.abs();
-                let overlap_z = (he.z + player_he.z) - local_player.z.abs();
-
-                if overlap_x > 0.0 && overlap_y > 0.0 && overlap_z > 0.0 {
-                    let min_overlap = overlap_x.min(overlap_y).min(overlap_z);
-
-                    let local_normal = if min_overlap == overlap_y {
-                        Vec3::new(0.0, local_player.y.signum(), 0.0)
-                    } else if min_overlap == overlap_x {
-                        Vec3::new(local_player.x.signum(), 0.0, 0.0)
-                    } else {
-                        Vec3::new(0.0, 0.0, local_player.z.signum())
-                    };
-
-                    let world_normal = col_rot * local_normal;
-                    let push = world_normal * min_overlap;
-
-                    if min_overlap == overlap_y && local_player.y > 0.0 {
-                        // Landing on top
-                        position.y += push.y;
-                        if velocity.y < 0.0 { velocity.y = 0.0; }
-                    } else if min_overlap == overlap_y && local_player.y < 0.0 {
-                        // Head bump
-                        position.y += push.y;
-                        if velocity.y > 0.0 { velocity.y = 0.0; }
-                    } else {
-                        position.0 += push;
-                        let vel_along = velocity.0.dot(world_normal);
-                        if vel_along < 0.0 {
-                            velocity.0 -= world_normal * vel_along;
-                        }
-                    }
-                }
-            }
-        }
 
         // ── Ramp collision ──
         // Surface snapping from above + OBB collision for side/underneath.

@@ -80,10 +80,8 @@ fn spawn_game_map(
 fn despawn_game_map(
     mut commands: Commands,
     world_query: Query<Entity, With<GameWorldEntity>>,
-    collider_query: Query<Entity, With<objects::StaticCollider>>,
     ramp_query: Query<Entity, With<objects::RampCollider>>,
     mesh_query: Query<Entity, With<objects::MeshCollider>>,
-    terminal_query: Query<Entity, With<objects::WeaponTerminal>>,
     material_query: Query<Entity, With<objects::MaterialType>>,
     moving_target_query: Query<Entity, With<objects::MovingTarget>>,
     popup_target_query: Query<Entity, With<objects::PopUpTarget>>,
@@ -92,10 +90,8 @@ fn despawn_game_map(
     main_light_query: Query<Entity, With<MainLight>>,
 ) {
     for entity in world_query.iter()
-        .chain(collider_query.iter())
         .chain(ramp_query.iter())
         .chain(mesh_query.iter())
-        .chain(terminal_query.iter())
         .chain(material_query.iter())
         .chain(moving_target_query.iter())
         .chain(popup_target_query.iter())

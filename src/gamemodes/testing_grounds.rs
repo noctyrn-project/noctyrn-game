@@ -4,29 +4,20 @@ use crate::player::shooting::Target;
 use crate::gameplay::{Billboard, Health, Enemy, HealthBar, HealthBarForeground, Turret};
 use crate::world::objects::*;
 use crate::world::GameWorldEntity;
-use crate::weapons::WeaponSlot;
 use crate::menu::GameMode;
 
 /// Spawn the full testing-grounds geometry.
-/// Layout (looking from origin +Z):
-///   -Z: shooting range with distance markers + targets
-///   -X: parkour / movement course
-///   +X: material penetration test area
-///   Center: weapon terminals + spawn point
 pub fn spawn_map(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    spawn_weapon_terminals(commands, meshes, materials);
     spawn_shooting_range(commands, meshes, materials);
     spawn_parkour_course(commands, meshes, materials);
     spawn_material_test_area(commands, meshes, materials);
 }
 
-// ---------------------------------------------------------------------------
-// Materials
-// ---------------------------------------------------------------------------
+// ── Materials ──
 
 fn concrete() -> StandardMaterial {
     StandardMaterial { base_color: Color::srgb(0.35, 0.35, 0.38), perceptual_roughness: 0.9, ..default() }
@@ -52,52 +43,6 @@ fn mat_handle(materials: &mut ResMut<Assets<StandardMaterial>>, m: StandardMater
 // Weapon terminals (compact row at spawn)
 // ---------------------------------------------------------------------------
 
-fn spawn_weapon_terminals(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-) {
-    let term = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.3, 0.5, 0.7),
-        perceptual_roughness: 0.3, metallic: 0.6, ..default()
-    });
-    let glow = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.5, 0.7, 1.0),
-        perceptual_roughness: 0.2, metallic: 0.8, ..default()
-    });
-    let labels = ["ALL", "PRIMARY", "SECONDARY", "MELEE", "EQUIP"];
-    let slots = [None, Some(WeaponSlot::Primary), Some(WeaponSlot::Secondary), Some(WeaponSlot::Melee), Some(WeaponSlot::Equipment)];
-    for (i, (label, slot)) in labels.iter().zip(slots.iter()).enumerate() {
-        let x = (i as f32 - 2.0) * 3.0;
-        let pos = Vec3::new(x, 1.0, 0.0);
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.8, 1.8, 0.5))),
-            MeshMaterial3d(term.clone()),
-            Transform::from_translation(pos),
-            StaticCollider { half_extents: Vec3::new(0.4, 0.9, 0.25) },
-            WeaponTerminal { slot_filter: *slot },
-            GameWorldEntity,
-        ));
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.6, 0.1, 0.1))),
-            MeshMaterial3d(glow.clone()),
-            Transform::from_translation(pos + Vec3::new(0.0, 0.8, 0.3)),
-            GameWorldEntity,
-        ));
-        commands.spawn((
-            Text2d::new(*label),
-            TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgb(0.5, 0.7, 1.0)),
-            Transform::from_translation(pos + Vec3::new(0.0, -1.0, 0.0)).with_scale(Vec3::splat(0.02)),
-            Billboard, TerminalLabel,
-        ));
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Shooting range (extends in -Z direction from spawn)
-// ---------------------------------------------------------------------------
-
 fn spawn_shooting_range(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
@@ -115,7 +60,6 @@ fn spawn_shooting_range(
         Mesh3d(meshes.add(Cuboid::new(8.0, 6.0, 0.5))),
         MeshMaterial3d(wall.clone()),
         Transform::from_translation(origin + Vec3::new(0.0, 3.0, -55.0)),
-        StaticCollider { half_extents: Vec3::new(4.0, 3.0, 0.25) },
     ));
 
     // Side walls for range lane
@@ -125,7 +69,6 @@ fn spawn_shooting_range(
                 Mesh3d(meshes.add(Cuboid::new(w, 3.0, 0.5))),
                 MeshMaterial3d(wall.clone()),
                 Transform::from_translation(origin + Vec3::new(x, 1.5, z * 0.5 - 25.0)),
-                StaticCollider { half_extents: Vec3::new(w * 0.5, 1.5, 0.25) },
             ));
         }
     }
@@ -207,7 +150,6 @@ fn spawn_parkour_course(
             Mesh3d(meshes.add(Cuboid::new(1.5, h * 2.0, 1.5))),
             MeshMaterial3d(m.clone()),
             Transform::from_translation(origin + Vec3::new(0.0, *h, *z)),
-            StaticCollider { half_extents: Vec3::new(0.75, *h, 0.75) },
         ));
     }
 
@@ -218,7 +160,6 @@ fn spawn_parkour_course(
             Mesh3d(meshes.add(Cuboid::new(0.3, 4.0, 4.0))),
             MeshMaterial3d(wall.clone()),
             Transform::from_translation(origin + Vec3::new(x, 2.0, z)),
-            StaticCollider { half_extents: Vec3::new(0.15, 2.0, 2.0) },
         ));
     }
 
@@ -227,7 +168,6 @@ fn spawn_parkour_course(
         Mesh3d(meshes.add(Cuboid::new(0.4, 0.2, 8.0))),
         MeshMaterial3d(beam_m.clone()),
         Transform::from_translation(origin + Vec3::new(1.0, 3.0, 10.0)),
-        StaticCollider { half_extents: Vec3::new(0.2, 0.1, 4.0) },
     ));
 
     // Low wall to practice vaulting
@@ -235,7 +175,6 @@ fn spawn_parkour_course(
         Mesh3d(meshes.add(Cuboid::new(3.0, 1.0, 0.5))),
         MeshMaterial3d(accent.clone()),
         Transform::from_translation(origin + Vec3::new(-2.0, 0.5, 2.0)),
-        StaticCollider { half_extents: Vec3::new(1.5, 0.5, 0.25) },
     ));
 }
 
@@ -272,7 +211,6 @@ fn spawn_material_test_area(
             MeshMaterial3d(m),
             Transform::from_translation(origin + Vec3::new(x, size.y * 0.5, 0.0)),
             Target,
-            StaticCollider { half_extents: Vec3::new(size.x * 0.5, size.y * 0.5, size.z * 0.5) },
             mat_type.clone(),
         ));
         commands.spawn((

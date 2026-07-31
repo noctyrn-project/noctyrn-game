@@ -858,8 +858,8 @@ pub fn handle_grenade_throw(
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Grenade)>,
     mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&mut Regenerating>), (With<Health>, Without<Grenade>)>,
-    collider_query: Query<(&Transform, &crate::world::objects::StaticCollider), Without<Grenade>>,
-    camera_query: Query<&Transform, (With<super::MainCamera>, Without<Grenade>, Without<crate::world::objects::StaticCollider>, Without<Health>)>,
+    mesh_query: Query<&crate::world::objects::MeshCollider, Without<Grenade>>,
+    camera_query: Query<&Transform, (With<super::MainCamera>, Without<Grenade>, Without<crate::world::objects::MeshCollider>, Without<Health>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -869,6 +869,7 @@ pub fn handle_grenade_throw(
         
         // Gravity
         grenade.velocity.y -= 9.8 * dt;
+        let old_pos = transform.translation;
         transform.translation += grenade.velocity * dt;
         
         // Apply rotation (rolling/tumbling visual)
@@ -886,107 +887,57 @@ pub fn handle_grenade_throw(
             grenade.velocity.y *= -0.4; // Bounce
             grenade.velocity.x *= 0.7; // Friction
             grenade.velocity.z *= 0.7;
-            // Reduce spin on floor contact, add rolling
             grenade.angular_velocity *= 0.6;
-            // Convert linear velocity to rolling angular velocity
             grenade.angular_velocity.x += grenade.velocity.z * 2.0;
             grenade.angular_velocity.z -= grenade.velocity.x * 2.0;
         }
 
-        // Wall/StaticCollider collision (OBB-aware bounce)
+        // Mesh collider collision (swept sphere vs TriMesh)
         let grenade_radius = 0.15;
-        for (col_transform, collider) in collider_query.iter() {
-            let col_pos = col_transform.translation;
-            let col_rot = col_transform.rotation;
-            let he = collider.half_extents;
-            let pos = transform.translation;
+        let mv = transform.translation - old_pos;
+        if mv.length_squared() > 0.0001 {
+            use bevy_rapier3d::rapier::parry::shape::Ball;
+            use bevy_rapier3d::rapier::parry::math::Vector as PVec;
+            use bevy_rapier3d::rapier::parry::math::Pose;
+            use bevy_rapier3d::rapier::parry::query::{cast_shapes, ShapeCastOptions};
 
-            let angle = col_rot.to_axis_angle().1.abs();
-            let is_rotated = angle > 0.01;
+            let ball = Ball::new(grenade_radius);
+            let mut earliest_toi = 2.0f32;
+            let mut best_normal = PVec::ZERO;
 
-            if !is_rotated {
-                // Fast AABB path
-                let min = col_pos - he;
-                let max = col_pos + he;
-
-                if pos.x + grenade_radius > min.x && pos.x - grenade_radius < max.x
-                    && pos.y + grenade_radius > min.y && pos.y - grenade_radius < max.y
-                    && pos.z + grenade_radius > min.z && pos.z - grenade_radius < max.z
-                {
-                    let pen_px = (pos.x + grenade_radius) - min.x;
-                    let pen_nx = max.x - (pos.x - grenade_radius);
-                    let pen_py = (pos.y + grenade_radius) - min.y;
-                    let pen_ny = max.y - (pos.y - grenade_radius);
-                    let pen_pz = (pos.z + grenade_radius) - min.z;
-                    let pen_nz = max.z - (pos.z - grenade_radius);
-
-                    let min_pen = pen_px.min(pen_nx).min(pen_py).min(pen_ny).min(pen_pz).min(pen_nz);
-                    let bounce_factor = 0.4;
-                    let friction_factor = 0.7;
-
-                    if min_pen == pen_ny {
-                        transform.translation.y = max.y + grenade_radius;
-                        grenade.velocity.y *= -bounce_factor;
-                        grenade.velocity.x *= friction_factor;
-                        grenade.velocity.z *= friction_factor;
-                    } else if min_pen == pen_py {
-                        transform.translation.y = min.y - grenade_radius;
-                        grenade.velocity.y *= -bounce_factor;
-                    } else if min_pen == pen_px {
-                        transform.translation.x = min.x - grenade_radius;
-                        grenade.velocity.x *= -bounce_factor;
-                        grenade.velocity.z *= friction_factor;
-                    } else if min_pen == pen_nx {
-                        transform.translation.x = max.x + grenade_radius;
-                        grenade.velocity.x *= -bounce_factor;
-                        grenade.velocity.z *= friction_factor;
-                    } else if min_pen == pen_pz {
-                        transform.translation.z = min.z - grenade_radius;
-                        grenade.velocity.z *= -bounce_factor;
-                        grenade.velocity.x *= friction_factor;
-                    } else if min_pen == pen_nz {
-                        transform.translation.z = max.z + grenade_radius;
-                        grenade.velocity.z *= -bounce_factor;
-                        grenade.velocity.x *= friction_factor;
+            for mc in mesh_query.iter() {
+                let result = cast_shapes(
+                    &Pose::translation(old_pos.x, old_pos.y, old_pos.z),
+                    PVec::new(mv.x, mv.y, mv.z),
+                    &ball,
+                    &Pose::identity(),
+                    PVec::ZERO,
+                    &mc.mesh,
+                    ShapeCastOptions {
+                        max_time_of_impact: 1.0,
+                        target_distance: 0.001,
+                        stop_at_penetration: true,
+                        compute_impact_geometry_on_penetration: true,
+                    },
+                );
+                if let Ok(Some(hit)) = result {
+                    if hit.time_of_impact < earliest_toi {
+                        earliest_toi = hit.time_of_impact;
+                        best_normal = hit.normal2;
                     }
-
-                    grenade.angular_velocity *= 0.7;
                 }
-            } else {
-                // OBB path for rotated colliders
-                let inv_rot = col_rot.inverse();
-                let local_pos = inv_rot * (pos - col_pos);
+            }
 
-                // Check overlap in local space with grenade radius
-                let overlap_x = (he.x + grenade_radius) - local_pos.x.abs();
-                let overlap_y = (he.y + grenade_radius) - local_pos.y.abs();
-                let overlap_z = (he.z + grenade_radius) - local_pos.z.abs();
-
-                if overlap_x > 0.0 && overlap_y > 0.0 && overlap_z > 0.0 {
-                    let min_overlap = overlap_x.min(overlap_y).min(overlap_z);
-
-                    let local_normal = if min_overlap == overlap_y {
-                        Vec3::new(0.0, local_pos.y.signum(), 0.0)
-                    } else if min_overlap == overlap_x {
-                        Vec3::new(local_pos.x.signum(), 0.0, 0.0)
-                    } else {
-                        Vec3::new(0.0, 0.0, local_pos.z.signum())
-                    };
-
-                    let world_normal = col_rot * local_normal;
-                    transform.translation += world_normal * min_overlap;
-
-                    // Bounce: reflect velocity along the push normal
-                    let vel_along = grenade.velocity.dot(world_normal);
-                    if vel_along < 0.0 {
-                        grenade.velocity -= world_normal * vel_along * 1.4; // 0.4 bounce factor
-                        // Friction on tangent
-                        let tangent_vel = grenade.velocity - world_normal * grenade.velocity.dot(world_normal);
-                        grenade.velocity = world_normal * grenade.velocity.dot(world_normal) + tangent_vel * 0.7;
-                    }
-
-                    grenade.angular_velocity *= 0.7;
+            if earliest_toi <= 1.0 {
+                let hit_pos = old_pos + mv * earliest_toi;
+                transform.translation = hit_pos + Vec3::new(best_normal.x, best_normal.y, best_normal.z) * 0.001;
+                let vn = grenade.velocity.dot(Vec3::new(best_normal.x, best_normal.y, best_normal.z));
+                if vn < 0.0 {
+                    grenade.velocity -= Vec3::new(best_normal.x, best_normal.y, best_normal.z) * vn * 1.4;
+                    let tangent = grenade.velocity - Vec3::new(best_normal.x, best_normal.y, best_normal.z) * grenade.velocity.dot(Vec3::new(best_normal.x, best_normal.y, best_normal.z));
+                    grenade.velocity = Vec3::new(best_normal.x, best_normal.y, best_normal.z) * grenade.velocity.dot(Vec3::new(best_normal.x, best_normal.y, best_normal.z)) + tangent * 0.7;
                 }
+                grenade.angular_velocity *= 0.7;
             }
         }
 
@@ -1145,10 +1096,7 @@ pub fn move_projectiles(
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut Projectile)>,
     mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&PlayerBody>, Option<&Enemy>, Option<&mut Regenerating>), Without<Projectile>>,
-    terminal_query: Query<(&GlobalTransform, &crate::world::objects::WeaponTerminal), Without<Projectile>>,
-    mut terminal_open: ResMut<crate::player::WeaponTerminalOpen>,
-    collider_query: Query<(Entity, &Transform, &crate::world::objects::StaticCollider, Option<&crate::world::objects::MaterialType>), Without<Projectile>>,
-    mesh_query: Query<(Entity, &crate::world::objects::MeshCollider, Option<&crate::world::objects::MaterialType>), Without<Projectile>>,
+    mesh_query: Query<(Entity, &Transform, &crate::world::objects::MeshCollider, Option<&crate::world::objects::MaterialType>), Without<Projectile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -1166,81 +1114,9 @@ pub fn move_projectiles(
         let _old_pos = transform.translation;
         transform.translation += delta;
         let new_pos = transform.translation;
-
-        // Check terminal hits first
-        if projectile.from_player {
-            let mut hit_terminal = false;
-            for (terminal_transform, _terminal) in terminal_query.iter() {
-                if transform.translation.distance(terminal_transform.translation()) < 1.5 {
-                    terminal_open.0 = true;
-                    commands.entity(entity).despawn();
-                    hit_terminal = true;
-                    break;
-                }
-            }
-            if hit_terminal { continue; }
-        }
-
-        // OBB-aware collision with static colliders (penetration system)
-        let mut hit_collider = false;
-        for (_col_entity, col_transform, collider, material_type) in collider_query.iter() {
-            let col_pos = col_transform.translation;
-            let col_rot = col_transform.rotation;
-            let he = collider.half_extents;
-
-            // Transform bullet position into collider's local space
-            let inv_rot = col_rot.inverse();
-            let local_pos = inv_rot * (new_pos - col_pos);
-
-            // Point-in-OBB check in local space
-            if local_pos.x.abs() < he.x && local_pos.y.abs() < he.y && local_pos.z.abs() < he.z {
-                if let Some(mat_type) = material_type {
-                    let _penetration_power = 1.0 - mat_type.resistance();
-                    
-                    // Check if bullet can penetrate
-                    let bullet_pen = projectile.damage / 100.0; // Normalize damage as penetration factor
-                    
-                    if mat_type.shatters() {
-                        // Glass shattering effect
-                        let bullet_dir = projectile.velocity.normalize_or_zero();
-                        crate::world::objects::spawn_glass_shatter(
-                            &mut commands,
-                            &mut meshes,
-                            &mut materials,
-                            new_pos,
-                            bullet_dir,
-                        );
-                        // Despawn the glass wall entity
-                        glass_to_despawn.push(_col_entity);
-                        // Bullet passes through glass with slight damage reduction
-                        projectile.damage *= mat_type.damage_falloff();
-                        // Don't destroy the bullet, it penetrates
-                        continue;
-                    } else if bullet_pen > mat_type.resistance() * 0.5 {
-                        // Bullet penetrates: reduce damage and continue
-                        projectile.damage *= mat_type.damage_falloff();
-                        // Slow bullet down
-                        projectile.velocity *= 0.7;
-                        // Don't destroy - bullet continues through
-                        continue;
-                    } else {
-                        // Bullet stopped by material
-                        commands.entity(entity).despawn();
-                        hit_collider = true;
-                        break;
-                    }
-                } else {
-                    // No material type - bullet stops
-                    commands.entity(entity).despawn();
-                    hit_collider = true;
-                    break;
-                }
-            }
-        }
-        if hit_collider { continue; }
-
         // Triangle mesh collider hit-test (ray vs TriMesh)
-        for (_col_entity, mesh_collider, material_type) in mesh_query.iter() {
+        let mut hit_collider = false;
+        for (_col_entity, col_transform, mesh_collider, material_type) in mesh_query.iter() {
             use bevy_rapier3d::rapier::parry::query::{Ray, RayCast};
             use bevy_rapier3d::rapier::parry::math::Vector;
 
@@ -1255,7 +1131,16 @@ pub fn move_projectiles(
                 let bullet_dir = (vel / vel.length()).into();
                 if let Some(mat_type) = material_type {
                     if mat_type.shatters() {
-                        crate::world::objects::spawn_glass_shatter(&mut commands, &mut meshes, &mut materials, new_pos, bullet_dir);
+                        let he = mesh_collider.mesh.local_aabb();
+                        let half_ext = Vec3::new(
+                            (he.maxs.x - he.mins.x) * 0.5,
+                            (he.maxs.y - he.mins.y) * 0.5,
+                            (he.maxs.z - he.mins.z) * 0.5,
+                        );
+                        crate::world::objects::spawn_glass_shatter(
+                            &mut commands, &mut meshes, &mut materials, new_pos, bullet_dir,
+                            Some(col_transform), Some(half_ext),
+                        );
                         glass_to_despawn.push(_col_entity);
                         projectile.damage *= mat_type.damage_falloff();
                         projectile.velocity *= 0.7;

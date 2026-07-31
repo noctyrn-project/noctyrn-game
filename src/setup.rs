@@ -6,6 +6,8 @@ use crate::settings::GameSettings;
 use crate::player::Velocity;
 use crate::gameplay::PlayerBody;
 use crate::menu::main_menu::Menu3dCamera;
+use crate::world::objects::MeshCollider;
+use crate::net::udp::UdpClient;
 
 pub const ENTITY_COUNT: DiagnosticPath = DiagnosticPath::const_new("noctyrn/entities");
 pub const MESH_COUNT: DiagnosticPath = DiagnosticPath::const_new("noctyrn/meshes");
@@ -16,17 +18,24 @@ pub const SPEED: DiagnosticPath = DiagnosticPath::const_new("noctyrn/speed");
 #[derive(Component)]
 struct DebugOverlayText;
 
+/// Tracks snapshot arrival times for PING estimation.
+#[derive(Resource, Default)]
+struct PingTracker {
+    last_snapshot_time: Option<std::time::Instant>,
+    smoothed_ping: f64,
+}
+
 pub struct SetupPlugin;
 
 impl Plugin for SetupPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_plugins(EntityCountDiagnosticsPlugin::default())
             .register_diagnostic(Diagnostic::new(ENTITY_COUNT))
             .register_diagnostic(Diagnostic::new(MESH_COUNT))
             .register_diagnostic(Diagnostic::new(PING))
             .register_diagnostic(Diagnostic::new(SPEED))
-            .add_systems(Update, (spawn_diagnostics, update_debug_text));
+            .init_resource::<PingTracker>()
+            .add_systems(Update, (spawn_diagnostics, update_debug_text, record_speed, record_meshes, record_ping));
     }
 }
 
@@ -104,4 +113,54 @@ fn update_debug_text(
             yaw.to_degrees(), pitch.to_degrees(), roll.to_degrees()));
     }
     text.0 = lines;
+}
+
+/// Publish player's horizontal speed to the SPEED diagnostic.
+fn record_speed(
+    mut diagnostics: Diagnostics,
+    player: Query<&Velocity, With<PlayerBody>>,
+) {
+    if let Ok(vel) = player.single() {
+        let horiz = Vec3::new(vel.x, 0.0, vel.z).length();
+        diagnostics.add_measurement(&SPEED, || horiz as f64);
+    }
+}
+
+/// Publish number of mesh colliders to the MESH_COUNT diagnostic.
+fn record_meshes(
+    mut diagnostics: Diagnostics,
+    mesh_query: Query<&MeshCollider>,
+) {
+    let count = mesh_query.iter().len();
+    diagnostics.add_measurement(&MESH_COUNT, || count as f64);
+}
+
+/// Estimate ping from UDP snapshot inter-arrival time.
+///
+/// Every time a new snapshot is detected (its tick changed), compute
+/// the elapsed wall-clock time since the previous snapshot.  This is
+/// NOT a true RTT but gives a usable upper-bound estimate while the
+/// server sends updates at a fixed tick rate (typically 20 Hz).
+fn record_ping(
+    mut diagnostics: Diagnostics,
+    mut tracker: ResMut<PingTracker>,
+    udp: Option<Res<UdpClient>>,
+) {
+    if let Some(udp) = udp {
+        let snapshot = udp.latest_snapshot.lock().unwrap();
+        let now = std::time::Instant::now();
+        if let Some(ref snap) = *snapshot {
+            let is_new = tracker.last_snapshot_time.map_or(true, |prev| {
+                now.duration_since(prev).as_secs_f64() > 0.001
+            });
+            if is_new {
+                if let Some(prev) = tracker.last_snapshot_time {
+                    let dt = now.duration_since(prev).as_secs_f64();
+                    tracker.smoothed_ping = tracker.smoothed_ping * 0.9 + dt * 0.1;
+                }
+                tracker.last_snapshot_time = Some(now);
+            }
+        }
+        diagnostics.add_measurement(&PING, || tracker.smoothed_ping);
+    }
 }

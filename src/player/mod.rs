@@ -107,11 +107,13 @@ pub struct Player;
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
     #[default]
+    Splash,
     MainMenu,
     LoadoutSelect,
     CrateOpening,
     GameModeSelect,
     Cosmetics,
+    Loading,
     Playing,
     Paused,
 }
@@ -809,6 +811,7 @@ fn pause_menu_action(
     settings_query: Query<Entity, With<crate::ui_settings::SettingsMenuUi>>,
     mut pause_open: ResMut<PauseMenuOpen>,
     mut player_query: Query<(&mut Health, &mut PhysicalTranslation, &mut Velocity), With<PlayerBody>>,
+    mut loading_target: ResMut<crate::branding::PendingLoadingTarget>,
     tcp: Option<Res<crate::net::tcp::TcpClient>>,
     rt: Option<Res<crate::net::TokioRuntime>>,
 ) {
@@ -845,7 +848,8 @@ fn pause_menu_action(
                             let _ = tc.send(&noctyrn_shared::protocol::ClientMessage::LeaveGame).await;
                         });
                     }
-                    next_state.set(GameState::MainMenu);
+                    loading_target.0 = crate::branding::LoadingTarget::BackToMenu;
+                    next_state.set(GameState::Loading);
                 }
                 PauseMenuButton::Quit => {
                     exit.write(AppExit::Success);

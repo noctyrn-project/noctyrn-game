@@ -5,6 +5,7 @@ use crate::player::GameState;
 use crate::weapons::PlayerCredits;
 use crate::net::{ConnectionState, ServerConfig, TokioRuntime, NetworkEvent, PartyState, TcpConnection};
 use crate::net::tcp::TcpClient;
+use crate::branding::{LoadingTarget, PendingLoadingTarget};
 use crate::menu::{GameMode, SelectedGameMode, to_shared_gamemode, MenuCamera};
 use crate::world::SelectedMapId;
 
@@ -358,7 +359,12 @@ pub fn menu_freecam_toggle(
     }
 }
 
-pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMode>, credits: Res<PlayerCredits>) {
+pub fn spawn_main_menu(
+    mut commands: Commands,
+    selected_mode: Res<SelectedGameMode>,
+    credits: Res<PlayerCredits>,
+    asset_server: Res<AssetServer>,
+) {
     commands.spawn((
         Node {
             width: Val::Percent(100.0),
@@ -384,9 +390,12 @@ pub fn spawn_main_menu(mut commands: Commands, selected_mode: Res<SelectedGameMo
                 ..default()
             }).with_children(|top| {
                 top.spawn((
-                    Text::new("NOCTYRN"),
-                    TextFont { font_size: FontSize::Px(84.0), ..default() },
-                    TextColor(Color::srgb(0.9, 0.1, 0.1)),
+                    ImageNode::new(asset_server.load("ui/noctyrn.png")),
+                    Node {
+                        height: Val::Px(104.0),
+                        aspect_ratio: Some(1024.0 / 171.0),
+                        ..default()
+                    },
                 ));
                 top.spawn((
                     Text::new("TACTICAL SHOOTER"),
@@ -795,6 +804,7 @@ pub fn main_menu_interaction(
     mut matchmaking_timer: ResMut<MatchmakingTimer>,
     cam_query: Query<&Transform, With<Menu3dCamera>>,
     mut anim: ResMut<MenuCameraAnim>,
+    mut loading_target: ResMut<PendingLoadingTarget>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -848,7 +858,8 @@ pub fn main_menu_interaction(
                             }
                         };
                         commands.insert_resource(SelectedMapId(map_id.to_string()));
-                        next_state.set(GameState::Playing);
+                        loading_target.0 = LoadingTarget::IntoMatch;
+                        next_state.set(GameState::Loading);
                     }
                 }
                 MainMenuButton::GameModeSelect => {
@@ -1047,6 +1058,7 @@ pub fn main_menu_matchmaking_handler(
     connection: Res<crate::net::ConnectionState>,
     rt: Res<crate::net::TokioRuntime>,
     server_config: Res<ServerConfig>,
+    mut loading_target: ResMut<PendingLoadingTarget>,
 ) {
     for event in events.read() {
         match event {
@@ -1068,7 +1080,8 @@ pub fn main_menu_matchmaking_handler(
                 });
                 commands.insert_resource(SelectedMapId(map_id.clone()));
                 timer.searching = false;
-                next_state.set(GameState::Playing);
+                loading_target.0 = LoadingTarget::IntoMatch;
+                next_state.set(GameState::Loading);
             }
             _ => {}
         }

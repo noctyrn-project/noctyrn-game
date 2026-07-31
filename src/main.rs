@@ -17,6 +17,7 @@ mod net;
 mod defaults;
 mod storage;
 mod setup;
+mod branding;
 
 fn main() {
     App::new()
@@ -25,6 +26,7 @@ fn main() {
         .add_plugins(SettingsPlugin::new(defaults::APP_ID))
         .add_plugins(DiagnosticsOverlayPlugin)
         .add_plugins(setup::SetupPlugin)
+        .add_plugins(branding::BrandingPlugin)
         .add_plugins(weapons::WeaponsPlugin)
         .add_plugins(player::Player)
         .add_plugins(world::World)

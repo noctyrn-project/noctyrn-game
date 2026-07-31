@@ -5,6 +5,7 @@ use crate::player::shooting::Projectile;
 use crate::player::WeaponModel;
 use bevy::ecs::relationship::Relationship;
 use crate::ui_config::UiConfig;
+use crate::branding::{LoadingTarget, PendingLoadingTarget};
 use crate::menu::{GameMode, SelectedGameMode};
 use crate::weapons::PlayerCredits;
 use crate::player::{MainCamera, PhysicalTranslation, PreviousPhysicalTranslation, Velocity};
@@ -1301,6 +1302,7 @@ fn check_match_over(
 
 fn handle_match_over_dismiss(
     mut next_state: ResMut<NextState<GameState>>,
+    mut loading_target: ResMut<PendingLoadingTarget>,
     query: Query<&Interaction, (Changed<Interaction>, With<MatchOverDismiss>)>,
     keyboard: Res<ButtonInput<KeyCode>>,
     match_over_query: Query<Entity, With<MatchOverScreen>>,
@@ -1309,12 +1311,14 @@ fn handle_match_over_dismiss(
     
     for interaction in query.iter() {
         if *interaction == Interaction::Pressed {
-            next_state.set(GameState::MainMenu);
+            loading_target.0 = LoadingTarget::BackToMenu;
+            next_state.set(GameState::Loading);
             return;
         }
     }
     if keyboard.just_pressed(KeyCode::Escape) || keyboard.just_pressed(KeyCode::Enter) {
-        next_state.set(GameState::MainMenu);
+        loading_target.0 = LoadingTarget::BackToMenu;
+        next_state.set(GameState::Loading);
     }
 }
 

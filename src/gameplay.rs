@@ -9,6 +9,7 @@ use crate::branding::{LoadingTarget, PendingLoadingTarget};
 use crate::menu::{GameMode, SelectedGameMode};
 use crate::weapons::PlayerCredits;
 use crate::player::{MainCamera, PhysicalTranslation, PreviousPhysicalTranslation, Velocity};
+use crate::theme::*;
 use rand::Rng;
 
 /// Spawn area for a team. Placed per-map by the map loader.
@@ -482,10 +483,10 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
             width: Val::Px(config.size[0]),
             height: Val::Px(config.size[1]),
             border: UiRect::all(Val::Px(2.0)),
-            ..default()
-        },
-        BackgroundColor(Color::BLACK),
-        BorderColor::all(Color::WHITE),
+                border_radius: RADIUS_SM,
+            ..default()},
+        BackgroundColor(BG_PANEL.with_alpha(0.85)),
+        BorderColor::all(BORDER),
         PlayerHealthUi,
     )).with_children(|parent| {
         // Health Bar Fill
@@ -529,7 +530,7 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
             row_gap: Val::Px(20.0),
             ..default()
         },
-        BackgroundColor(Color::srgba(0.1, 0.0, 0.0, 0.7)),
+        BackgroundColor(BG_BASE.with_alpha(0.9)),
         GlobalZIndex(150),
         DeathScreen,
     )).with_children(|parent| {
@@ -537,13 +538,13 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         parent.spawn((
             Text::new("YOU WERE KILLED BY"),
             TextFont { font_size: FontSize::Px(28.0), ..default() },
-            TextColor(Color::srgba(0.8, 0.2, 0.2, 1.0)),
+            TextColor(DANGER),
         ));
         // Killer name (dynamic)
         parent.spawn((
             Text::new("Unknown"),
             TextFont { font_size: FontSize::Px(48.0), ..default() },
-            TextColor(Color::srgba(1.0, 0.3, 0.3, 1.0)),
+            TextColor(DANGER),
             DeathScreenKillerText,
         ));
         // Spacer
@@ -552,14 +553,14 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         parent.spawn((
             Text::new("Respawning in 5.0s"),
             TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 0.9, 1.0)),
+            TextColor(TEXT),
             DeathScreenTimerText,
         ));
         // "Press SPACE to respawn" hint
         parent.spawn((
             Text::new("Press SPACE or click RESPAWN to respawn"),
             TextFont { font_size: FontSize::Px(16.0), ..default() },
-            TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8)),
+            TextColor(TEXT_MUTED),
             DeathScreenHintText,
         ));
         // Respawn button
@@ -571,17 +572,17 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
                 align_items: AlignItems::Center,
                 margin: UiRect::top(Val::Px(20.0)),
                 border: UiRect::all(Val::Px(2.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.3, 0.6, 0.3, 0.9)),
-            BorderColor::all(Color::WHITE),
+                    border_radius: RADIUS,
+                ..default()},
+            BackgroundColor(SUCCESS),
+            BorderColor::all(BORDER),
             Button,
             DeathScreenRespawnButton,
         )).with_children(|btn| {
             btn.spawn((
                 Text::new("RESPAWN"),
                 TextFont { font_size: FontSize::Px(22.0), ..default() },
-                TextColor(Color::WHITE),
+                TextColor(TEXT),
             ));
         });
     });
@@ -990,9 +991,11 @@ fn spawn_match_hud(
             justify_content: JustifyContent::SpaceBetween,
             align_items: AlignItems::Center,
             padding: UiRect::horizontal(Val::Px(16.0)),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.02, 0.02, 0.05, 0.85)),
+            border: UiRect::all(Val::Px(1.0)),
+                border_radius: RADIUS_SM,
+            ..default()},
+        BackgroundColor(BG_PANEL.with_alpha(0.9)),
+        BorderColor::all(BORDER),
         GlobalZIndex(50),
         MatchHudUi,
     )).with_children(|hud| {
@@ -1000,7 +1003,7 @@ fn spawn_match_hud(
         hud.spawn((
             Text::new("0"),
             TextFont { font_size: FontSize::Px(22.0), ..default() },
-            TextColor(Color::srgb(0.3, 0.7, 1.0)),
+            TextColor(ACCENT),
             MatchHudScore,
         ));
 
@@ -1018,7 +1021,7 @@ fn spawn_match_hud(
             center.spawn((
                 Text::new("10:00"),
                 TextFont { font_size: FontSize::Px(18.0), ..default() },
-                TextColor(Color::WHITE),
+                TextColor(TEXT),
                 MatchHudTimer,
             ));
         });
@@ -1027,7 +1030,7 @@ fn spawn_match_hud(
         hud.spawn((
             Text::new("0"),
             TextFont { font_size: FontSize::Px(22.0), ..default() },
-            TextColor(Color::srgb(1.0, 0.3, 0.3)),
+            TextColor(DANGER),
         ));
     });
 }
@@ -1218,7 +1221,7 @@ fn check_match_over(
 
     let won = server_over.is_some() || match_state.as_ref().map_or(false, |ms| ms.player_won());
     let title = if won { "VICTORY" } else { "DEFEAT" };
-    let title_color = if won { Color::srgb(0.2, 0.8, 0.3) } else { Color::srgb(0.9, 0.2, 0.2) };
+    let title_color = if won { SUCCESS } else { DANGER };
 
     // Award XP from match (only if we have a MatchState)
     if let Some(ms) = match_state.as_ref() {
@@ -1242,17 +1245,22 @@ fn check_match_over(
             align_items: AlignItems::Center,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+        BackgroundColor(BG_BASE.with_alpha(0.9)),
         GlobalZIndex(180),
         MatchOverScreen,
     )).with_children(|root| {
-        root.spawn(Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            row_gap: Val::Px(16.0),
-            padding: UiRect::all(Val::Px(40.0)),
-            ..default()
-        }).with_children(|card| {
+        root.spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(16.0),
+                padding: UiRect::all(Val::Px(40.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                    border_radius: RADIUS,
+                ..default()},
+            BackgroundColor(BG_PANEL),
+            BorderColor::all(BORDER),
+        )).with_children(|card| {
             card.spawn((
                 Text::new(title),
                 TextFont { font_size: FontSize::Px(52.0), ..default() },
@@ -1262,17 +1270,17 @@ fn check_match_over(
                 card.spawn((
                     Text::new(format!("Mode: {}", ms.mode.display_name())),
                     TextFont { font_size: FontSize::Px(16.0), ..default() },
-                    TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
+                    TextColor(TEXT_MUTED),
                 ));
                 card.spawn((
                     Text::new(format!("Score: {} - {}", ms.player_score, ms.enemy_score)),
                     TextFont { font_size: FontSize::Px(24.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
                 card.spawn((
                     Text::new(format!("K/D: {} / {}   Assists: {}", ms.kills, ms.deaths, ms.assists)),
                     TextFont { font_size: FontSize::Px(16.0), ..default() },
-                    TextColor(Color::srgba(0.6, 0.6, 0.7, 0.9)),
+                    TextColor(TEXT_MUTED),
                 ));
             }
 
@@ -1285,15 +1293,15 @@ fn check_match_over(
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     margin: UiRect::top(Val::Px(20.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.2, 0.2, 0.3)),
+                        border_radius: RADIUS,
+                    ..default()},
+                BackgroundColor(BG_ELEVATED),
                 MatchOverDismiss,
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("RETURN TO MENU"),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
             });
         });
@@ -1377,7 +1385,7 @@ fn spawn_scoreboard(
             align_items: AlignItems::Center,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+        BackgroundColor(BG_BASE.with_alpha(0.9)),
         GlobalZIndex(160),
         ScoreboardUi,
     )).with_children(|root| {
@@ -1387,11 +1395,11 @@ fn spawn_scoreboard(
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(24.0)),
                 row_gap: Val::Px(8.0),
-                border: UiRect::all(Val::Px(2.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.04, 0.04, 0.08, 0.95)),
-            BorderColor::from(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+                border: UiRect::all(Val::Px(1.0)),
+                    border_radius: RADIUS,
+                ..default()},
+            BackgroundColor(BG_PANEL.with_alpha(0.95)),
+            BorderColor::all(BORDER),
         )).with_children(|card| {
             // Header
             card.spawn(Node {
@@ -1403,19 +1411,19 @@ fn spawn_scoreboard(
                 header.spawn((
                     Text::new("SCOREBOARD"),
                     TextFont { font_size: FontSize::Px(22.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
                 header.spawn((
                     Text::new(mode_name),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(match_state.map(|ms| ms.mode.accent_color()).unwrap_or(Color::WHITE)),
+                    TextColor(match_state.map(|ms| ms.mode.accent_color()).unwrap_or(TEXT)),
                 ));
             });
 
             // Divider
             card.spawn((
                 Node { width: Val::Percent(100.0), height: Val::Px(1.0), ..default() },
-                BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+                BackgroundColor(BORDER),
             ));
 
             // Column headers
@@ -1429,7 +1437,7 @@ fn spawn_scoreboard(
                     cols.spawn((
                         Text::new(label),
                         TextFont { font_size: FontSize::Px(11.0), ..default() },
-                        TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+                        TextColor(TEXT_MUTED),
                         Node { width: Val::Px(w), ..default() },
                     ));
                 }
@@ -1460,7 +1468,7 @@ fn spawn_scoreboard(
 
             for (i, (name, score, kills, deaths, kd)) in player_rows.iter().enumerate() {
                 let is_local = name.contains(&local_username) || name == &local_username;
-                let bg = if is_local { Color::srgba(0.08, 0.12, 0.25, 0.6) } else if i % 2 == 0 { Color::srgba(0.06, 0.06, 0.1, 0.4) } else { Color::NONE };
+                let bg = if is_local { BG_ELEVATED.with_alpha(0.6) } else if i % 2 == 0 { BG_PANEL.with_alpha(0.4) } else { Color::NONE };
                 card.spawn((
                     Node {
                         flex_direction: FlexDirection::Row,
@@ -1471,11 +1479,11 @@ fn spawn_scoreboard(
                     BackgroundColor(bg),
                 )).with_children(|row| {
                     let name_display = if is_local { format!("{name} (You)") } else { name.clone() };
-                    let row_data = [(name_display, 200.0, if is_local { Color::srgb(0.4, 0.7, 1.0) } else { Color::WHITE }),
-                                   (format!("{score}"), 80.0, Color::WHITE),
-                                   (format!("{kills}"), 80.0, Color::WHITE),
-                                   (format!("{deaths}"), 80.0, Color::WHITE),
-                                   (format!("{kd:.2}"), 80.0, Color::WHITE)];
+                    let row_data = [(name_display, 200.0, if is_local { ACCENT } else { TEXT }),
+                                   (format!("{score}"), 80.0, TEXT),
+                                   (format!("{kills}"), 80.0, TEXT),
+                                   (format!("{deaths}"), 80.0, TEXT),
+                                   (format!("{kd:.2}"), 80.0, TEXT)];
                     for (val, w, color) in row_data {
                         row.spawn((
                             Text::new(val),
@@ -1490,7 +1498,7 @@ fn spawn_scoreboard(
             // Divider
             card.spawn((
                 Node { width: Val::Percent(100.0), height: Val::Px(1.0), ..default() },
-                BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+                BackgroundColor(BORDER),
             ));
 
             // Footer with time
@@ -1502,12 +1510,12 @@ fn spawn_scoreboard(
                 footer.spawn((
                     Text::new(format!("Time Remaining: {}", time_str)),
                     TextFont { font_size: FontSize::Px(12.0), ..default() },
-                    TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                    TextColor(TEXT_MUTED),
                 ));
                 footer.spawn((
                     Text::new(format!("Players: {}", player_rows.len())),
                     TextFont { font_size: FontSize::Px(12.0), ..default() },
-                    TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                    TextColor(TEXT_MUTED),
                 ));
             });
         });
@@ -1566,16 +1574,16 @@ fn update_ctf_flags(
                             height: Val::Px(50.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.1, 0.4, 0.15, 0.85)),
+                                border_radius: RADIUS_SM,
+                            ..default()},
+                        BackgroundColor(BG_PANEL.with_alpha(0.9)),
                         GlobalZIndex(100),
                         FlagNotificationUi,
                     )).with_children(|parent| {
                         parent.spawn((
                             Text::new("[FLAG] YOU HAVE THE FLAG"),
                             TextFont { font_size: FontSize::Px(22.0), ..default() },
-                            TextColor(Color::srgb(0.3, 1.0, 0.4)),
+                            TextColor(SUCCESS),
                         ));
                     });
                 }
@@ -1627,16 +1635,16 @@ fn update_ctf_flags(
                         height: Val::Px(50.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.9, 0.7, 0.1, 0.9)),
+                            border_radius: RADIUS_SM,
+                        ..default()},
+                    BackgroundColor(BG_PANEL.with_alpha(0.9)),
                     GlobalZIndex(100),
                     FlagNotificationUi,
                 )).with_children(|parent| {
                     parent.spawn((
                         Text::new("[FLAG CAPTURED!]"),
                         TextFont { font_size: FontSize::Px(26.0), ..default() },
-                        TextColor(Color::WHITE),
+                        TextColor(WARNING),
                     ));
                 });
                 break;

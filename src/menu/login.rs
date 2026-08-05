@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::clipboard::Clipboard;
+use crate::theme::*;
 use crate::player::GameState;
 use crate::net::{ConnectionState, ServerConfig, TokioRuntime, NetworkEvent, http::{self, PendingRequests}};
 use crate::net::tcp::TcpClient;
@@ -101,28 +102,30 @@ pub fn spawn_login_overlay(mut commands: Commands, login_state: Res<LoginUiState
             align_items: AlignItems::Center,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
+        BackgroundColor(BG_BASE.with_alpha(0.3)),
         LoginOverlayUi,
     )).with_children(|root| {
         root.spawn((
-            Node { width: Val::Px(400.0), flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(30.0)), row_gap: Val::Px(16.0), border: UiRect::all(Val::Px(1.0)), ..default() },
-            BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.95)),
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+            Node { width: Val::Px(400.0), flex_direction: FlexDirection::Column, padding: UiRect::all(Val::Px(30.0)), row_gap: Val::Px(16.0), border: UiRect::all(Val::Px(1.0)), border_radius: RADIUS, ..default()},
+            BackgroundColor(BG_PANEL.with_alpha(0.95)),
+            BorderColor::all(BORDER),
         )).with_children(|card| {
-            card.spawn((Text::new(if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(28.0), ..default() }, TextColor(Color::WHITE), Node { margin: UiRect::bottom(Val::Px(8.0)), ..default() }));
+            card.spawn((Text::new(if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(28.0), ..default() }, TextColor(TEXT), Node { margin: UiRect::bottom(Val::Px(8.0)), ..default() }));
 
             card.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(4.0), margin: UiRect::bottom(Val::Px(8.0)), ..default() }).with_children(|tabs| {
-                tabs.spawn((Button, Node { width: Val::Percent(50.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
-                    BackgroundColor(if !is_register { Color::srgba(0.2, 0.4, 0.2, 0.8) } else { Color::srgba(0.15, 0.15, 0.2, 0.8) }),
+                tabs.spawn((Button, Node { width: Val::Percent(50.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.0)), border_radius: RADIUS, ..default()},
+                    BackgroundColor(if !is_register { ACCENT } else { BG_ELEVATED }),
+                    BorderColor::all(BORDER),
                     LoginButton::SwitchToLogin,
                 )).with_children(|btn| {
-                    btn.spawn((Text::new("LOGIN"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(if !is_register { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.5, 0.8) })));
+                    btn.spawn((Text::new("LOGIN"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(if !is_register { TEXT } else { TEXT_MUTED })));
                 });
-                tabs.spawn((Button, Node { width: Val::Percent(50.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
-                    BackgroundColor(if is_register { Color::srgba(0.2, 0.4, 0.2, 0.8) } else { Color::srgba(0.15, 0.15, 0.2, 0.8) }),
+                tabs.spawn((Button, Node { width: Val::Percent(50.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.0)), border_radius: RADIUS, ..default()},
+                    BackgroundColor(if is_register { ACCENT } else { BG_ELEVATED }),
+                    BorderColor::all(BORDER),
                     LoginButton::SwitchToRegister,
                 )).with_children(|btn| {
-                    btn.spawn((Text::new("REGISTER"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(if is_register { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.5, 0.8) })));
+                    btn.spawn((Text::new("REGISTER"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(if is_register { TEXT } else { TEXT_MUTED })));
                 });
             });
 
@@ -135,20 +138,21 @@ pub fn spawn_login_overlay(mut commands: Commands, login_state: Res<LoginUiState
                 spawn_login_input_field(card, "CONFIRM PASSWORD", LoginField::ConfirmPassword, &login_state.confirm_password, true, login_state.focused_field == Some(LoginField::ConfirmPassword));
             }
 
-            card.spawn((Button, Node { width: Val::Percent(100.0), height: Val::Px(44.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, margin: UiRect::top(Val::Px(8.0)), ..default() },
-                BackgroundColor(Color::srgb(0.15, 0.5, 0.15)),
+            card.spawn((Button, Node { width: Val::Percent(100.0), height: Val::Px(44.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, margin: UiRect::top(Val::Px(8.0)), border_radius: RADIUS, ..default()},
+                BackgroundColor(ACCENT),
                 if is_register { LoginButton::Register } else { LoginButton::Login },
             )).with_children(|btn| {
-                btn.spawn((Text::new(if login_state.loading { "LOADING..." } else if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::WHITE), LoginSubmitButtonText));
+                btn.spawn((Text::new(if login_state.loading { "LOADING..." } else if is_register { "CREATE ACCOUNT" } else { "LOGIN" }), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(TEXT), LoginSubmitButtonText));
             });
 
-            card.spawn((Text::new(login_state.error_message.as_deref().unwrap_or("")), TextFont { font_size: FontSize::Px(13.0), ..default() }, TextColor(Color::srgb(0.9, 0.2, 0.2)), LoginErrorText));
+            card.spawn((Text::new(login_state.error_message.as_deref().unwrap_or("")), TextFont { font_size: FontSize::Px(13.0), ..default() }, TextColor(DANGER), LoginErrorText));
 
-            card.spawn((Button, Node { width: Val::Percent(100.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, margin: UiRect::top(Val::Px(4.0)), ..default() },
-                BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.8)),
+            card.spawn((Button, Node { width: Val::Percent(100.0), height: Val::Px(36.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, margin: UiRect::top(Val::Px(4.0)), border: UiRect::all(Val::Px(1.0)), border_radius: RADIUS, ..default()},
+                BackgroundColor(BG_ELEVATED),
+                BorderColor::all(BORDER),
                 LoginButton::Back,
             )).with_children(|btn| {
-                btn.spawn((Text::new("BACK"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9))));
+                btn.spawn((Text::new("BACK"), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(TEXT_MUTED)));
             });
         });
     });
@@ -163,19 +167,19 @@ fn spawn_login_input_field(
     is_focused: bool,
 ) {
     parent.spawn(Node { flex_direction: FlexDirection::Column, row_gap: Val::Px(4.0), ..default() }).with_children(|container| {
-        container.spawn((Text::new(label), TextFont { font_size: FontSize::Px(11.0), ..default() }, TextColor(Color::srgba(0.5, 0.5, 0.6, 0.9))));
+        container.spawn((Text::new(label), TextFont { font_size: FontSize::Px(11.0), ..default() }, TextColor(TEXT_MUTED)));
 
         let display_text = if is_password { "*".repeat(current_value.len()) } else { current_value.to_string() };
         let display_with_cursor = if is_focused { format!("{}|", display_text) } else if display_text.is_empty() { " ".to_string() } else { display_text };
 
         container.spawn((
             Button,
-            Node { width: Val::Percent(100.0), height: Val::Px(36.0), padding: UiRect::horizontal(Val::Px(10.0)), align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.0)), ..default() },
-            BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.9)),
-            BorderColor::all(if is_focused { Color::srgba(0.3, 0.6, 0.3, 0.8) } else { Color::srgba(0.25, 0.25, 0.3, 0.6) }),
+            Node { width: Val::Percent(100.0), height: Val::Px(36.0), padding: UiRect::horizontal(Val::Px(10.0)), align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.0)), border_radius: RADIUS_SM, ..default()},
+            BackgroundColor(BG_ELEVATED),
+            BorderColor::all(if is_focused { ACCENT } else { BORDER }),
             LoginTextInput { field },
         )).with_children(|input| {
-            input.spawn((Text::new(display_with_cursor), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(Color::srgba(0.85, 0.85, 0.85, 0.95)), LoginFieldText(field)));
+            input.spawn((Text::new(display_with_cursor), TextFont { font_size: FontSize::Px(14.0), ..default() }, TextColor(TEXT), LoginFieldText(field)));
         });
     });
 }

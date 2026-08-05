@@ -1,6 +1,7 @@
 use bevy::prelude::*;
+use crate::theme::*;
 use crate::player::GameState;
-use crate::weapons::{WeaponRegistry, WeaponSkin, SkinInventory, PlayerCredits};
+use crate::weapons::{WeaponRegistry, WeaponSkin, SkinInventory, PlayerCredits, SkinRarity};
 
 #[derive(Component)]
 pub struct CosmeticsMenuUi;
@@ -46,6 +47,17 @@ pub struct SellQuantityMinus;
 
 #[derive(Component)]
 pub struct SellQuantityMax;
+
+fn rarity_color(rarity: SkinRarity) -> Color {
+    match rarity {
+        SkinRarity::Common => TEXT_FAINT,
+        SkinRarity::Uncommon => TEXT_MUTED,
+        SkinRarity::Rare => ACCENT,
+        SkinRarity::Epic => ACCENT_MAGENTA,
+        SkinRarity::Legendary => WARNING,
+        SkinRarity::Mythic => DANGER,
+    }
+}
 
 pub fn spawn_cosmetics_menu(
     mut commands: Commands,
@@ -93,10 +105,11 @@ pub fn spawn_cosmetics_menu(
             padding: UiRect::all(Val::Px(40.0)),
             row_gap: Val::Px(16.0),
             border: UiRect::all(Val::Px(1.0)),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.96)),
-        BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+        BackgroundColor(BG_BASE),
+        BorderColor::all(BORDER),
         CosmeticsMenuUi,
     )).with_children(|root| {
         root.spawn(Node {
@@ -119,36 +132,37 @@ pub fn spawn_cosmetics_menu(
                         height: Val::Px(36.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        border_radius: RADIUS,
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
+                    BackgroundColor(BG_ELEVATED),
                     CosmeticsBackButton,
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("BACK"),
                         TextFont { font_size: FontSize::Px(14.0), ..default() },
-                        TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                        TextColor(TEXT),
                     ));
                 });
 
                 left.spawn((
                     Text::new("COSMETICS"),
                     TextFont { font_size: FontSize::Px(32.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
             });
 
             header.spawn((
                 Text::new(format!("[C] {} Credits", credits.balance)),
                 TextFont { font_size: FontSize::Px(16.0), ..default() },
-                TextColor(Color::srgb(0.9, 0.8, 0.2)),
+                TextColor(WARNING),
             ));
         });
 
         root.spawn((
             Text::new("Browse your skins. Click SELL to trade a skin for credits."),
             TextFont { font_size: FontSize::Px(13.0), ..default() },
-            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+            TextColor(TEXT_FAINT),
         ));
 
         root.spawn(Node {
@@ -162,15 +176,16 @@ pub fn spawn_cosmetics_menu(
                 Button,
                 Node {
                     padding: UiRect::new(Val::Px(14.0), Val::Px(14.0), Val::Px(6.0), Val::Px(6.0)),
+                    border_radius: RADIUS,
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.25, 0.35, 0.5, 0.9)),
+                BackgroundColor(ACCENT),
                 CosmeticsSortButton,
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("ALL"),
                     TextFont { font_size: FontSize::Px(12.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
             });
 
@@ -179,15 +194,16 @@ pub fn spawn_cosmetics_menu(
                     Button,
                     Node {
                         padding: UiRect::new(Val::Px(14.0), Val::Px(14.0), Val::Px(6.0), Val::Px(6.0)),
+                        border_radius: RADIUS,
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.8)),
+                    BackgroundColor(BG_ELEVATED),
                     CosmeticsSellButton { weapon_id: format!("__filter__{}", wid), skin: WeaponSkin::Default },
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(wname.to_uppercase()),
                         TextFont { font_size: FontSize::Px(11.0), ..default() },
-                        TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                        TextColor(TEXT_MUTED),
                     ));
                 });
             }
@@ -208,7 +224,7 @@ pub fn spawn_cosmetics_menu(
                 grid.spawn((
                     Text::new("No skins owned yet. Open some crates!"),
                     TextFont { font_size: FontSize::Px(16.0), ..default() },
-                    TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                    TextColor(TEXT_FAINT),
                     Node { margin: UiRect::top(Val::Px(40.0)), ..default() },
                 ));
             }
@@ -223,6 +239,7 @@ pub fn spawn_cosmetics_menu(
                     padding: UiRect::all(Val::Px(10.0)),
                     row_gap: Val::Px(4.0),
                     border: UiRect::all(Val::Px(2.0)),
+                    border_radius: RADIUS,
                     ..default()
                 }).with_children(|card| {
                     card.spawn((
@@ -231,6 +248,7 @@ pub fn spawn_cosmetics_menu(
                             height: Val::Px(50.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS_SM,
                             ..default()
                         },
                         BackgroundColor(skin.swatch_color()),
@@ -238,27 +256,27 @@ pub fn spawn_cosmetics_menu(
                         swatch.spawn((
                             Text::new(skin.display_name()),
                             TextFont { font_size: FontSize::Px(12.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
 
                     card.spawn((
                         Text::new(rarity.display_name()),
                         TextFont { font_size: FontSize::Px(10.0), ..default() },
-                        TextColor(rarity.color()),
+                        TextColor(rarity_color(rarity)),
                     ));
 
                     card.spawn((
                         Text::new(weapon_name.as_str()),
                         TextFont { font_size: FontSize::Px(11.0), ..default() },
-                        TextColor(Color::srgba(0.6, 0.6, 0.7, 0.9)),
+                        TextColor(TEXT_MUTED),
                     ));
 
                     if *count > 1 {
                         card.spawn((
                             Text::new(format!("Owned: x{}", count)),
                             TextFont { font_size: FontSize::Px(10.0), ..default() },
-                            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                            TextColor(TEXT_FAINT),
                         ));
                     }
 
@@ -270,19 +288,20 @@ pub fn spawn_cosmetics_menu(
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
                             margin: UiRect::top(Val::Px(4.0)),
+                            border_radius: RADIUS_SM,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.8)),
+                        BackgroundColor(DANGER),
                         CosmeticsSellButton { weapon_id: weapon_id.clone(), skin: *skin },
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new(format!("SELL [C]{}", sell_price)),
                             TextFont { font_size: FontSize::Px(11.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
-                }).insert(BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9)))
-                  .insert(BorderColor::from(rarity.color()));
+                }).insert(BackgroundColor(BG_PANEL))
+                  .insert(BorderColor::from(rarity_color(rarity)));
             }
         });
     });
@@ -385,15 +404,16 @@ fn spawn_sell_confirm_dialog(
                     padding: UiRect::all(Val::Px(24.0)),
                     row_gap: Val::Px(14.0),
                     border: UiRect::all(Val::Px(2.0)),
+                    border_radius: RADIUS,
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.98)),
-                BorderColor::from(Color::srgba(0.5, 0.3, 0.3, 0.7)),
+                BackgroundColor(BG_PANEL),
+                BorderColor::from(DANGER),
             )).with_children(|card| {
                 card.spawn((
                     Text::new("CONFIRM SELL"),
                     TextFont { font_size: FontSize::Px(20.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
 
                 card.spawn((
@@ -403,22 +423,23 @@ fn spawn_sell_confirm_dialog(
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         border: UiRect::all(Val::Px(2.0)),
+                        border_radius: RADIUS,
                         ..default()
                     },
                     BackgroundColor(skin.swatch_color()),
-                    BorderColor::from(rarity.color()),
+                    BorderColor::from(rarity_color(rarity)),
                 )).with_children(|swatch| {
                     swatch.spawn((
                         Text::new(skin.display_name()),
                         TextFont { font_size: FontSize::Px(11.0), ..default() },
-                        TextColor(Color::WHITE),
+                        TextColor(TEXT),
                     ));
                 });
 
                 card.spawn((
                     Text::new(format!("{} Skin", rarity.display_name())),
                     TextFont { font_size: FontSize::Px(12.0), ..default() },
-                    TextColor(rarity.color()),
+                    TextColor(rarity_color(rarity)),
                 ));
 
                 card.spawn(Node {
@@ -430,7 +451,7 @@ fn spawn_sell_confirm_dialog(
                     row.spawn((
                         Text::new("Quantity:"),
                         TextFont { font_size: FontSize::Px(14.0), ..default() },
-                        TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
+                        TextColor(TEXT_MUTED),
                     ));
 
                     row.spawn((
@@ -440,22 +461,23 @@ fn spawn_sell_confirm_dialog(
                             height: Val::Px(32.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS_SM,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.3, 0.2, 0.2, 0.9)),
+                        BackgroundColor(BG_ELEVATED),
                         SellQuantityMinus,
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new("-"),
                             TextFont { font_size: FontSize::Px(18.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
 
                     row.spawn((
                         Text::new(format!("{}", sell_state.quantity)),
                         TextFont { font_size: FontSize::Px(20.0), ..default() },
-                        TextColor(Color::WHITE),
+                        TextColor(TEXT),
                         SellQuantityText,
                     ));
 
@@ -466,15 +488,16 @@ fn spawn_sell_confirm_dialog(
                             height: Val::Px(32.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS_SM,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.2, 0.3, 0.2, 0.9)),
+                        BackgroundColor(BG_ELEVATED),
                         SellQuantityPlus,
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new("+"),
                             TextFont { font_size: FontSize::Px(18.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
 
@@ -485,15 +508,16 @@ fn spawn_sell_confirm_dialog(
                             height: Val::Px(28.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS_SM,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.2, 0.2, 0.35, 0.9)),
+                        BackgroundColor(BG_ELEVATED),
                         SellQuantityMax,
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new("MAX"),
                             TextFont { font_size: FontSize::Px(11.0), ..default() },
-                            TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
+                            TextColor(TEXT_MUTED),
                         ));
                     });
                 });
@@ -501,13 +525,13 @@ fn spawn_sell_confirm_dialog(
                 card.spawn((
                     Text::new(format!("Owned: ×{}", sell_state.max_quantity)),
                     TextFont { font_size: FontSize::Px(11.0), ..default() },
-                    TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                    TextColor(TEXT_FAINT),
                 ));
 
                 card.spawn((
                     Text::new(format!("Total: [C] {} Credits", total_price)),
                     TextFont { font_size: FontSize::Px(16.0), ..default() },
-                    TextColor(Color::srgb(0.9, 0.8, 0.2)),
+                    TextColor(WARNING),
                 ));
 
                 card.spawn(Node {
@@ -523,15 +547,16 @@ fn spawn_sell_confirm_dialog(
                             height: Val::Px(38.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.9)),
+                        BackgroundColor(BG_ELEVATED),
                         SellCancelButton,
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new("CANCEL"),
                             TextFont { font_size: FontSize::Px(14.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
 
@@ -542,15 +567,16 @@ fn spawn_sell_confirm_dialog(
                             height: Val::Px(38.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.9)),
+                        BackgroundColor(DANGER),
                         SellConfirmButton,
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new("SELL"),
                             TextFont { font_size: FontSize::Px(14.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
                 });
@@ -565,23 +591,23 @@ pub fn cosmetics_hover(
 ) {
     for (interaction, mut bg) in back_query.iter_mut() {
         *bg = match interaction {
-            Interaction::Pressed => BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.15)),
-            Interaction::Hovered => BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.1)),
-            _ => BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
+            Interaction::Pressed => BackgroundColor(BG_HOVER),
+            Interaction::Hovered => BackgroundColor(BG_HOVER),
+            _ => BackgroundColor(BG_ELEVATED),
         };
     }
 
     for (interaction, mut bg, sell_btn) in sell_query.iter_mut() {
         if sell_btn.weapon_id.starts_with("__filter__") {
             *bg = match interaction {
-                Interaction::Pressed | Interaction::Hovered => BackgroundColor(Color::srgba(0.15, 0.2, 0.3, 0.9)),
-                _ => BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.8)),
+                Interaction::Pressed | Interaction::Hovered => BackgroundColor(BG_HOVER),
+                _ => BackgroundColor(BG_ELEVATED),
             };
         } else {
             *bg = match interaction {
-                Interaction::Pressed => BackgroundColor(Color::srgba(0.7, 0.25, 0.25, 1.0)),
-                Interaction::Hovered => BackgroundColor(Color::srgba(0.6, 0.25, 0.25, 0.9)),
-                _ => BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.8)),
+                Interaction::Pressed => BackgroundColor(DANGER),
+                Interaction::Hovered => BackgroundColor(DANGER),
+                _ => BackgroundColor(DANGER),
             };
         }
     }

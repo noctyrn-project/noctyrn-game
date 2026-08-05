@@ -28,7 +28,7 @@ pub const SHEET_ROWS: u32 = 5;
 pub const SHEET_CELL: UVec2 = UVec2::new(1024, 171);
 
 /// Brand background color (#141018).
-pub const BRAND_BG: Color = Color::srgb(0x14 as f32 / 255.0, 0x10 as f32 / 255.0, 0x18 as f32 / 255.0);
+pub const BRAND_BG: Color = crate::theme::BG_BASE;
 
 /// Marker on the fullscreen root of a branded screen.
 #[derive(Component)]

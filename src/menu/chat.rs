@@ -5,6 +5,7 @@ use crate::net::{ConnectionState, TokioRuntime, NetworkEvent};
 use crate::net::tcp::TcpClient;
 use crate::player::GameState;
 use crate::menu::ActiveInput;
+use crate::theme::*;
 
 #[derive(Resource, Default)]
 pub struct ChatOpen(pub bool);
@@ -269,9 +270,12 @@ pub fn chat_history_display(
             flex_direction: FlexDirection::Column,
             padding: UiRect::all(Val::Px(8.0)),
             row_gap: Val::Px(2.0),
+            border: UiRect::all(Val::Px(1.0)),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+        BackgroundColor(Color::srgba(0.1098, 0.0863, 0.1529, 0.9)),
+        BorderColor::all(BORDER),
         ZIndex(200),
         ChatHistoryUi,
     )).with_children(|parent| {
@@ -282,9 +286,9 @@ pub fn chat_history_display(
                 format!("{}: {}", entry.from, entry.content)
             };
             let color = if entry.from == ">" || entry.from == "System" {
-                Color::srgba(0.7, 0.7, 0.7, 0.9)
+                TEXT_MUTED
             } else {
-                Color::WHITE
+                TEXT
             };
             parent.spawn((
                 Text::new(display),
@@ -326,9 +330,9 @@ pub fn chat_input_display(
         "> ".to_string()
     };
     let text_color = if input.open {
-        Color::srgb(0.3, 0.8, 0.3)
+        ACCENT
     } else {
-        Color::srgba(0.5, 0.5, 0.5, 0.6)
+        TEXT_FAINT
     };
 
     commands.spawn((
@@ -338,9 +342,12 @@ pub fn chat_input_display(
             bottom: Val::Px(70.0),
             width: Val::Px(400.0),
             padding: UiRect::all(Val::Px(4.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.4)),
+        BackgroundColor(Color::srgba(0.1098, 0.0863, 0.1529, 0.9)),
+        BorderColor::all(BORDER),
         ZIndex(200),
         ChatInputUi,
     )).with_children(|parent| {

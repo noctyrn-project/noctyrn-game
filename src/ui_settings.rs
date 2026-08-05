@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::theme::*;
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::settings::SaveSettings;
 use crate::settings::GameSettings;
@@ -46,7 +47,6 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
             justify_content: JustifyContent::Center,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
         SettingsMenuUi,
         Interaction::default(),
         GlobalZIndex(100),
@@ -58,10 +58,11 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
             height: Val::Percent(90.0),
             flex_direction: FlexDirection::Column,
             border: UiRect::all(Val::Px(1.0)),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.96)),
-        BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+        BackgroundColor(BG_PANEL),
+        BorderColor::all(BORDER),
     )).id();
     commands.entity(root).add_child(main_window);
 
@@ -76,7 +77,7 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
             border: UiRect::bottom(Val::Px(1.0)),
             ..default()
         },
-        BorderColor::from(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+        BorderColor::from(BORDER),
     )).id();
     commands.entity(main_window).add_child(header);
 
@@ -84,22 +85,25 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
         parent.spawn((
             Text::new("SETTINGS"),
             TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
         ));
     });
     let close_btn = commands.spawn((
         Button,
         Node {
             padding: UiRect::new(Val::Px(12.0), Val::Px(12.0), Val::Px(6.0), Val::Px(6.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.9)),
+        BackgroundColor(BG_ELEVATED),
+        BorderColor::all(BORDER),
         CloseSettingsButton,
     )).with_children(|btn| {
         btn.spawn((
             Text::new("X"),
             TextFont { font_size: FontSize::Px(16.0), ..default() },
-            TextColor(Color::srgba(0.7, 0.7, 0.7, 0.8)),
+            TextColor(TEXT_MUTED),
         ));
     }).id();
     commands.entity(header).add_child(close_btn);
@@ -113,8 +117,8 @@ pub fn spawn_settings_menu(commands: &mut Commands) {
             border: UiRect::bottom(Val::Px(1.0)),
             ..default()
         },
-        BorderColor::from(Color::srgba(0.3, 0.3, 0.4, 0.4)),
-        BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.5)),
+        BorderColor::from(BORDER),
+        BackgroundColor(BG_BASE),
     )).id();
     commands.entity(main_window).add_child(tab_bar);
 
@@ -162,15 +166,18 @@ fn spawn_tab_button(commands: &mut Commands, parent: Entity, text: &str, tab: Se
                 height: Val::Px(36.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                border_radius: RADIUS,
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.8)),
+            BackgroundColor(BG_ELEVATED),
+            BorderColor::all(BORDER),
             TabButton { tab },
         )).with_children(|parent| {
             parent.spawn((
                 Text::new(text),
                 TextFont { font_size: FontSize::Px(14.0), ..default() },
-                TextColor(Color::srgba(0.85, 0.85, 0.9, 0.9)),
+                TextColor(TEXT_MUTED),
             ));
         });
     });
@@ -215,9 +222,9 @@ fn spawn_gameplay_settings(commands: &mut Commands, parent: Entity, settings: &G
         parent.spawn((
             Text::new("Gameplay Settings"),
             TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
             Node { margin: UiRect::bottom(Val::Px(16.0)), border: UiRect::bottom(Val::Px(1.0)), ..default() },
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+            BorderColor::all(BORDER),
         ));
     });
 
@@ -232,9 +239,9 @@ fn spawn_graphics_settings(commands: &mut Commands, parent: Entity, settings: &G
         parent.spawn((
             Text::new("Graphics Settings"),
             TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
             Node { margin: UiRect::bottom(Val::Px(16.0)), border: UiRect::bottom(Val::Px(1.0)), ..default() },
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+            BorderColor::all(BORDER),
         ));
     });
 
@@ -298,7 +305,7 @@ fn spawn_cycler(commands: &mut Commands, parent: Entity, label: &str, value: &st
                 ..default()
             },
         )).with_children(|parent| {
-            parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(20.0), ..default() }, TextColor(Color::WHITE)));
+            parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(20.0), ..default() }, TextColor(TEXT)));
             
             parent.spawn((
                 Button,
@@ -307,15 +314,18 @@ fn spawn_cycler(commands: &mut Commands, parent: Entity, label: &str, value: &st
                     height: Val::Px(30.0),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
+                    border: UiRect::all(Val::Px(1.0)),
+                    border_radius: RADIUS,
                     ..default()
                 },
-                BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
+                BackgroundColor(BG_ELEVATED),
+                BorderColor::all(BORDER),
                 SettingToggle { action }, // Reusing SettingToggle component for cyclers
             )).with_children(|parent| {
                 parent.spawn((
                     Text::new(value),
                     TextFont { font_size: FontSize::Px(16.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
             });
         });
@@ -327,9 +337,9 @@ fn spawn_debug_settings(commands: &mut Commands, parent: Entity, settings: &Game
         parent.spawn((
             Text::new("Debug Settings"),
             TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
             Node { margin: UiRect::bottom(Val::Px(16.0)), border: UiRect::bottom(Val::Px(1.0)), ..default() },
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+            BorderColor::all(BORDER),
         ));
     });
 
@@ -351,9 +361,9 @@ fn spawn_cheats_settings(commands: &mut Commands, parent: Entity, settings: &Gam
         parent.spawn((
             Text::new("Cheats"),
             TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
             Node { margin: UiRect::bottom(Val::Px(16.0)), border: UiRect::bottom(Val::Px(1.0)), ..default() },
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+            BorderColor::all(BORDER),
         ));
     });
 
@@ -386,14 +396,14 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
         parent.spawn((
             Text::new(&info.title),
             TextFont { font_size: FontSize::Px(32.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
             Node { margin: UiRect::bottom(Val::Px(10.0)), ..default() },
         ));
 
         parent.spawn((
             Text::new(format!("v{}", info.version)),
             TextFont { font_size: FontSize::Px(18.0), ..default() },
-            TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+            TextColor(TEXT_FAINT),
             Node { margin: UiRect::bottom(Val::Px(20.0)), ..default() },
         ));
 
@@ -402,7 +412,7 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
             parent.spawn((
                 Text::new("Disclaimer"),
                 TextFont { font_size: FontSize::Px(22.0), ..default() },
-                TextColor(Color::srgb(0.9, 0.7, 0.2)),
+                TextColor(WARNING),
                 Node { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
             ));
             parent.spawn((
@@ -411,15 +421,16 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
                     padding: UiRect::all(Val::Px(12.0)),
                     margin: UiRect::bottom(Val::Px(20.0)),
                     border: UiRect::all(Val::Px(1.0)),
+                    border_radius: RADIUS,
                     ..default()
                 },
-                BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
-                BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.85)),
+                BorderColor::all(BORDER),
+                BackgroundColor(BG_PANEL),
             )).with_children(|disc_box| {
                 disc_box.spawn((
                     Text::new(&info.disclaimer),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::srgba(0.9, 0.85, 0.6, 0.9)),
+                    TextColor(WARNING),
                 ));
             });
         }
@@ -427,14 +438,14 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
         parent.spawn((
                 Text::new(&info.description),
                 TextFont { font_size: FontSize::Px(16.0), ..default() },
-                TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9)),
+                TextColor(TEXT_MUTED),
                 Node { margin: UiRect::bottom(Val::Px(24.0)), ..default() },
         ));
 
         parent.spawn((
             Text::new("Credits:"),
             TextFont { font_size: FontSize::Px(20.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
             Node { margin: UiRect::bottom(Val::Px(10.0)), ..default() },
         ));
 
@@ -442,7 +453,7 @@ fn spawn_info_tab(commands: &mut Commands, parent: Entity) {
             parent.spawn((
                 Text::new(credit),
                 TextFont { font_size: FontSize::Px(15.0), ..default() },
-                TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9)),
+                TextColor(TEXT_MUTED),
                 Node { margin: UiRect::bottom(Val::Px(5.0)), ..default() },
             ));
         }
@@ -454,9 +465,9 @@ fn spawn_keybinds_settings(commands: &mut Commands, parent: Entity, keybinds: &K
         parent.spawn((
             Text::new("Keybindings"),
             TextFont { font_size: FontSize::Px(24.0), ..default() },
-            TextColor(Color::srgba(0.9, 0.9, 1.0, 0.95)),
+            TextColor(TEXT),
             Node { margin: UiRect::bottom(Val::Px(16.0)), border: UiRect::bottom(Val::Px(1.0)), ..default() },
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+            BorderColor::all(BORDER),
         ));
         
         let key_bindings = [
@@ -488,7 +499,7 @@ fn spawn_keybinds_settings(commands: &mut Commands, parent: Entity, keybinds: &K
                     ..default()
                 },
             )).with_children(|parent| {
-                parent.spawn((Text::new(action), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9))));
+                parent.spawn((Text::new(action), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(TEXT_MUTED)));
                 
                 // Remap Button
                 parent.spawn((
@@ -499,16 +510,17 @@ fn spawn_keybinds_settings(commands: &mut Commands, parent: Entity, keybinds: &K
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         border: UiRect::all(Val::Px(1.0)),
+                        border_radius: RADIUS,
                         ..default()
                     },
-                    BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
-                    BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9)),
+                    BorderColor::all(BORDER),
+                    BackgroundColor(BG_ELEVATED),
                     RemapButton { action: action.to_string() },
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(format!("{:?}", key)),
                         TextFont { font_size: FontSize::Px(16.0), ..default() },
-                        TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9)),
+                        TextColor(TEXT_MUTED),
                     ));
                 });
             });
@@ -529,8 +541,8 @@ fn spawn_keybinds_settings(commands: &mut Commands, parent: Entity, keybinds: &K
                     ..default()
                 },
             )).with_children(|parent| {
-                parent.spawn((Text::new(action), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9))));
-                parent.spawn((Text::new(format!("{:?}", button)), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8))));
+                parent.spawn((Text::new(action), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(TEXT_MUTED)));
+                parent.spawn((Text::new(format!("{:?}", button)), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(TEXT_FAINT)));
             });
         }
     });
@@ -580,7 +592,7 @@ fn spawn_toggle(commands: &mut Commands, parent: Entity, label: &str, value: boo
                 ..default()
             },
         )).with_children(|parent| {
-            parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9))));
+            parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(TEXT_MUTED)));
             
             parent.spawn((
                 Button,
@@ -590,16 +602,17 @@ fn spawn_toggle(commands: &mut Commands, parent: Entity, label: &str, value: boo
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(1.0)),
+                    border_radius: RADIUS,
                     ..default()
                 },
-                BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
-                BackgroundColor(if value { Color::srgba(0.2, 0.5, 0.25, 0.9) } else { Color::srgba(0.3, 0.2, 0.2, 0.8) }),
+                BorderColor::all(BORDER),
+                BackgroundColor(if value { SUCCESS } else { BG_ELEVATED }),
                 SettingToggle { action },
             )).with_children(|parent| {
                 parent.spawn((
                     Text::new(if value { "ON" } else { "OFF" }),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(if value { Color::srgba(0.6, 0.9, 0.6, 0.95) } else { Color::srgba(0.7, 0.6, 0.6, 0.9) }),
+                    TextColor(if value { TEXT } else { TEXT_MUTED }),
                 ));
             });
         });
@@ -624,17 +637,17 @@ pub fn handle_settings_interaction(
         if let Some(tab) = tab_button {
             let is_active = tab.tab == settings_state.active_tab;
             if is_active {
-                *bg_color = BackgroundColor(Color::srgba(0.12, 0.12, 0.18, 0.95));
+                *bg_color = BackgroundColor(ACCENT);
             } else if is_hovered {
-                *bg_color = BackgroundColor(Color::srgba(0.15, 0.15, 0.22, 0.9));
+                *bg_color = BackgroundColor(BG_HOVER);
             } else {
-                *bg_color = BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.8));
+                *bg_color = BackgroundColor(BG_ELEVATED);
             }
         } else if close_button.is_some() {
              if is_hovered {
-                *bg_color = BackgroundColor(Color::srgba(0.25, 0.2, 0.2, 0.95));
+                *bg_color = BackgroundColor(BG_HOVER);
              } else {
-                *bg_color = BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.9));
+                *bg_color = BackgroundColor(BG_ELEVATED);
              }
         } else if let Some(toggle) = toggle {
              let value = match toggle.action {
@@ -657,23 +670,23 @@ pub fn handle_settings_interaction(
                 SettingAction::ToggleCrosshairDebug => game_settings.debug.show_crosshair_debug,
                 _ => false,
             };
-            let base_color = if value { Color::srgba(0.2, 0.5, 0.25, 0.9) } else { Color::srgba(0.3, 0.2, 0.2, 0.8) };
+            let base_color = if value { SUCCESS } else { BG_ELEVATED };
             if is_hovered {
-                *bg_color = BackgroundColor(base_color.mix(&Color::WHITE, 0.15));
+                *bg_color = BackgroundColor(base_color.mix(&BG_HOVER, 0.5));
             } else {
                 *bg_color = BackgroundColor(base_color);
             }
         } else if selector.is_some() {
              if is_hovered {
-                *bg_color = BackgroundColor(Color::srgba(0.12, 0.12, 0.18, 0.95));
+                *bg_color = BackgroundColor(BG_HOVER);
              } else {
-                *bg_color = BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.95));
+                *bg_color = BackgroundColor(BG_ELEVATED);
              }
         } else if slider_button.is_some() {
              if is_hovered || *interaction == Interaction::Pressed {
-                *bg_color = BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.9));
+                *bg_color = BackgroundColor(BG_HOVER);
              } else {
-                *bg_color = BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.9));
+                *bg_color = BackgroundColor(BG_ELEVATED);
              }
         }
 
@@ -891,11 +904,11 @@ fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32
                 margin: UiRect::bottom(Val::Px(5.0)),
                 ..default()
             }).with_children(|parent| {
-                parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9))));
+                parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(TEXT_MUTED)));
                 parent.spawn((
                     Text::new(format!("{:.1}", value)),
                     TextFont { font_size: FontSize::Px(15.0), ..default() },
-                    TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9)),
+                    TextColor(TEXT_MUTED),
                     SliderValueText { action },
                 ));
             });
@@ -917,15 +930,18 @@ fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32
                         height: Val::Px(26.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        border: UiRect::all(Val::Px(1.0)),
+                        border_radius: RADIUS_SM,
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.9)),
+                    BackgroundColor(BG_ELEVATED),
+                    BorderColor::all(BORDER),
                     SliderButton { action, direction: -1 },
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("-"),
                         TextFont { font_size: FontSize::Px(18.0), ..default() },
-                        TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9)),
+                        TextColor(TEXT_MUTED),
                     ));
                 });
 
@@ -937,10 +953,11 @@ fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32
                         flex_grow: 1.0,
                         height: Val::Px(12.0),
                         border: UiRect::all(Val::Px(1.0)),
+                        border_radius: RADIUS_SM,
                         ..default()
                     },
-                    BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.4)),
-                    BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9)),
+                    BorderColor::all(BORDER),
+                    BackgroundColor(BG_ELEVATED),
                     Slider { action, min, max, step },
                 )).with_children(|track| {
                     // Fill
@@ -950,7 +967,7 @@ fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32
                             height: Val::Percent(100.0),
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.4, 0.55, 0.85, 0.9)),
+                        BackgroundColor(ACCENT),
                         SliderFill { action },
                     ));
                 });
@@ -963,15 +980,18 @@ fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32
                         height: Val::Px(26.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        border: UiRect::all(Val::Px(1.0)),
+                        border_radius: RADIUS_SM,
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.9)),
+                    BackgroundColor(BG_ELEVATED),
+                    BorderColor::all(BORDER),
                     SliderButton { action, direction: 1 },
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("+"),
                         TextFont { font_size: FontSize::Px(18.0), ..default() },
-                        TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9)),
+                        TextColor(TEXT_MUTED),
                     ));
                 });
             });
@@ -988,7 +1008,7 @@ fn spawn_selector(commands: &mut Commands, parent: Entity, label: &str, options:
             margin: UiRect::bottom(Val::Px(15.0)),
             ..default()
         }).with_children(|parent| {
-            parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(Color::srgba(0.8, 0.8, 0.85, 0.9))));
+            parent.spawn((Text::new(label), TextFont { font_size: FontSize::Px(16.0), ..default() }, TextColor(TEXT_MUTED)));
             
             // Box
             parent.spawn((
@@ -1000,16 +1020,17 @@ fn spawn_selector(commands: &mut Commands, parent: Entity, label: &str, options:
                     align_items: AlignItems::Center,
                     margin: UiRect::vertical(Val::Px(8.0)),
                     border: UiRect::all(Val::Px(1.0)),
+                    border_radius: RADIUS,
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.95)),
-                BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+                BackgroundColor(BG_ELEVATED),
+                BorderColor::all(BORDER),
                 Selector { action, options: options.clone(), current_index },
             )).with_children(|parent| {
                 parent.spawn((
                     Text::new(options[current_index].clone()),
                     TextFont { font_size: FontSize::Px(16.0), ..default() },
-                    TextColor(Color::srgba(0.85, 0.85, 0.9, 0.95)),
+                    TextColor(TEXT),
                 ));
             });
 
@@ -1022,7 +1043,7 @@ fn spawn_selector(commands: &mut Commands, parent: Entity, label: &str, options:
                 for (i, _) in options.iter().enumerate() {
                     let is_selected = i == current_index;
                     let size = if is_selected { 10.0 } else { 6.0 };
-                    let color = if is_selected { Color::srgba(0.6, 0.8, 1.0, 0.95) } else { Color::srgba(0.3, 0.3, 0.4, 0.5) };
+                    let color = if is_selected { ACCENT } else { TEXT_FAINT };
                     
                     parent.spawn((
                         Node {

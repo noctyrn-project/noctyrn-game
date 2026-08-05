@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::app::AppExit;
 use rand::Rng;
+use crate::theme::*;
 use crate::player::GameState;
 use crate::weapons::PlayerCredits;
 use crate::net::{ConnectionState, ServerConfig, TokioRuntime, NetworkEvent, PartyState, TcpConnection};
@@ -404,28 +405,28 @@ pub fn spawn_main_menu(
                     Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
                 ));
 
-                // Menu buttons below title
-                for (label, button, text_color) in [
-                    ("LOADOUT", MainMenuButton::Loadout, Color::WHITE),
-                    ("CRATES", MainMenuButton::Crates, Color::srgba(0.9, 0.7, 0.2, 0.9)),
-                    ("COSMETICS", MainMenuButton::Cosmetics, Color::srgba(0.2, 0.8, 0.4, 0.9)),
-                    ("PROFILE", MainMenuButton::Profile, Color::srgba(0.4, 0.6, 1.0, 0.9)),
-                    ("SETTINGS", MainMenuButton::Settings, Color::srgba(0.7, 0.7, 0.7, 0.9)),
-                    ("QUIT", MainMenuButton::Quit, Color::srgba(0.6, 0.4, 0.4, 0.8)),
+                // Menu buttons below title — text-only, purple gradient
+                // from light (top) to dark (bottom).
+                for (label, button) in [
+                    ("LOADOUT", MainMenuButton::Loadout),
+                    ("CRATES", MainMenuButton::Crates),
+                    ("COSMETICS", MainMenuButton::Cosmetics),
+                    ("PROFILE", MainMenuButton::Profile),
+                    ("SETTINGS", MainMenuButton::Settings),
+                    ("QUIT", MainMenuButton::Quit),
                 ] {
+                    let color = menu_button_color(&button);
                     top.spawn((
                         Button,
                         Node {
                             padding: UiRect::new(Val::Px(12.0), Val::Px(20.0), Val::Px(4.0), Val::Px(4.0)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::NONE),
+                            ..default()},
                         button,
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new(label),
                             TextFont { font_size: FontSize::Px(18.0), ..default() },
-                            TextColor(text_color),
+                            TextColor(color),
                         ));
                     });
                 }
@@ -433,7 +434,7 @@ pub fn spawn_main_menu(
                 top.spawn((
                     Text::new("v0.1.0"),
                     TextFont { font_size: FontSize::Px(11.0), ..default() },
-                    TextColor(Color::srgba(0.3, 0.3, 0.3, 0.4)),
+                    TextColor(TEXT_FAINT),
                     Node { margin: UiRect::top(Val::Px(16.0)), ..default() },
                 ));
             });
@@ -448,20 +449,20 @@ pub fn spawn_main_menu(
                     Node {
                         padding: UiRect::all(Val::Px(10.0)),
                         border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.8)),
-                    BorderColor::all(Color::srgba(0.9, 0.7, 0.2, 0.5)),
+                            border_radius: RADIUS,
+                        ..default()},
+                    BackgroundColor(BG_PANEL.with_alpha(0.95)),
+                    BorderColor::all(BORDER),
                 )).with_children(|credits_box| {
                     credits_box.spawn((
                         Text::new("CREDITS: "),
                         TextFont { font_size: FontSize::Px(16.0), ..default() },
-                        TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+                        TextColor(TEXT_MUTED),
                     ));
                     credits_box.spawn((
                         Text::new(credits.balance.to_string()),
                         TextFont { font_size: FontSize::Px(16.0), ..default() },
-                        TextColor(Color::srgb(0.9, 0.7, 0.2)),
+                        TextColor(WARNING),
                         MainMenuCreditsText,
                     ));
                 });
@@ -473,15 +474,17 @@ pub fn spawn_main_menu(
                         height: Val::Px(36.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.4, 0.3, 0.6, 0.8)),
+                        border: UiRect::all(Val::Px(1.0)),
+                            border_radius: RADIUS,
+                        ..default()},
+                    BackgroundColor(BG_ELEVATED),
+                    BorderColor::all(BORDER),
                     super::friends::OpenFriendsButton,
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("FRIENDS"),
                         TextFont { font_size: FontSize::Px(13.0), ..default() },
-                        TextColor(Color::WHITE),
+                        TextColor(TEXT),
                     ));
                 });
             });
@@ -507,16 +510,18 @@ pub fn spawn_main_menu(
                         height: Val::Px(36.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.15, 0.15, 0.2, 0.9)),
+                        border: UiRect::all(Val::Px(1.0)),
+                            border_radius: RADIUS,
+                        ..default()},
+                    BackgroundColor(BG_ELEVATED),
+                    BorderColor::all(BORDER),
                     MainMenuButton::GameModeSelect,
                     GameModeSelectUi,
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(format!(">> {}", selected_mode.mode.display_name())),
                         TextFont { font_size: FontSize::Px(13.0), ..default() },
-                        TextColor(selected_mode.mode.accent_color()),
+                        TextColor(TEXT),
                     ));
                 });
 
@@ -527,15 +532,15 @@ pub fn spawn_main_menu(
                         height: Val::Px(64.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.12, 0.45, 0.12)),
+                            border_radius: RADIUS,
+                        ..default()},
+                    BackgroundColor(ACCENT),
                     MainMenuButton::Play,
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("PLAY"),
                         TextFont { font_size: FontSize::Px(26.0), ..default() },
-                        TextColor(Color::WHITE),
+                        TextColor(TEXT),
                     ));
                 });
 
@@ -555,27 +560,27 @@ pub fn spawn_main_menu(
                 row_gap: Val::Px(6.0),
                 border: UiRect::all(Val::Px(1.0)),
                 display: Display::None,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.95)),
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+                    border_radius: RADIUS,
+                ..default()},
+            BackgroundColor(BG_PANEL.with_alpha(0.95)),
+            BorderColor::all(BORDER),
             MatchmakingNotifierUi,
         )).with_children(|notifier| {
             notifier.spawn((
                 Text::new("SEARCHING FOR MATCH"),
                 TextFont { font_size: FontSize::Px(14.0), ..default() },
-                TextColor(Color::WHITE),
+                TextColor(TEXT),
             ));
             notifier.spawn((
                 Text::new("0:00"),
                 TextFont { font_size: FontSize::Px(28.0), ..default() },
-                TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                TextColor(TEXT),
                 MatchmakingTimerText,
             ));
             notifier.spawn((
                 Text::new("Players in queue: --"),
                 TextFont { font_size: FontSize::Px(12.0), ..default() },
-                TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+                TextColor(TEXT_MUTED),
             ));
             notifier.spawn((
                 Button,
@@ -585,14 +590,16 @@ pub fn spawn_main_menu(
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     margin: UiRect::top(Val::Px(6.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                    border: UiRect::all(Val::Px(1.0)),
+                        border_radius: RADIUS_SM,
+                    ..default()},
+                BackgroundColor(BG_ELEVATED),
+                BorderColor::all(BORDER),
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("CANCEL"),
                     TextFont { font_size: FontSize::Px(13.0), ..default() },
-                    TextColor(Color::srgb(0.9, 0.3, 0.3)),
+                    TextColor(DANGER),
                 ));
             }).insert(CancelSearchButton);
         });
@@ -623,7 +630,7 @@ pub fn spawn_escape_menu(mut commands: Commands, in_party: bool) {
             align_items: AlignItems::Center,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
+        BackgroundColor(BG_BASE.with_alpha(0.3)),
         EscapeMenuUi,
     )).with_children(|wrapper| {
         wrapper.spawn((
@@ -633,16 +640,16 @@ pub fn spawn_escape_menu(mut commands: Commands, in_party: bool) {
                 row_gap: Val::Px(4.0),
                 flex_direction: FlexDirection::Column,
                 border: UiRect::all(Val::Px(1.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.95)),
-            BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+                    border_radius: RADIUS,
+                ..default()},
+            BackgroundColor(BG_PANEL.with_alpha(0.95)),
+            BorderColor::all(BORDER),
         )).with_children(|menu| {
-        for &(label, ref action, enabled, r, g, b) in &[
-            ("SETTINGS", EscapeAction::Settings, true, 0.9, 0.9, 0.9),
-            ("LEAVE PARTY", EscapeAction::LeaveParty, in_party, 0.7, 0.7, 0.7),
-            ("PROFILE", EscapeAction::Profile, true, 0.9, 0.9, 0.9),
-            ("EXIT GAME", EscapeAction::Exit, true, 0.9, 0.3, 0.3),
+        for &(label, ref action, enabled, color) in &[
+            ("SETTINGS", EscapeAction::Settings, true, TEXT),
+            ("LEAVE PARTY", EscapeAction::LeaveParty, in_party, TEXT_MUTED),
+            ("PROFILE", EscapeAction::Profile, true, TEXT),
+            ("EXIT GAME", EscapeAction::Exit, true, DANGER),
         ] {
             let alpha = if enabled { 1.0 } else { 0.35 };
             menu.spawn((
@@ -652,15 +659,17 @@ pub fn spawn_escape_menu(mut commands: Commands, in_party: bool) {
                     height: Val::Px(34.0),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.1, 0.1, 0.15, alpha * 0.8)),
+                    border: UiRect::all(Val::Px(1.0)),
+                        border_radius: RADIUS_SM,
+                    ..default()},
+                BackgroundColor(BG_ELEVATED.with_alpha(alpha * 0.8)),
+                BorderColor::all(BORDER),
                 EscapeButton { action: *action, enabled },
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new(label),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::srgba(r, g, b, alpha)),
+                    TextColor(color.with_alpha(alpha)),
                 ));
             });
         }
@@ -939,20 +948,29 @@ pub fn main_menu_profile_handler(
     }
 }
 
+/// Purple gradient step for the main-menu buttons: light at the top
+/// (LOADOUT) fading to dark at the bottom (QUIT).
+fn menu_button_color(button: &MainMenuButton) -> Color {
+    match button {
+        MainMenuButton::Loadout => Color::srgba(0.78, 0.67, 0.96, 1.0),
+        MainMenuButton::Crates => Color::srgba(0.70, 0.56, 0.92, 1.0),
+        MainMenuButton::Cosmetics => Color::srgba(0.62, 0.46, 0.88, 1.0),
+        MainMenuButton::Profile => Color::srgba(0.57, 0.38, 0.87, 1.0),
+        MainMenuButton::Settings => Color::srgba(0.48, 0.31, 0.78, 1.0),
+        MainMenuButton::Quit => Color::srgba(0.40, 0.25, 0.68, 1.0),
+        _ => TEXT,
+    }
+}
+
 pub fn main_menu_hover(
     mut query: Query<(&Interaction, &MainMenuButton, &Children), With<Button>>,
     mut text_query: Query<&mut TextColor>,
 ) {
     for (interaction, button, children) in query.iter_mut() {
         let (base_color, hover_color) = match button {
-            MainMenuButton::Play => (Color::WHITE, Color::srgb(0.5, 1.0, 0.5)),
-            MainMenuButton::GameModeSelect => (Color::srgba(0.6, 0.6, 0.7, 0.9), Color::WHITE),
-            MainMenuButton::Loadout => (Color::WHITE, Color::srgb(0.7, 0.85, 1.0)),
-            MainMenuButton::Crates => (Color::srgba(0.9, 0.7, 0.2, 0.9), Color::srgb(1.0, 0.85, 0.3)),
-            MainMenuButton::Cosmetics => (Color::srgba(0.2, 0.8, 0.4, 0.9), Color::srgb(0.4, 1.0, 0.6)),
-            MainMenuButton::Profile => (Color::srgba(0.4, 0.6, 1.0, 0.9), Color::srgb(0.6, 0.8, 1.0)),
-            MainMenuButton::Settings => (Color::srgba(0.7, 0.7, 0.7, 0.9), Color::WHITE),
-            MainMenuButton::Quit => (Color::srgba(0.6, 0.4, 0.4, 0.8), Color::srgb(1.0, 0.5, 0.5)),
+            MainMenuButton::Play => (TEXT, TEXT),
+            MainMenuButton::GameModeSelect => (TEXT, ACCENT),
+            _ => (menu_button_color(button), TEXT),
         };
         let color = match interaction {
             Interaction::Hovered | Interaction::Pressed => hover_color,
@@ -1023,23 +1041,25 @@ pub fn server_connection_notification(
                 align_items: AlignItems::Center,
                 column_gap: Val::Px(8.0),
                 padding: UiRect::all(Val::Px(10.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.1, 0.05, 0.05, 0.85)),
+                border: UiRect::all(Val::Px(1.0)),
+                    border_radius: RADIUS,
+                ..default()},
+            BackgroundColor(BG_PANEL.with_alpha(0.95)),
+            BorderColor::all(BORDER),
             ServerDisconnectedNotif,
         )).with_children(|root| {
             root.spawn((
                 Node {
                     width: Val::Px(8.0),
                     height: Val::Px(8.0),
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.9, 0.1, 0.1)),
+                        border_radius: RADIUS_SM,
+                    ..default()},
+                BackgroundColor(DANGER),
             ));
             root.spawn((
                 Text::new("Not connected to server"),
                 TextFont { font_size: FontSize::Px(12.0), ..default() },
-                TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                TextColor(TEXT),
             ));
         });
     } else if !is_disconnected && has_notif {

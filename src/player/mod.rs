@@ -12,6 +12,7 @@ use crate::gameplay::DeathEvent;
 use crate::ui_settings::{spawn_settings_menu, update_settings_menu, handle_settings_interaction, handle_slider_drag, SettingsState};
 use crate::settings::GameSettings;
 use crate::menu::{MenuPlugin};
+use crate::theme::*;
 use rand::Rng;
 
 mod movement;
@@ -400,7 +401,7 @@ fn spawn_stance_indicator(mut commands: Commands) {
             height: Val::Px(36.0),
             ..default()
         },
-        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.85)),
+        BackgroundColor(TEXT.with_alpha(0.85)),
         StanceIndicator {
             width: 10.0,
             height: 36.0,
@@ -617,8 +618,8 @@ fn update_kill_feed(
                     Node {
                         margin: UiRect::bottom(Val::Px(5.0)),
                         padding: UiRect::all(Val::Px(5.0)),
-                        ..default()
-                    },
+                            border_radius: RADIUS_SM,
+                        ..default()},
                     KillFeedItem {
                         timer: Timer::from_seconds(config.item_duration, TimerMode::Once),
                     },
@@ -695,7 +696,7 @@ fn spawn_pause_menu(commands: &mut Commands) {
                 row_gap: Val::Px(8.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
+            BackgroundColor(BG_BASE.with_alpha(0.85)),
             GlobalZIndex(200),
             PauseMenuUi,
         ))
@@ -707,15 +708,15 @@ fn spawn_pause_menu(commands: &mut Commands) {
                     row_gap: Val::Px(4.0),
                     flex_direction: FlexDirection::Column,
                     border: UiRect::all(Val::Px(1.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.95)),
-                BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+                        border_radius: RADIUS,
+                    ..default()},
+                BackgroundColor(BG_PANEL),
+                BorderColor::all(BORDER),
             )).with_children(|card| {
                 card.spawn((
                     Text::new("PAUSED"),
                     TextFont { font_size: FontSize::Px(28.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                     Node { margin: UiRect::bottom(Val::Px(8.0)), align_self: AlignSelf::Center, ..default() },
                 ));
 
@@ -726,6 +727,12 @@ fn spawn_pause_menu(commands: &mut Commands) {
                     ("MAIN MENU", PauseMenuButton::MainMenu),
                     ("QUIT", PauseMenuButton::Quit),
                 ] {
+                    let (bg_color, text_color) = match button {
+                        PauseMenuButton::Resume => (ACCENT, TEXT),
+                        PauseMenuButton::MainMenu => (BG_ELEVATED, TEXT_MUTED),
+                        PauseMenuButton::Quit => (BG_ELEVATED, DANGER),
+                        _ => (BG_ELEVATED, TEXT),
+                    };
                     card.spawn((
                         Button,
                         Node {
@@ -733,20 +740,15 @@ fn spawn_pause_menu(commands: &mut Commands) {
                             height: Val::Px(34.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.9)),
+                                border_radius: RADIUS,
+                            ..default()},
+                        BackgroundColor(bg_color),
                         button,
                     )).with_children(|btn| {
-                        let is_quit = matches!(button, PauseMenuButton::Quit);
                         btn.spawn((
                             Text::new(label),
                             TextFont { font_size: FontSize::Px(14.0), ..default() },
-                            TextColor(if is_quit {
-                                Color::srgba(0.9, 0.3, 0.3, 0.9)
-                            } else {
-                                Color::srgba(0.9, 0.9, 0.9, 0.9)
-                            }),
+                            TextColor(text_color),
                         ));
                     });
                 }
@@ -1021,7 +1023,7 @@ fn keybind_remapping_system(
     for (button, children, mut bg_color) in all_buttons.iter_mut() {
         if let Some(active) = &remapping_state.active_action {
             if active == &button.action {
-                *bg_color = BackgroundColor(Color::srgb(0.8, 0.8, 0.2));
+                *bg_color = BackgroundColor(WARNING);
                 if let Some(child) = children.first() {
                     if let Ok(mut text) = text_query.get_mut(*child) {
                         text.0 = "Press...".to_string();
@@ -1031,7 +1033,7 @@ fn keybind_remapping_system(
             }
         }
         
-        *bg_color = BackgroundColor(Color::srgb(0.3, 0.3, 0.3));
+        *bg_color = BackgroundColor(BG_ELEVATED);
         if let Some(child) = children.first() {
             if let Ok(mut text) = text_query.get_mut(*child) {
                 let key = keybinds.get(&button.action);
@@ -1190,9 +1192,9 @@ pub fn spawn_hit_marker(commands: &mut Commands) {
 
 /// Spawn a floating damage number at a world position.
 pub fn spawn_damage_number(commands: &mut Commands, damage: f32, position: Vec3) {
-    let color = if damage >= 100.0 { Color::srgb(1.0, 0.3, 0.3) }
-                else if damage >= 50.0 { Color::srgb(1.0, 0.6, 0.2) }
-                else { Color::srgb(1.0, 1.0, 1.0) };
+    let color = if damage >= 100.0 { DANGER }
+                else if damage >= 50.0 { WARNING }
+                else { TEXT };
     commands.spawn((
         Text2d::new(format!("{:.0}", damage)),
         TextFont { font_size: FontSize::Px(24.0), ..default() },

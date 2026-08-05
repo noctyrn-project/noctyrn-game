@@ -18,6 +18,7 @@ mod defaults;
 mod storage;
 mod setup;
 mod branding;
+mod theme;
 
 fn main() {
     App::new()

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::theme::*;
 use crate::player::GameState;
 use crate::weapons::{
     WeaponRegistry, WeaponSlot, PlayerLoadout, WeaponConfig,
@@ -172,22 +173,23 @@ pub fn spawn_loadout_menu(
                     height: Val::Px(36.0),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
+                    border_radius: RADIUS,
                     ..default()
                 },
-                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
+                BackgroundColor(BG_ELEVATED),
                 LoadoutBackButton,
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("BACK"),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                    TextColor(TEXT_MUTED),
                 ));
             });
 
             bar.spawn((
                 Text::new("LOADOUT"),
                 TextFont { font_size: FontSize::Px(28.0), ..default() },
-                TextColor(Color::WHITE),
+                TextColor(TEXT),
                 Node { margin: UiRect::left(Val::Px(16.0)), ..default() },
             ));
 
@@ -196,7 +198,7 @@ pub fn spawn_loadout_menu(
             bar.spawn((
                 Text::new(format_loadout_summary(&loadout, &registry)),
                 TextFont { font_size: FontSize::Px(11.0), ..default() },
-                TextColor(Color::srgba(0.5, 0.7, 0.5, 0.8)),
+                TextColor(TEXT_MUTED),
                 CurrentLoadoutDisplay,
             ));
         });
@@ -224,19 +226,16 @@ pub fn spawn_loadout_menu(
                         height: Val::Px(if is_active { 38.0 } else { 34.0 }),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        border_radius: RADIUS,
                         ..default()
                     },
-                    BackgroundColor(if is_active {
-                        Color::srgba(0.2, 0.35, 0.55, 0.9)
-                    } else {
-                        Color::srgba(0.12, 0.12, 0.18, 0.7)
-                    }),
+                    BackgroundColor(if is_active { ACCENT } else { BG_ELEVATED }),
                     SlotTabButton { slot },
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(label),
                         TextFont { font_size: FontSize::Px(12.0), ..default() },
-                        TextColor(if is_active { Color::WHITE } else { Color::srgba(0.6, 0.6, 0.6, 0.8) }),
+                        TextColor(if is_active { TEXT } else { TEXT_MUTED }),
                     ));
                 });
             }
@@ -258,7 +257,6 @@ pub fn spawn_loadout_menu(
                     overflow: Overflow::scroll_x(),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.04, 0.04, 0.08, 0.95)),
                 CategoryTabContainer,
             ));
 
@@ -276,9 +274,11 @@ pub fn spawn_loadout_menu(
                         overflow: Overflow::scroll_y(),
                         row_gap: Val::Px(2.0),
                         padding: UiRect::all(Val::Px(8.0)),
+                        border_radius: RADIUS,
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.95)),
+                    BackgroundColor(BG_PANEL),
+                    BorderColor::all(BORDER),
                     WeaponListContainer,
                 ));
 
@@ -299,9 +299,11 @@ pub fn spawn_loadout_menu(
                         padding: UiRect::all(Val::Px(12.0)),
                         row_gap: Val::Px(4.0),
                         overflow: Overflow::scroll_y(),
+                        border_radius: RADIUS,
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.04, 0.04, 0.08, 0.80)),
+                    BackgroundColor(BG_PANEL),
+                    BorderColor::all(BORDER),
                     WeaponStatsPanel,
                 ));
             });
@@ -422,19 +424,16 @@ pub fn update_loadout_ui(
                         padding: UiRect::new(Val::Px(10.0), Val::Px(10.0), Val::Px(5.0), Val::Px(5.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        border_radius: RADIUS_SM,
                         ..default()
                     },
-                    BackgroundColor(if is_active {
-                        Color::srgba(0.2, 0.35, 0.55, 0.9)
-                    } else {
-                        Color::srgba(0.1, 0.1, 0.15, 0.7)
-                    }),
+                    BackgroundColor(if is_active { ACCENT } else { BG_ELEVATED }),
                     CategoryButton { category: category.clone() },
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new(category_display_name(category).to_uppercase()),
                         TextFont { font_size: FontSize::Px(10.0), ..default() },
-                        TextColor(if is_active { Color::WHITE } else { Color::srgba(0.6, 0.6, 0.6, 0.8) }),
+                        TextColor(if is_active { TEXT } else { TEXT_MUTED }),
                     ));
                 });
             }
@@ -453,11 +452,11 @@ pub fn update_loadout_ui(
                         let is_selected = ui_state.selected_weapon_id.as_deref() == Some(id.as_str());
 
                         let bg = if is_selected {
-                            Color::srgba(0.2, 0.35, 0.55, 0.5)
+                            ACCENT.with_alpha(0.35)
                         } else if is_equipped {
-                            Color::srgba(0.12, 0.25, 0.12, 0.35)
+                            SUCCESS.with_alpha(0.18)
                         } else {
-                            Color::srgba(0.1, 0.1, 0.14, 0.2)
+                            BG_ELEVATED
                         };
 
                         parent.spawn((
@@ -470,6 +469,7 @@ pub fn update_loadout_ui(
                                 flex_direction: FlexDirection::Row,
                                 justify_content: JustifyContent::SpaceBetween,
                                 margin: UiRect::bottom(Val::Px(1.0)),
+                                border_radius: RADIUS_SM,
                                 ..default()
                             },
                             BackgroundColor(bg),
@@ -478,13 +478,13 @@ pub fn update_loadout_ui(
                             btn.spawn((
                                 Text::new(&config.info.name),
                                 TextFont { font_size: FontSize::Px(13.0), ..default() },
-                                TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.85, 0.85, 0.85, 0.9) }),
+                                TextColor(if is_selected { TEXT } else { TEXT_MUTED }),
                             ));
                             if is_equipped {
                                 btn.spawn((
                                     Text::new("[E]"),
                                     TextFont { font_size: FontSize::Px(10.0), ..default() },
-                                    TextColor(Color::srgb(0.3, 0.8, 0.3)),
+                                    TextColor(SUCCESS),
                                 ));
                             }
                         });
@@ -509,7 +509,7 @@ pub fn update_loadout_ui(
                             margin: UiRect::vertical(Val::Px(8.0)),
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+                        BackgroundColor(BORDER),
                     ));
 
                     parent.spawn((
@@ -521,9 +521,10 @@ pub fn update_loadout_ui(
                             align_items: AlignItems::Center,
                             align_self: AlignSelf::Center,
                             column_gap: Val::Px(8.0),
+                            border_radius: RADIUS,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.15, 0.15, 0.25, 0.9)),
+                        BackgroundColor(BG_ELEVATED),
                         ColorPickerButton,
                     )).with_children(|btn| {
                         btn.spawn((
@@ -537,7 +538,7 @@ pub fn update_loadout_ui(
                         btn.spawn((
                             Text::new(format!("COLOR: {}", ui_state.selected_skin.display_name().to_uppercase())),
                             TextFont { font_size: FontSize::Px(12.0), ..default() },
-                            TextColor(Color::srgba(0.8, 0.8, 0.9, 0.9)),
+                            TextColor(TEXT),
                         ));
                     });
                 });
@@ -558,18 +559,10 @@ pub fn update_loadout_tabs(
     for (tab, mut bg, mut node, children) in tab_query.iter_mut() {
         let is_active = tab.slot == ui_state.active_slot;
         node.height = Val::Px(if is_active { 38.0 } else { 34.0 });
-        bg.0 = if is_active {
-            Color::srgba(0.2, 0.35, 0.55, 0.9)
-        } else {
-            Color::srgba(0.12, 0.12, 0.18, 0.7)
-        };
+        bg.0 = if is_active { ACCENT } else { BG_ELEVATED };
         for &child in children {
             if let Ok(mut text_color) = text_query.get_mut(child) {
-                text_color.0 = if is_active {
-                    Color::WHITE
-                } else {
-                    Color::srgba(0.6, 0.6, 0.6, 0.8)
-                };
+                text_color.0 = if is_active { TEXT } else { TEXT_MUTED };
             }
         }
     }
@@ -579,19 +572,19 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
     parent.spawn((
         Text::new(&config.info.name),
         TextFont { font_size: FontSize::Px(26.0), ..default() },
-        TextColor(Color::WHITE),
+        TextColor(TEXT),
     ));
 
     parent.spawn((
         Text::new(format!("{} - {} - {}", config.meta.weapon_type, config.info.manufacturer, config.info.year_introduced)),
         TextFont { font_size: FontSize::Px(13.0), ..default() },
-        TextColor(Color::srgba(0.6, 0.6, 0.6, 0.8)),
+        TextColor(TEXT_MUTED),
     ));
 
     parent.spawn((
         Text::new(&config.info.description),
         TextFont { font_size: FontSize::Px(13.0), ..default() },
-        TextColor(Color::srgba(0.7, 0.7, 0.7, 0.7)),
+        TextColor(TEXT_MUTED),
         Node { margin: UiRect::vertical(Val::Px(6.0)), ..default() },
     ));
 
@@ -602,7 +595,7 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
             margin: UiRect::vertical(Val::Px(6.0)),
             ..default()
         },
-        BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+        BackgroundColor(BORDER),
     ));
 
     let wt = config.meta.weapon_type.as_str();
@@ -633,12 +626,12 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
                     margin: UiRect::vertical(Val::Px(4.0)),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.3)),
+                BackgroundColor(BORDER),
             ));
             parent.spawn((
                 Text::new(format!("Ammo: {} | Damage: {:.0} | Pen: {:.0}%", ammo.name, ammo.damage, ammo.penetration * 100.0)),
                 TextFont { font_size: FontSize::Px(12.0), ..default() },
-                TextColor(Color::srgba(0.8, 0.7, 0.4, 0.9)),
+                TextColor(WARNING),
             ));
         }
 
@@ -646,7 +639,7 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
             parent.spawn((
                 Text::new(format!("Magazine: {} rds | Reserve: {}", mag.capacity, mag.carry_capacity)),
                 TextFont { font_size: FontSize::Px(12.0), ..default() },
-                TextColor(Color::srgba(0.6, 0.7, 0.8, 0.9)),
+                TextColor(TEXT_MUTED),
             ));
         }
 
@@ -654,7 +647,7 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
             parent.spawn((
                 Text::new(format!("Fire Modes: {}", config.attributes.fire_modes.join(" / "))),
                 TextFont { font_size: FontSize::Px(12.0), ..default() },
-                TextColor(Color::srgba(0.6, 0.7, 0.8, 0.9)),
+                TextColor(TEXT_MUTED),
             ));
         }
     }
@@ -673,19 +666,16 @@ fn spawn_weapon_stats(parent: &mut ChildSpawnerCommands, config: &WeaponConfig, 
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             align_self: AlignSelf::Center,
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(if is_equipped {
-            Color::srgb(0.2, 0.5, 0.2)
-        } else {
-            Color::srgb(0.2, 0.35, 0.6)
-        }),
+        BackgroundColor(if is_equipped { SUCCESS } else { ACCENT }),
         EquipButton,
     )).with_children(|btn: &mut ChildSpawnerCommands| {
         btn.spawn((
             Text::new(if is_equipped { "EQUIPPED" } else { "EQUIP" }),
             TextFont { font_size: FontSize::Px(18.0), ..default() },
-            TextColor(Color::WHITE),
+            TextColor(TEXT),
         ));
     });
 }
@@ -702,14 +692,14 @@ fn spawn_stat_bar(parent: &mut ChildSpawnerCommands, label: &str, value: f32, _m
         row.spawn((
             Text::new(label),
             TextFont { font_size: FontSize::Px(13.0), ..default() },
-            TextColor(Color::srgba(0.7, 0.7, 0.7, 0.9)),
+            TextColor(TEXT_MUTED),
             Node { width: Val::Px(120.0), ..default() },
         ));
 
         row.spawn((
             Text::new(format!("{:.2}", value)),
             TextFont { font_size: FontSize::Px(13.0), ..default() },
-            TextColor(Color::WHITE),
+            TextColor(TEXT),
         ));
     });
 }
@@ -746,13 +736,13 @@ pub fn loadout_interaction(
                 if mouse_input.just_pressed(MouseButton::Left) {
                     next_state.set(GameState::MainMenu);
                 }
-                *bg = BackgroundColor(Color::srgb(0.45, 0.2, 0.2));
+                *bg = BackgroundColor(BG_HOVER);
             }
             Interaction::Hovered => {
-                *bg = BackgroundColor(Color::srgb(0.45, 0.2, 0.2));
+                *bg = BackgroundColor(BG_HOVER);
             }
             _ => {
-                *bg = BackgroundColor(Color::srgb(0.3, 0.15, 0.15));
+                *bg = BackgroundColor(BG_ELEVATED);
             }
         }
     }
@@ -775,23 +765,23 @@ pub fn loadout_interaction(
                     }
                 }
                 *bg = if is_equipped {
-                    BackgroundColor(Color::srgb(0.25, 0.6, 0.25))
+                    BackgroundColor(SUCCESS)
                 } else {
-                    BackgroundColor(Color::srgb(0.25, 0.4, 0.7))
+                    BackgroundColor(ACCENT_HOVER)
                 };
             }
             Interaction::Hovered => {
                 *bg = if is_equipped {
-                    BackgroundColor(Color::srgb(0.25, 0.6, 0.25))
+                    BackgroundColor(SUCCESS)
                 } else {
-                    BackgroundColor(Color::srgb(0.25, 0.4, 0.7))
+                    BackgroundColor(ACCENT_HOVER)
                 };
             }
             _ => {
                 *bg = if is_equipped {
-                    BackgroundColor(Color::srgb(0.2, 0.5, 0.2))
+                    BackgroundColor(SUCCESS)
                 } else {
-                    BackgroundColor(Color::srgb(0.2, 0.35, 0.6))
+                    BackgroundColor(ACCENT)
                 };
             }
         }
@@ -878,13 +868,13 @@ pub fn loadout_interaction(
                         }
                     }
                 }
-                *bg = BackgroundColor(Color::srgba(0.2, 0.2, 0.35, 0.9));
+                *bg = BackgroundColor(BG_HOVER);
             }
             Interaction::Hovered => {
-                *bg = BackgroundColor(Color::srgba(0.18, 0.18, 0.3, 0.9));
+                *bg = BackgroundColor(BG_HOVER);
             }
             _ => {
-                *bg = BackgroundColor(Color::srgba(0.15, 0.15, 0.25, 0.9));
+                *bg = BackgroundColor(BG_ELEVATED);
             }
         }
     }
@@ -923,9 +913,11 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
             padding: UiRect::all(Val::Px(16.0)),
             row_gap: Val::Px(10.0),
             margin: UiRect::new(Val::Px(-180.0), Val::Auto, Val::Px(-200.0), Val::Auto),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.98)),
+        BackgroundColor(BG_PANEL),
+        BorderColor::all(BORDER_STRONG),
         ColorPickerPanel,
         ZIndex(10),
     )).with_children(|panel| {
@@ -939,7 +931,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
             row.spawn((
                 Text::new("COLOR"),
                 TextFont { font_size: FontSize::Px(18.0), ..default() },
-                TextColor(Color::WHITE),
+                TextColor(TEXT),
             ));
             row.spawn((
                 Button,
@@ -948,15 +940,16 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                     height: Val::Px(28.0),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
+                    border_radius: RADIUS_SM,
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.3, 0.15, 0.15, 0.8)),
+                BackgroundColor(BG_ELEVATED),
                 ColorPickerCloseButton,
             )).with_children(|btn| {
                 btn.spawn((
                     Text::new("X"),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
             });
         });
@@ -964,7 +957,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
         panel.spawn((
             Text::new("GUN BODY"),
             TextFont { font_size: FontSize::Px(13.0), ..default() },
-            TextColor(Color::srgba(0.5, 0.6, 0.8, 0.9)),
+            TextColor(TEXT_MUTED),
         ));
 
         panel.spawn((
@@ -988,10 +981,11 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         border: UiRect::all(Val::Px(if is_active { 2.0 } else { 1.0 })),
+                        border_radius: RADIUS_SM,
                         ..default()
                     },
                     BackgroundColor((*skin).swatch_color()),
-                    BorderColor::from(if is_active { Color::WHITE } else { Color::srgba(0.4, 0.4, 0.4, 0.5) }),
+                    BorderColor::from(if is_active { ACCENT } else { BORDER }),
                     SkinButton { skin: *skin },
                 )).with_children(|btn| {
                     if is_active {
@@ -1001,7 +995,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                                 height: Val::Px(10.0),
                                 ..default()
                             },
-                            BackgroundColor(Color::WHITE),
+                            BackgroundColor(TEXT),
                         ));
                     }
                 });
@@ -1017,15 +1011,16 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 border: UiRect::all(Val::Px(1.0)),
+                border_radius: RADIUS_SM,
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.8)),
-            BorderColor::all(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+            BackgroundColor(BG_ELEVATED),
+            BorderColor::all(BORDER),
         )).with_children(|btn| {
             btn.spawn((
                 Text::new("ATTACHMENTS"),
                 TextFont { font_size: FontSize::Px(13.0), ..default() },
-                TextColor(Color::srgba(0.8, 0.8, 0.9, 1.0)),
+                TextColor(TEXT),
             ));
         });
 
@@ -1036,13 +1031,13 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                 margin: UiRect::vertical(Val::Px(4.0)),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.4)),
+            BackgroundColor(BORDER),
         ));
 
         panel.spawn((
             Text::new("SKINS"),
             TextFont { font_size: FontSize::Px(13.0), ..default() },
-            TextColor(Color::srgba(0.5, 0.6, 0.8, 0.9)),
+            TextColor(TEXT_MUTED),
         ));
 
         panel.spawn(Node {
@@ -1063,10 +1058,11 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         border: UiRect::all(Val::Px(if is_active { 2.0 } else { 1.0 })),
+                        border_radius: RADIUS_SM,
                         ..default()
                     },
                     BackgroundColor((*skin).swatch_color()),
-                    BorderColor::from(if is_active { Color::WHITE } else { Color::srgba(0.4, 0.4, 0.4, 0.5) }),
+                    BorderColor::from(if is_active { ACCENT } else { BORDER }),
                     SkinButton { skin: *skin },
                 )).with_children(|btn| {
                     if is_active {
@@ -1076,7 +1072,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                                 height: Val::Px(10.0),
                                 ..default()
                             },
-                            BackgroundColor(Color::WHITE),
+                            BackgroundColor(TEXT),
                         ));
                     }
                 });
@@ -1086,7 +1082,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
         panel.spawn((
             Text::new(format!("Selected: {}", selected_skin.display_name())),
             TextFont { font_size: FontSize::Px(11.0), ..default() },
-            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+            TextColor(TEXT_FAINT),
         ));
     });
 }

@@ -3,6 +3,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::clipboard::Clipboard;
 use crate::net::{CachedFriends, PartyState, TokioRuntime, ConnectionState, NetworkEvent, http::{self, PendingRequests}, ServerConfig};
 use crate::menu::ActiveInput;
+use crate::theme::*;
 
 #[derive(Component)]
 pub struct FriendsPanelUi;
@@ -203,10 +204,11 @@ pub fn spawn_friends_panel(
             padding: UiRect::all(Val::Px(16.0)),
             row_gap: Val::Px(8.0),
             border: UiRect::left(Val::Px(1.0)),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.97)),
-        BorderColor::all(Color::srgba(0.2, 0.2, 0.3, 0.5)),
+        BackgroundColor(BG_PANEL),
+        BorderColor::all(BORDER),
         ZIndex(30),
         FriendsPanelUi,
     )).with_children(|panel| {
@@ -216,9 +218,9 @@ pub fn spawn_friends_panel(
             align_items: AlignItems::Center,
             ..default()
         }).with_children(|header| {
-            header.spawn((Text::new("FRIENDS"), TextFont { font_size: FontSize::Px(20.0), ..default() }, TextColor(Color::WHITE)));
+            header.spawn((Text::new("FRIENDS"), TextFont { font_size: FontSize::Px(20.0), ..default() }, TextColor(TEXT)));
             header.spawn((Button, CloseFriendsPanelButton)).with_children(|btn| {
-                spawn_btn_text(btn, "X", 16.0, Color::srgba(0.7, 0.7, 0.7, 0.8));
+                spawn_btn_text(btn, "X", 16.0, TEXT_MUTED);
             });
         });
 
@@ -226,16 +228,16 @@ pub fn spawn_friends_panel(
             panel.spawn((
                 Text::new("Log in to invite friends"),
                 TextFont { font_size: FontSize::Px(14.0), ..default() },
-                TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                TextColor(TEXT_MUTED),
                 Node { margin: UiRect::vertical(Val::Px(20.0)), ..default() },
             ));
             panel.spawn((
                 Button,
-                Node { width: Val::Percent(100.0), height: Val::Px(40.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
-                BackgroundColor(Color::srgba(0.2, 0.4, 0.2, 0.9)),
+                Node { width: Val::Percent(100.0), height: Val::Px(40.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border_radius: RADIUS_SM, ..default() },
+                BackgroundColor(ACCENT),
                 FriendsGoToProfileButton,
             )).with_children(|btn| {
-                spawn_btn_text(btn, "GO TO LOGIN", 14.0, Color::WHITE);
+                spawn_btn_text(btn, "GO TO LOGIN", 14.0, TEXT);
             });
             return;
         }
@@ -258,11 +260,11 @@ pub fn spawn_friends_panel(
                         border: UiRect::bottom(Val::Px(if is_active { 2.0 } else { 0.0 })),
                         ..default()
                     },
-                    BackgroundColor(if is_active { Color::srgba(0.2, 0.4, 0.6, 0.8) } else { Color::srgba(0.1, 0.1, 0.15, 0.8) }),
-                    BorderColor::all(Color::srgba(0.4, 0.6, 0.9, 0.8)),
+                    BackgroundColor(if is_active { ACCENT } else { BG_ELEVATED }),
+                    BorderColor::all(BORDER),
                     FriendsTabButton(tab),
                 )).with_children(|btn| {
-                    spawn_btn_text(btn, label, 11.0, Color::WHITE);
+                    spawn_btn_text(btn, label, 11.0, if is_active { TEXT } else { TEXT_MUTED });
                 });
             }
         });
@@ -280,9 +282,10 @@ pub fn spawn_friends_panel(
                     align_items: AlignItems::Center,
                     padding: UiRect::new(Val::Px(8.0), Val::Px(8.0), Val::Px(6.0), Val::Px(6.0)),
                     flex_grow: 1.0,
+                    border_radius: RADIUS_SM,
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.12, 0.12, 0.18, 0.9)),
+                BackgroundColor(BG_ELEVATED),
                 FriendsSearchInput,
             )).with_children(|input| {
                 let display = if state.search_query.is_empty() {
@@ -295,7 +298,7 @@ pub fn spawn_friends_panel(
                 input.spawn((
                     Text::new(display),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                    TextColor(TEXT_MUTED),
                     FriendsSearchInputText,
                 ));
             });
@@ -303,11 +306,11 @@ pub fn spawn_friends_panel(
             if state.active_tab == FriendsTab::Add && !state.search_query.is_empty() {
                 search.spawn((
                     Button,
-                    Node { width: Val::Px(50.0), height: Val::Px(32.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() },
-                    BackgroundColor(Color::srgba(0.2, 0.4, 0.2, 0.9)),
+                    Node { width: Val::Px(50.0), height: Val::Px(32.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border_radius: RADIUS_SM, ..default() },
+                    BackgroundColor(ACCENT),
                     FriendSubmitButton,
                 )).with_children(|btn| {
-                    spawn_btn_text(btn, "ADD", 11.0, Color::WHITE);
+                    spawn_btn_text(btn, "ADD", 11.0, TEXT);
                 });
             }
         });
@@ -317,7 +320,7 @@ pub fn spawn_friends_panel(
             panel.spawn((
                 Text::new(msg.as_str()),
                 TextFont { font_size: FontSize::Px(11.0), ..default() },
-                TextColor(if is_error { Color::srgba(0.9, 0.4, 0.4, 0.9) } else { Color::srgba(0.4, 0.8, 0.4, 0.9) }),
+                TextColor(if is_error { DANGER } else { SUCCESS }),
                 FriendsSearchMessageText,
             ));
         }
@@ -327,18 +330,18 @@ pub fn spawn_friends_panel(
                 panel.spawn((
                     Text::new("PARTY MEMBERS"),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
+                    TextColor(TEXT_MUTED),
                     Node { margin: UiRect::top(Val::Px(8.0)), ..default() },
                 ));
                 if let Some(party) = &party_state.party {
                     for member in &party.members {
                         panel.spawn((
-                            Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), ..default() },
-                            BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.7)),
+                            Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), border_radius: RADIUS_SM, ..default() },
+                            BackgroundColor(BG_ELEVATED),
                         )).with_children(|entry| {
                             entry.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(6.0), ..default() }).with_children(|inner| {
-                                inner.spawn(Node { width: Val::Px(8.0), height: Val::Px(8.0), ..default() }).insert(BackgroundColor(Color::srgb(0.2, 0.9, 0.2)));
-                                spawn_btn_text(inner, &member.username, 14.0, Color::WHITE);
+                                inner.spawn(Node { width: Val::Px(8.0), height: Val::Px(8.0), border_radius: RADIUS_SM, ..default() }).insert(BackgroundColor(SUCCESS));
+                                spawn_btn_text(inner, &member.username, 14.0, TEXT);
                             });
                         });
                     }
@@ -346,7 +349,7 @@ pub fn spawn_friends_panel(
                     panel.spawn((
                         Text::new("Not in a party"),
                         TextFont { font_size: FontSize::Px(12.0), ..default() },
-                        TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+                        TextColor(TEXT_FAINT),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
                 }
@@ -355,7 +358,7 @@ pub fn spawn_friends_panel(
                 panel.spawn((
                     Text::new("YOUR FRIENDS"),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
+                    TextColor(TEXT_MUTED),
                     Node { margin: UiRect::top(Val::Px(8.0)), ..default() },
                 ));
                 let filtered: Vec<_> = friends.friends.iter()
@@ -368,35 +371,35 @@ pub fn spawn_friends_panel(
                     let is_pending_remove = state.pending_remove == Some(friend.id);
                     panel.spawn((
                         Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), ..default() },
-                        BackgroundColor(Color::srgba(0.08, 0.15, 0.08, 0.7)),
+                        BackgroundColor(BG_ELEVATED),
                     )).with_children(|entry| {
                         entry.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(6.0), ..default() }).with_children(|inner| {
-                            inner.spawn(Node { width: Val::Px(8.0), height: Val::Px(8.0), ..default() }).insert(BackgroundColor(Color::srgb(0.2, 0.9, 0.2)));
-                            spawn_btn_text(inner, &friend.username, 14.0, Color::WHITE);
+                            inner.spawn(Node { width: Val::Px(8.0), height: Val::Px(8.0), border_radius: RADIUS_SM, ..default() }).insert(BackgroundColor(SUCCESS));
+                            spawn_btn_text(inner, &friend.username, 14.0, TEXT);
                         });
                         if is_pending_remove {
-                            spawn_btn_text(entry, "Remove?", 11.0, Color::srgba(0.9, 0.3, 0.3, 0.9));
+                            spawn_btn_text(entry, "Remove?", 11.0, DANGER);
                             entry.spawn((
-                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), ..default() },
-                                BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), border_radius: RADIUS_SM, ..default() },
+                                BackgroundColor(DANGER),
                                 FriendConfirmRemove { friend_id: friend.id },
-                            )).with_children(|btn| { spawn_btn_text(btn, "YES", 10.0, Color::WHITE); });
+                            )).with_children(|btn| { spawn_btn_text(btn, "YES", 10.0, TEXT); });
                             entry.spawn((
-                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), ..default() },
-                                BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8)),
+                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), border_radius: RADIUS_SM, ..default() },
+                                BackgroundColor(BG_HOVER),
                                 FriendCancelRemove { friend_id: friend.id },
-                            )).with_children(|btn| { spawn_btn_text(btn, "NO", 10.0, Color::srgba(0.7, 0.7, 0.7, 0.9)); });
+                            )).with_children(|btn| { spawn_btn_text(btn, "NO", 10.0, TEXT_MUTED); });
                         } else {
                             entry.spawn((
-                                Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), ..default() },
-                                BackgroundColor(Color::srgba(0.2, 0.3, 0.5, 0.8)),
+                                Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), border_radius: RADIUS_SM, ..default() },
+                                BackgroundColor(ACCENT),
                                 FriendPartyInviteButton { username: friend.username.clone() },
-                            )).with_children(|btn| { spawn_btn_text(btn, "INV", 9.0, Color::srgba(0.7, 0.8, 1.0, 0.9)); });
+                            )).with_children(|btn| { spawn_btn_text(btn, "INV", 9.0, TEXT); });
                             entry.spawn((
-                                Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), ..default() },
-                                BackgroundColor(Color::srgba(0.3, 0.1, 0.1, 0.8)),
+                                Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), border_radius: RADIUS_SM, ..default() },
+                                BackgroundColor(DANGER),
                                 FriendRemoveButton { friend_id: friend.id },
-                            )).with_children(|btn| { spawn_btn_text(btn, "X", 11.0, Color::srgba(0.9, 0.3, 0.3, 0.8)); });
+                            )).with_children(|btn| { spawn_btn_text(btn, "X", 11.0, TEXT); });
                         }
                     });
                 }
@@ -405,30 +408,30 @@ pub fn spawn_friends_panel(
                     let is_pending_remove = state.pending_remove == Some(friend.id);
                     panel.spawn((
                         Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), ..default() },
-                        BackgroundColor(Color::srgba(0.1, 0.1, 0.12, 0.5)),
+                        BackgroundColor(BG_ELEVATED),
                     )).with_children(|entry| {
                         entry.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(6.0), ..default() }).with_children(|inner| {
-                            inner.spawn(Node { width: Val::Px(8.0), height: Val::Px(8.0), ..default() }).insert(BackgroundColor(Color::srgba(0.3, 0.3, 0.3, 0.5)));
-                            spawn_btn_text(inner, &friend.username, 14.0, Color::srgba(0.5, 0.5, 0.5, 0.7));
+                            inner.spawn(Node { width: Val::Px(8.0), height: Val::Px(8.0), border_radius: RADIUS_SM, ..default() }).insert(BackgroundColor(TEXT_FAINT));
+                            spawn_btn_text(inner, &friend.username, 14.0, TEXT_MUTED);
                         });
                         if is_pending_remove {
-                            spawn_btn_text(entry, "Remove?", 11.0, Color::srgba(0.9, 0.3, 0.3, 0.9));
+                            spawn_btn_text(entry, "Remove?", 11.0, DANGER);
                             entry.spawn((
-                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), ..default() },
-                                BackgroundColor(Color::srgba(0.5, 0.1, 0.1, 0.8)),
+                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), border_radius: RADIUS_SM, ..default() },
+                                BackgroundColor(DANGER),
                                 FriendConfirmRemove { friend_id: friend.id },
-                            )).with_children(|btn| { spawn_btn_text(btn, "YES", 10.0, Color::WHITE); });
+                            )).with_children(|btn| { spawn_btn_text(btn, "YES", 10.0, TEXT); });
                             entry.spawn((
-                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), ..default() },
-                                BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8)),
+                                Button, Node { padding: UiRect::new(Val::Px(5.0), Val::Px(5.0), Val::Px(2.0), Val::Px(2.0)), border_radius: RADIUS_SM, ..default() },
+                                BackgroundColor(BG_HOVER),
                                 FriendCancelRemove { friend_id: friend.id },
-                            )).with_children(|btn| { spawn_btn_text(btn, "NO", 10.0, Color::srgba(0.7, 0.7, 0.7, 0.9)); });
+                            )).with_children(|btn| { spawn_btn_text(btn, "NO", 10.0, TEXT_MUTED); });
                         } else {
                             entry.spawn((
-                                Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), ..default() },
-                                BackgroundColor(Color::srgba(0.3, 0.1, 0.1, 0.8)),
+                                Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), border_radius: RADIUS_SM, ..default() },
+                                BackgroundColor(DANGER),
                                 FriendRemoveButton { friend_id: friend.id },
-                            )).with_children(|btn| { spawn_btn_text(btn, "X", 11.0, Color::srgba(0.9, 0.3, 0.3, 0.8)); });
+                            )).with_children(|btn| { spawn_btn_text(btn, "X", 11.0, TEXT); });
                         }
                     });
                 }
@@ -437,14 +440,14 @@ pub fn spawn_friends_panel(
                     panel.spawn((
                         Text::new("No friends match your search"),
                         TextFont { font_size: FontSize::Px(12.0), ..default() },
-                        TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+                        TextColor(TEXT_FAINT),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
                 } else if friends.friends.is_empty() {
                     panel.spawn((
                         Text::new("No friends yet. Go to ADD tab to search for users."),
                         TextFont { font_size: FontSize::Px(12.0), ..default() },
-                        TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+                        TextColor(TEXT_FAINT),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
                 }
@@ -453,35 +456,35 @@ pub fn spawn_friends_panel(
                 panel.spawn((
                     Text::new("ADD FRIENDS"),
                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                    TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
+                    TextColor(TEXT_MUTED),
                     Node { margin: UiRect::top(Val::Px(8.0)), ..default() },
                 ));
 
                 if let Some(ref target) = state.pending_add_target {
                     panel.spawn((
-                        Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), ..default() },
-                        BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.7)),
+                        Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), border_radius: RADIUS_SM, ..default() },
+                        BackgroundColor(BG_ELEVATED),
                     )).with_children(|entry| {
-                        spawn_btn_text(entry, target.as_str(), 14.0, Color::WHITE);
+                        spawn_btn_text(entry, target.as_str(), 14.0, TEXT);
                         entry.spawn((
                             Button,
-                            Node { padding: UiRect::new(Val::Px(8.0), Val::Px(8.0), Val::Px(4.0), Val::Px(4.0)), ..default() },
-                            BackgroundColor(Color::srgba(0.2, 0.5, 0.2, 0.9)),
+                            Node { padding: UiRect::new(Val::Px(8.0), Val::Px(8.0), Val::Px(4.0), Val::Px(4.0)), border_radius: RADIUS_SM, ..default() },
+                            BackgroundColor(ACCENT),
                             FriendSubmitButton,
-                        )).with_children(|btn| { spawn_btn_text(btn, "SEND", 10.0, Color::WHITE); });
+                        )).with_children(|btn| { spawn_btn_text(btn, "SEND", 10.0, TEXT); });
                     });
                 } else if state.search_query.is_empty() {
                     panel.spawn((
                         Text::new("Type a username and press Enter"),
                         TextFont { font_size: FontSize::Px(12.0), ..default() },
-                        TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+                        TextColor(TEXT_FAINT),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
                 } else {
                     panel.spawn((
                         Text::new("Press Enter to search"),
                         TextFont { font_size: FontSize::Px(12.0), ..default() },
-                        TextColor(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+                        TextColor(TEXT_FAINT),
                         Node { margin: UiRect::vertical(Val::Px(10.0)), ..default() },
                     ));
                 }
@@ -491,26 +494,26 @@ pub fn spawn_friends_panel(
                     panel.spawn((
                         Text::new("PENDING REQUESTS"),
                         TextFont { font_size: FontSize::Px(14.0), ..default() },
-                        TextColor(Color::srgba(0.6, 0.6, 0.8, 0.7)),
+                        TextColor(TEXT_MUTED),
                         Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
                     ));
                     for req in &friends.incoming_requests {
                         panel.spawn((
-                            Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), ..default() },
-                            BackgroundColor(Color::srgba(0.1, 0.1, 0.15, 0.7)),
+                            Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, justify_content: JustifyContent::SpaceBetween, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(6.0)), border_radius: RADIUS_SM, ..default() },
+                            BackgroundColor(BG_ELEVATED),
                         )).with_children(|entry| {
-                            spawn_btn_text(entry, &req.from_username, 14.0, Color::WHITE);
+                            spawn_btn_text(entry, &req.from_username, 14.0, TEXT);
                             entry.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(4.0), ..default() }).with_children(|actions| {
                                 actions.spawn((
-                                    Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), ..default() },
-                                    BackgroundColor(Color::srgba(0.2, 0.5, 0.2, 0.9)),
+                                    Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), border_radius: RADIUS_SM, ..default() },
+                                    BackgroundColor(ACCENT),
                                     FriendAcceptRequest { request_id: req.id },
-                                )).with_children(|btn| { spawn_btn_text(btn, "ACCEPT", 9.0, Color::WHITE); });
+                                )).with_children(|btn| { spawn_btn_text(btn, "ACCEPT", 9.0, TEXT); });
                                 actions.spawn((
-                                    Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), ..default() },
-                                    BackgroundColor(Color::srgba(0.3, 0.1, 0.1, 0.8)),
+                                    Button, Node { padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(3.0), Val::Px(3.0)), border_radius: RADIUS_SM, ..default() },
+                                    BackgroundColor(DANGER),
                                     FriendDeclineRequest { request_id: req.id },
-                                )).with_children(|btn| { spawn_btn_text(btn, "DECLINE", 9.0, Color::srgba(0.9, 0.3, 0.3, 0.8)); });
+                                )).with_children(|btn| { spawn_btn_text(btn, "DECLINE", 9.0, TEXT); });
                             });
                         });
                     }

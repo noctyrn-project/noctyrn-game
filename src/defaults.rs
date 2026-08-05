@@ -1,21 +1,28 @@
 use bevy::prelude::*;
+use crate::theme::*;
 
 pub const APP_ID: &str = "com.noctyrn.game";
+
+/// Convert a theme color to the [f32; 4] rgba array format used by configs.
+fn to_rgba(color: Color, alpha: f32) -> [f32; 4] {
+    let c = color.to_srgba();
+    [c.red, c.green, c.blue, alpha]
+}
 
 pub fn default_sensitivity() -> f32 { 1.0 }
 pub fn default_resolution() -> [u32; 2] { [1920, 1080] }
 pub fn default_fov() -> f32 { 60.0 }
 pub fn default_view_distance() -> f32 { 1000.0 }
 
-pub fn default_crosshair_color() -> [f32; 4] { [0.0, 1.0, 0.0, 1.0] }
+pub fn default_crosshair_color() -> [f32; 4] { to_rgba(TEXT, 1.0) }
 pub fn default_crosshair_size() -> f32 { 10.0 }
 pub fn default_crosshair_thickness() -> f32 { 2.0 }
 pub fn default_crosshair_gap() -> f32 { 5.0 }
 pub fn default_crosshair_dot_size() -> f32 { 2.0 }
 
-pub fn default_health_bar_color() -> [f32; 4] { [1.0, 0.0, 0.0, 1.0] }
-pub fn default_text_color() -> [f32; 4] { [1.0, 1.0, 1.0, 1.0] }
-pub fn default_background_color() -> [f32; 4] { [0.0, 0.0, 0.0, 0.5] }
+pub fn default_health_bar_color() -> [f32; 4] { to_rgba(SUCCESS, 1.0) }
+pub fn default_text_color() -> [f32; 4] { to_rgba(TEXT, 1.0) }
+pub fn default_background_color() -> [f32; 4] { to_rgba(BG_PANEL, 0.85) }
 pub fn default_health_bar_position() -> [f32; 2] { [20.0, 20.0] }
 pub fn default_health_bar_size() -> [f32; 2] { [200.0, 20.0] }
 

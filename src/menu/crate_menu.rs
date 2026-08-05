@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::theme::*;
 use crate::player::GameState;
 use crate::weapons::{slot_from_weapon_type, PlayerCredits, SkinInventory, SkinRarity, WeaponConfig, WeaponRegistry, WeaponSkin, WeaponSlot};
 
@@ -45,10 +46,10 @@ impl CrateType {
 
     pub fn color(&self) -> Color {
         match self {
-            CrateType::Standard => Color::srgb(0.3, 0.3, 0.35),
-            CrateType::Tactical => Color::srgb(0.2, 0.4, 0.25),
-            CrateType::Elite => Color::srgb(0.2, 0.3, 0.6),
-            CrateType::Legendary => Color::srgb(0.6, 0.45, 0.1),
+            CrateType::Standard => TEXT_MUTED,
+            CrateType::Tactical => ACCENT,
+            CrateType::Elite => ACCENT_MAGENTA,
+            CrateType::Legendary => WARNING,
         }
     }
 
@@ -121,6 +122,17 @@ impl CrateType {
 
         let pick = (seed as usize / 7) % candidates.len();
         *candidates[pick]
+    }
+}
+
+fn rarity_color(rarity: SkinRarity) -> Color {
+    match rarity {
+        SkinRarity::Common => TEXT_FAINT,
+        SkinRarity::Uncommon => TEXT_MUTED,
+        SkinRarity::Rare => ACCENT,
+        SkinRarity::Epic => ACCENT_MAGENTA,
+        SkinRarity::Legendary => WARNING,
+        SkinRarity::Mythic => DANGER,
     }
 }
 
@@ -229,10 +241,11 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
             padding: UiRect::all(Val::Px(40.0)),
             row_gap: Val::Px(20.0),
             border: UiRect::all(Val::Px(1.0)),
+            border_radius: RADIUS,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.96)),
-        BorderColor::all(Color::srgba(0.3, 0.3, 0.4, 0.5)),
+        BackgroundColor(BG_BASE),
+        BorderColor::all(BORDER),
         CrateMenuUi,
     )).with_children(|root| {
         root.spawn(Node {
@@ -255,22 +268,23 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                         height: Val::Px(36.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
+                        border_radius: RADIUS,
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06)),
+                    BackgroundColor(BG_ELEVATED),
                     CrateBackButton,
                 )).with_children(|btn| {
                     btn.spawn((
                         Text::new("BACK"),
                         TextFont { font_size: FontSize::Px(14.0), ..default() },
-                        TextColor(Color::srgba(0.8, 0.8, 0.8, 0.9)),
+                        TextColor(TEXT),
                     ));
                 });
 
                 left.spawn((
                     Text::new("CRATES"),
                     TextFont { font_size: FontSize::Px(32.0), ..default() },
-                    TextColor(Color::WHITE),
+                    TextColor(TEXT),
                 ));
             });
 
@@ -283,7 +297,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                 right.spawn((
                     Text::new(format!("[C] {} Credits", credits.balance)),
                     TextFont { font_size: FontSize::Px(16.0), ..default() },
-                    TextColor(Color::srgb(0.9, 0.8, 0.2)),
+                    TextColor(WARNING),
                     CreditsDisplay,
                 ));
 
@@ -296,15 +310,16 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             padding: UiRect::horizontal(Val::Px(14.0)),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(0.3, 0.5, 0.2, 0.9)),
+                        BackgroundColor(SUCCESS),
                         SellDuplicatesButton,
                     )).with_children(|btn| {
                         btn.spawn((
                             Text::new(format!("SELL {} DUPLICATES", dupes)),
                             TextFont { font_size: FontSize::Px(12.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
                 }
@@ -314,7 +329,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
         root.spawn((
             Text::new("Open crates to earn weapon skins. Sell duplicates for credits."),
             TextFont { font_size: FontSize::Px(13.0), ..default() },
-            TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+            TextColor(TEXT_FAINT),
         ));
 
         let has_weapon_selected = crate_state.selected_weapon.is_some();
@@ -344,10 +359,11 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                         justify_content: JustifyContent::SpaceBetween,
                         align_items: AlignItems::Center,
                         border: UiRect::all(Val::Px(2.0)),
+                        border_radius: RADIUS,
                         row_gap: Val::Px(6.0),
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9)),
+                    BackgroundColor(BG_ELEVATED),
                     BorderColor::from(ct.color()),
                     CrateSelectButton { crate_type: ct },
                 )).with_children(|card| {
@@ -357,6 +373,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             height: Val::Px(80.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
+                            border_radius: RADIUS,
                             ..default()
                         },
                         BackgroundColor(ct.color()),
@@ -364,20 +381,20 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                         icon.spawn((
                             Text::new("CRATE"),
                             TextFont { font_size: FontSize::Px(20.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                     });
 
                     card.spawn((
                         Text::new(ct.display_name()),
                         TextFont { font_size: FontSize::Px(16.0), ..default() },
-                        TextColor(Color::WHITE),
+                        TextColor(TEXT),
                     ));
 
                     card.spawn((
                         Text::new(ct.description()),
                         TextFont { font_size: FontSize::Px(11.0), ..default() },
-                        TextColor(Color::srgba(0.6, 0.6, 0.7, 0.8)),
+                        TextColor(TEXT_MUTED),
                     ));
 
                     card.spawn(Node {
@@ -399,12 +416,12 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                                 r.spawn((
                                     Text::new(rarity.display_name()),
                                     TextFont { font_size: FontSize::Px(10.0), ..default() },
-                                    TextColor(rarity.color()),
+                                    TextColor(rarity_color(rarity)),
                                 ));
                                 r.spawn((
                                     Text::new(format!("{:.1}%", pct)),
                                     TextFont { font_size: FontSize::Px(10.0), ..default() },
-                                    TextColor(Color::srgba(0.5, 0.5, 0.5, 0.7)),
+                                    TextColor(TEXT_FAINT),
                                 ));
                             });
                         }
@@ -422,7 +439,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                             sel_row.spawn((
                                 Text::new(format!("[{}]", selected_weapon_name)),
                                 TextFont { font_size: FontSize::Px(10.0), ..default() },
-                                TextColor(Color::srgb(0.4, 0.8, 1.0)),
+                                TextColor(ACCENT),
                             ));
                             sel_row.spawn((
                                 Button,
@@ -431,15 +448,16 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                                     height: Val::Px(20.0),
                                     justify_content: JustifyContent::Center,
                                     align_items: AlignItems::Center,
+                                    border_radius: RADIUS_SM,
                                     ..default()
                                 },
-                                BackgroundColor(Color::srgba(0.6, 0.2, 0.2, 0.8)),
+                                BackgroundColor(DANGER),
                                 CrateWeaponClearButton,
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new("X"),
                                     TextFont { font_size: FontSize::Px(11.0), ..default() },
-                                    TextColor(Color::WHITE),
+                                    TextColor(TEXT),
                                 ));
                             });
                         } else {
@@ -450,15 +468,16 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                                     height: Val::Px(24.0),
                                     justify_content: JustifyContent::Center,
                                     align_items: AlignItems::Center,
+                                    border_radius: RADIUS_SM,
                                     ..default()
                                 },
-                                BackgroundColor(Color::srgba(0.12, 0.12, 0.18, 0.9)),
+                                BackgroundColor(BG_ELEVATED),
                                 CrateWeaponSelectButton,
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new("Selected: None"),
                                     TextFont { font_size: FontSize::Px(10.0), ..default() },
-                                    TextColor(Color::srgba(0.5, 0.5, 0.6, 0.8)),
+                                    TextColor(TEXT_FAINT),
                                 ));
                             });
                         }
@@ -472,7 +491,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                     card.spawn((
                         Text::new(cost_text),
                         TextFont { font_size: FontSize::Px(12.0), ..default() },
-                        TextColor(if credits.balance >= actual_cost { ct.color() } else { Color::srgba(0.5, 0.3, 0.3, 0.7) }),
+                        TextColor(if credits.balance >= actual_cost { WARNING } else { DANGER }),
                     ));
                 });
             }
@@ -510,9 +529,10 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                     padding: UiRect::all(Val::Px(20.0)),
                     row_gap: Val::Px(12.0),
                     border: UiRect::all(Val::Px(2.0)),
+                    border_radius: RADIUS,
                     ..default()
-                }).insert(BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.98)))
-                  .insert(BorderColor::from(Color::srgba(0.3, 0.3, 0.4, 0.6)))
+                }).insert(BackgroundColor(BG_PANEL))
+                  .insert(BorderColor::from(BORDER))
                   .with_children(|panel| {
                     panel.spawn(Node {
                         flex_direction: FlexDirection::Row,
@@ -523,7 +543,7 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                         h.spawn((
                             Text::new("SELECT WEAPON (doubles crate cost)"),
                             TextFont { font_size: FontSize::Px(16.0), ..default() },
-                            TextColor(Color::WHITE),
+                            TextColor(TEXT),
                         ));
                         h.spawn((
                             Button,
@@ -532,15 +552,16 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                                 height: Val::Px(30.0),
                                 justify_content: JustifyContent::Center,
                                 align_items: AlignItems::Center,
+                                border_radius: RADIUS_SM,
                                 ..default()
                             },
-                            BackgroundColor(Color::srgba(0.5, 0.2, 0.2, 0.8)),
+                            BackgroundColor(DANGER),
                             CrateWeaponClearButton,
                         )).with_children(|btn| {
                             btn.spawn((
                                 Text::new("X"),
                                 TextFont { font_size: FontSize::Px(14.0), ..default() },
-                                TextColor(Color::WHITE),
+                                TextColor(TEXT),
                             ));
                         });
                     });
@@ -556,19 +577,20 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                                 Button,
                                 Node {
                                     padding: UiRect::new(Val::Px(12.0), Val::Px(12.0), Val::Px(6.0), Val::Px(6.0)),
+                                    border_radius: RADIUS,
                                     ..default()
                                 },
                                 BackgroundColor(if is_active {
-                                    Color::srgba(0.2, 0.3, 0.5, 0.9)
+                                    ACCENT
                                 } else {
-                                    Color::srgba(0.1, 0.1, 0.15, 0.8)
+                                    BG_ELEVATED
                                 }),
                                 CrateWeaponPickerSlotTab { slot },
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new(format!("{}", slot)),
                                     TextFont { font_size: FontSize::Px(11.0), ..default() },
-                                    TextColor(if is_active { Color::WHITE } else { Color::srgba(0.5, 0.5, 0.6, 0.8) }),
+                                    TextColor(if is_active { TEXT } else { TEXT_FAINT }),
                                 ));
                             });
                         }
@@ -592,24 +614,25 @@ pub fn spawn_crate_menu(mut commands: Commands, mut crate_state: ResMut<CrateSta
                                 Node {
                                     padding: UiRect::new(Val::Px(10.0), Val::Px(10.0), Val::Px(5.0), Val::Px(5.0)),
                                     border: UiRect::all(Val::Px(1.0)),
+                                    border_radius: RADIUS,
                                     ..default()
                                 },
                                 BackgroundColor(if is_selected {
-                                    Color::srgba(0.15, 0.3, 0.5, 0.9)
+                                    ACCENT
                                 } else {
-                                    Color::srgba(0.07, 0.07, 0.1, 0.8)
+                                    BG_ELEVATED
                                 }),
                                 BorderColor::from(if is_selected {
-                                    Color::srgb(0.4, 0.7, 1.0)
+                                    ACCENT
                                 } else {
-                                    Color::srgba(0.15, 0.15, 0.2, 0.4)
+                                    BORDER
                                 }),
                                 CrateWeaponPickerButton { weapon_id: (*wid).clone() },
                             )).with_children(|btn| {
                                 btn.spawn((
                                     Text::new(&cfg.info.name),
                                     TextFont { font_size: FontSize::Px(11.0), ..default() },
-                                    TextColor(if is_selected { Color::WHITE } else { Color::srgba(0.6, 0.6, 0.7, 0.8) }),
+                                    TextColor(if is_selected { TEXT } else { TEXT_MUTED }),
                                 ));
                             });
                         }
@@ -665,13 +688,13 @@ pub fn crate_interaction(
                 if mouse_input.just_pressed(MouseButton::Left) {
                     next_state.set(GameState::MainMenu);
                 }
-                *bg = BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.12));
+                *bg = BackgroundColor(BG_HOVER);
             }
             Interaction::Hovered => {
-                *bg = BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.1));
+                *bg = BackgroundColor(BG_HOVER);
             }
             _ => {
-                *bg = BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.06));
+                *bg = BackgroundColor(BG_ELEVATED);
             }
         }
     }
@@ -687,13 +710,13 @@ pub fn crate_interaction(
                     inventory.save();
                     next_state.set(GameState::CrateOpening);
                 }
-                *bg = BackgroundColor(Color::srgba(0.4, 0.6, 0.3, 1.0));
+                *bg = BackgroundColor(SUCCESS);
             }
             Interaction::Hovered => {
-                *bg = BackgroundColor(Color::srgba(0.35, 0.55, 0.25, 1.0));
+                *bg = BackgroundColor(SUCCESS);
             }
             _ => {
-                *bg = BackgroundColor(Color::srgba(0.3, 0.5, 0.2, 0.9));
+                *bg = BackgroundColor(SUCCESS);
             }
         }
     }
@@ -752,7 +775,7 @@ pub fn crate_interaction(
                                         margin: UiRect::bottom(Val::Px(4.0)),
                                         ..default()
                                     },
-                                    BackgroundColor(Color::srgb(1.0, 0.85, 0.0)),
+                                    BackgroundColor(WARNING),
                                     CratePointerMarker,
                                 ));
 
@@ -762,10 +785,11 @@ pub fn crate_interaction(
                                         height: Val::Px(90.0),
                                         overflow: Overflow::clip(),
                                         border: UiRect::all(Val::Px(2.0)),
+                                        border_radius: RADIUS,
                                         ..default()
                                     },
-                                    BackgroundColor(Color::srgba(0.03, 0.03, 0.06, 0.95)),
-                                    BorderColor::from(Color::srgba(0.4, 0.4, 0.5, 0.5)),
+                                    BackgroundColor(BG_BASE),
+                                    BorderColor::from(BORDER_STRONG),
                                     CrateStripContainer,
                                 )).with_children(|container| {
                                     container.spawn((
@@ -790,22 +814,23 @@ pub fn crate_interaction(
                                                     justify_content: JustifyContent::Center,
                                                     align_items: AlignItems::Center,
                                                     border: UiRect::all(Val::Px(2.0)),
+                                                    border_radius: RADIUS_SM,
                                                     flex_direction: FlexDirection::Column,
                                                     row_gap: Val::Px(2.0),
                                                     ..default()
                                                 },
                                                 BackgroundColor(s.swatch_color()),
-                                                BorderColor::from(rarity.color()),
+                                                BorderColor::from(rarity_color(rarity)),
                                             )).with_children(|cell| {
                                                 cell.spawn((
                                                     Text::new(s.display_name()),
                                                     TextFont { font_size: FontSize::Px(9.0), ..default() },
-                                                    TextColor(Color::WHITE),
+                                                    TextColor(TEXT),
                                                 ));
                                                 cell.spawn((
                                                     Text::new(rarity.display_name()),
                                                     TextFont { font_size: FontSize::Px(8.0), ..default() },
-                                                    TextColor(rarity.color()),
+                                                    TextColor(rarity_color(rarity)),
                                                 ));
                                             });
                                         }
@@ -819,7 +844,7 @@ pub fn crate_interaction(
                                         margin: UiRect::top(Val::Px(4.0)),
                                         ..default()
                                     },
-                                    BackgroundColor(Color::srgb(1.0, 0.85, 0.0)),
+                                    BackgroundColor(WARNING),
                                 ));
 
                                 overlay.spawn((
@@ -830,15 +855,16 @@ pub fn crate_interaction(
                                         justify_content: JustifyContent::Center,
                                         align_items: AlignItems::Center,
                                         margin: UiRect::top(Val::Px(16.0)),
+                                        border_radius: RADIUS,
                                         ..default()
                                     },
-                                    BackgroundColor(Color::srgba(0.3, 0.3, 0.4, 0.8)),
+                                    BackgroundColor(BG_ELEVATED),
                                     CrateSkipButton,
                                 )).with_children(|btn| {
                                     btn.spawn((
                                         Text::new("SKIP >>"),
                                         TextFont { font_size: FontSize::Px(13.0), ..default() },
-                                        TextColor(Color::srgba(0.8, 0.8, 0.9, 0.9)),
+                                        TextColor(TEXT),
                                     ));
                                 });
                             });
@@ -847,10 +873,10 @@ pub fn crate_interaction(
                 }
             }
             Interaction::Hovered => {
-                *bg = BackgroundColor(Color::srgba(0.12, 0.12, 0.18, 0.9));
+                *bg = BackgroundColor(BG_HOVER);
             }
             _ => {
-                *bg = BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.9));
+                *bg = BackgroundColor(BG_ELEVATED);
             }
         }
     }
@@ -868,13 +894,13 @@ pub fn crate_interaction(
                     }
                     next_state.set(GameState::CrateOpening);
                 }
-                *bg = BackgroundColor(Color::srgba(0.25, 0.25, 0.4, 0.9));
+                *bg = BackgroundColor(ACCENT_HOVER);
             }
             Interaction::Hovered => {
-                *bg = BackgroundColor(Color::srgba(0.25, 0.25, 0.4, 0.9));
+                *bg = BackgroundColor(ACCENT_HOVER);
             }
             _ => {
-                *bg = BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.9));
+                *bg = BackgroundColor(ACCENT);
             }
         }
     }
@@ -992,15 +1018,16 @@ pub fn update_crate_animation(
                                     padding: UiRect::all(Val::Px(30.0)),
                                     row_gap: Val::Px(16.0),
                                     border: UiRect::all(Val::Px(3.0)),
+                                    border_radius: RADIUS,
                                     ..default()
                                 },
-                                BackgroundColor(Color::srgba(0.06, 0.06, 0.1, 0.98)),
-                                BorderColor::from(rarity.color()),
+                                BackgroundColor(BG_PANEL),
+                                BorderColor::from(rarity_color(rarity)),
                             )).with_children(|card| {
                                 card.spawn((
                                     Text::new(rarity.display_name().to_uppercase()),
                                     TextFont { font_size: FontSize::Px(14.0), ..default() },
-                                    TextColor(rarity.color()),
+                                    TextColor(rarity_color(rarity)),
                                 ));
 
                                 let slot_label = match slot {
@@ -1016,48 +1043,49 @@ pub fn update_crate_animation(
                                         justify_content: JustifyContent::Center,
                                         align_items: AlignItems::Center,
                                         border: UiRect::all(Val::Px(3.0)),
+                                        border_radius: RADIUS,
                                         flex_direction: FlexDirection::Column,
                                         row_gap: Val::Px(4.0),
                                         ..default()
                                     },
                                     BackgroundColor(skin.swatch_color()),
-                                    BorderColor::from(rarity.color()),
+                                    BorderColor::from(rarity_color(rarity)),
                                 )).with_children(|model| {
                                     model.spawn((
                                         Text::new(slot_label),
                                         TextFont { font_size: FontSize::Px(36.0), ..default() },
-                                        TextColor(Color::WHITE),
+                                        TextColor(TEXT),
                                     ));
                                     model.spawn((
                                         Text::new(&weapon_display),
                                         TextFont { font_size: FontSize::Px(14.0), ..default() },
-                                        TextColor(Color::WHITE),
+                                        TextColor(TEXT),
                                     ));
                                 });
 
                                 card.spawn((
                                     Text::new(skin.display_name()),
                                     TextFont { font_size: FontSize::Px(24.0), ..default() },
-                                    TextColor(Color::WHITE),
+                                    TextColor(TEXT),
                                 ));
 
                                 card.spawn((
                                     Text::new(format!("{} Skin", rarity.display_name())),
                                     TextFont { font_size: FontSize::Px(13.0), ..default() },
-                                    TextColor(rarity.color()),
+                                    TextColor(rarity_color(rarity)),
                                 ));
 
                                 card.spawn((
                                     Text::new(format!("for {}", weapon_display)),
                                     TextFont { font_size: FontSize::Px(15.0), ..default() },
-                                    TextColor(Color::srgba(0.7, 0.7, 0.8, 0.9)),
+                                    TextColor(TEXT_MUTED),
                                 ));
 
                                 if !dup_text.is_empty() {
                                     card.spawn((
                                         Text::new(dup_text.clone()),
                                         TextFont { font_size: FontSize::Px(11.0), ..default() },
-                                        TextColor(Color::srgba(0.5, 0.5, 0.6, 0.7)),
+                                        TextColor(TEXT_FAINT),
                                     ));
                                 }
 
@@ -1069,15 +1097,16 @@ pub fn update_crate_animation(
                                         justify_content: JustifyContent::Center,
                                         align_items: AlignItems::Center,
                                         margin: UiRect::top(Val::Px(10.0)),
+                                        border_radius: RADIUS,
                                         ..default()
                                     },
-                                    BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.9)),
+                                    BackgroundColor(ACCENT),
                                     CrateResultDismiss,
                                 )).with_children(|btn| {
                                     btn.spawn((
                                         Text::new("CONTINUE"),
                                         TextFont { font_size: FontSize::Px(14.0), ..default() },
-                                        TextColor(Color::WHITE),
+                                        TextColor(TEXT),
                                     ));
                                 });
                             });

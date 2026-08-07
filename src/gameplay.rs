@@ -1,7 +1,8 @@
 use bevy::prelude::*;
+use bevy::color::Mix;
 use serde::{Serialize, Deserialize};
 use crate::player::GameState;
-use crate::player::shooting::Projectile;
+use crate::player::shooting::Target;
 use crate::player::WeaponModel;
 use bevy::ecs::relationship::Relationship;
 use crate::ui_config::UiConfig;
@@ -306,7 +307,7 @@ impl Plugin for GameplayPlugin {
             update_health_bars,
             update_player_health_ui,
             update_player_visibility_on_death,
-            turret_fire,
+            armed_target_fire,
             handle_death,
             assign_team_spawn,
         ).run_if(in_state(GameState::Playing)));
@@ -347,7 +348,7 @@ pub struct MatchOverFromServer {
 
 fn despawn_gameplay_entities(
     mut commands: Commands,
-    query: Query<Entity, Or<(With<Enemy>, With<DeathScreen>, With<Turret>, With<TurretProjectile>, With<SpectatorTarget>, With<Billboard>)>>,
+    query: Query<Entity, Or<(With<Enemy>, With<DeathScreen>, With<SpectatorTarget>, With<Billboard>)>>,
     health_ui_query: Query<Entity, Or<(With<PlayerHealthUi>, With<PlayerHealthBar>)>>,
     match_ui_query: Query<Entity, Or<(With<MatchHudUi>, With<ScoreboardUi>, With<MatchOverScreen>)>>,
     objective_query: Query<Entity, Or<(With<ObjectiveZone>, With<DogTag>, With<FlagEntity>)>>,
@@ -356,27 +357,27 @@ fn despawn_gameplay_entities(
 ) {
     for entity in query.iter() {
         if let Ok(mut cmds) = commands.get_entity(entity) {
-            cmds.despawn();
+            cmds.try_despawn();
         }
     }
     for entity in health_ui_query.iter() {
         if let Ok(mut cmds) = commands.get_entity(entity) {
-            cmds.despawn();
+            cmds.try_despawn();
         }
     }
     for entity in match_ui_query.iter() {
         if let Ok(mut cmds) = commands.get_entity(entity) {
-            cmds.despawn();
+            cmds.try_despawn();
         }
     }
     for entity in objective_query.iter() {
         if let Ok(mut cmds) = commands.get_entity(entity) {
-            cmds.despawn();
+            cmds.try_despawn();
         }
     }
     for entity in flag_ui_query.iter() {
         if let Ok(mut cmds) = commands.get_entity(entity) {
-            cmds.despawn();
+            cmds.try_despawn();
         }
     }
     player_has_flag.0 = false;
@@ -454,6 +455,19 @@ fn billboard_system(
 #[derive(Component)]
 pub struct PlayerHealthUi;
 
+/// Full-size white overlay that flashes when the player takes damage.
+/// Carries `prev_health` so each flash tracks its own bar even if stale
+/// duplicates exist.
+#[derive(Component)]
+pub struct HealthFlash {
+    pub timer: Timer,
+    pub prev_health: f32,
+}
+
+/// Low-health red vignette shown while under 25% health.
+#[derive(Component)]
+pub struct LowHealthOverlay;
+
 #[derive(Component)]
 pub struct PlayerHealthBar;
 
@@ -472,8 +486,16 @@ pub struct DeathScreenHintText;
 #[derive(Component)]
 pub struct DeathScreenRespawnButton;
 
-fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
+fn spawn_player_ui(
+    mut commands: Commands,
+    ui_config: Res<UiConfig>,
+    existing_ui: Query<Entity, With<PlayerHealthUi>>,
+) {
     let config = &ui_config.health_bar;
+    // Guard against stale duplicates from repeated match entries stacking up.
+    for entity in existing_ui.iter() {
+        commands.entity(entity).try_despawn();
+    }
     // Health Bar Container
     commands.spawn((
         Node {
@@ -489,28 +511,47 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
         BorderColor::all(BORDER),
         PlayerHealthUi,
     )).with_children(|parent| {
-        // Health Bar Fill
+        // Health Bar Fill (overlays the container; color shifts green → red)
         parent.spawn((
             Node {
+                position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
+                border_radius: RADIUS_SM,
                 ..default()
             },
             BackgroundColor(Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3])),
             PlayerHealthBar,
         ));
+
+        // Damage flash overlay
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                border_radius: RADIUS_SM,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.0)),
+            HealthFlash {
+                timer: Timer::from_seconds(0.35, TimerMode::Once),
+                prev_health: 100.0,
+            },
+        ));
         
         // Health Text Overlay
         parent.spawn((
             Text::new("100 / 100"),
-            TextFont { font_size: FontSize::Px(20.0),
+            TextFont { font_size: FontSize::Px(24.0),
                 ..default()
             },
             TextColor(Color::srgba(config.text_color[0], config.text_color[1], config.text_color[2], config.text_color[3])),
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(10.0),
-                top: Val::Px(5.0), // Approximate centering
+                left: Val::Px(12.0),
+                top: Val::Px(0.0), // Vertically centered by the container
+                align_self: AlignSelf::Center,
                 ..default()
             },
             PlayerHealthUi,
@@ -586,6 +627,19 @@ fn spawn_player_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
             ));
         });
     });
+
+    // Low-health red vignette (alpha driven by health in update_player_health_ui).
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.75, 0.1, 0.1, 0.0)),
+        LowHealthOverlay,
+        GlobalZIndex(100),
+    ));
 }
 
 fn update_player_visibility_on_death(
@@ -606,23 +660,51 @@ fn update_player_visibility_on_death(
 
 fn update_player_health_ui(
     mut text_query: Query<&mut Text, With<PlayerHealthUi>>,
-    mut bar_query: Query<&mut Node, With<PlayerHealthBar>>,
+    mut bar_query: Query<(&mut Node, &mut BackgroundColor), With<PlayerHealthBar>>,
+    mut flash_query: Query<(&mut BackgroundColor, &mut HealthFlash), Without<PlayerHealthBar>>,
+    mut vignette_query: Query<&mut BackgroundColor, (With<LowHealthOverlay>, Without<PlayerHealthBar>, Without<HealthFlash>)>,
     mut death_screen_query: Query<&mut Node, (With<DeathScreen>, Without<PlayerHealthBar>)>,
+    time: Res<Time>,
     player_query: Query<&Health, With<PlayerBody>>,
 ) {
-    let mut text = if let Ok(t) = text_query.single_mut() { t } else { return };
-    let mut bar = if let Ok(b) = bar_query.single_mut() { b } else { return };
-    let mut death_screen = if let Ok(d) = death_screen_query.single_mut() { d } else { return };
-    
-    if let Ok(health) = player_query.single() {
+    // All queries iterate every match (no single_mut early-returns): stale
+    // duplicates from repeated match entries must not freeze the HUD.
+    let Ok(health) = player_query.single() else { return };
+    let pct = (health.current / health.max).clamp(0.0, 1.0);
+
+    for mut text in text_query.iter_mut() {
         text.0 = format!("{:.0} / {:.0}", health.current, health.max);
-        bar.width = Val::Percent((health.current / health.max * 100.0).clamp(0.0, 100.0));
-        
-        if health.current <= 0.0 {
-            death_screen.display = Display::Flex;
-        } else {
-            death_screen.display = Display::None;
+    }
+
+    for (mut bar, mut bar_color) in bar_query.iter_mut() {
+        bar.width = Val::Percent(pct * 100.0);
+        // Single solid fill: green at full health, shifting to red as it
+        // drains. Settings color is ignored so the bar always reads clearly.
+        bar_color.0 = SUCCESS.mix(&DANGER, 1.0 - pct);
+    }
+
+    // Low-health vignette: fades in below 25% health.
+    let low = (0.25 - pct).clamp(0.0, 0.25) / 0.25;
+    for mut vignette in vignette_query.iter_mut() {
+        vignette.0 = Color::srgba(0.75, 0.1, 0.1, low * 0.35);
+    }
+
+    // Damage flash: spikes on damage taken, fades out.
+    for (mut flash_color, mut flash) in flash_query.iter_mut() {
+        if health.current < flash.prev_health {
+            flash.timer.reset();
         }
+        flash.prev_health = health.current;
+        flash.timer.tick(time.delta());
+        flash_color.0 = Color::srgba(1.0, 1.0, 1.0, flash.timer.fraction_remaining() * 0.35);
+    }
+
+    for mut death_screen in death_screen_query.iter_mut() {
+        death_screen.display = if health.current <= 0.0 {
+            Display::Flex
+        } else {
+            Display::None
+        };
     }
 }
 
@@ -651,12 +733,11 @@ pub struct HealthBar {
 }
 
 #[derive(Component)]
-pub struct Turret {
-    pub fire_timer: Timer,
-}
-
-#[derive(Component)]
 pub struct HealthBarForeground;
+
+/// Repeating fire timer for armed target dummies.
+#[derive(Component)]
+pub struct ArmedTargetTimer(pub Timer);
 
 
 fn update_health_bars(
@@ -667,7 +748,7 @@ fn update_health_bars(
     for (mut transform, parent) in query.iter_mut() {
         // parent is the HealthBar container
         if let Ok(grandparent) = health_bar_query.get(parent.get()) {
-            // grandparent is the Enemy/Turret
+            // grandparent is the Enemy/Target
             if let Ok(health) = health_query.get(grandparent.get()) {
                 let percent = (health.current / health.max).clamp(0.0, 1.0);
                 transform.scale.x = percent;
@@ -681,59 +762,87 @@ fn update_health_bars(
     }
 }
 
-fn turret_fire(
+/// Armed target dummies hold and shoot guns. They fire along their fixed
+/// forward direction (no player targeting) using the normal tracer bullets
+/// and the real stats of the gun they hold (HK416: ammo velocity/damage,
+/// accuracy spread).
+fn armed_target_fire(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(&mut Turret, &Transform)>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut query: Query<(&Target, &Transform, &mut ArmedTargetTimer)>,
+    tracer_assets: Res<crate::player::shooting::TracerAssets>,
+    weapon_registry: Res<crate::weapons::WeaponRegistry>,
+    camera: Query<&GlobalTransform, With<crate::player::MainCamera>>,
 ) {
-    for (mut turret, transform) in query.iter_mut() {
-        turret.fire_timer.tick(time.delta());
-        if turret.fire_timer.just_finished() {
-            let forward = transform.forward();
-            commands.spawn((
-                Mesh3d(meshes.add(Sphere::new(0.2))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgb(1.0, 0.0, 0.0),
-                    emissive: LinearRgba::RED * 5.0,
-                    ..default()
-                })),
-                Transform::from_translation(transform.translation + forward * 1.0),
-                Projectile {
-                    velocity: forward * 20.0,
-                    timer: Timer::from_seconds(5.0, TimerMode::Once),
-                    damage: 25.0,
-                    from_player: false,
-                    source_name: "Turret".to_string(),
-                },
-                TurretProjectile, // Tag to distinguish if needed, or just use Projectile
-            ));
+    // The dummy holds an HK416 — use all of that gun's math.
+    let config = weapon_registry.weapons.get("hk416");
+    let ammo_velocity = config
+        .and_then(|c| c.attachments.ammo.as_ref())
+        .map(|a| a.velocity)
+        .unwrap_or(22.0);
+    let ammo_damage = config
+        .and_then(|c| c.attachments.ammo.as_ref())
+        .map(|a| a.damage)
+        .unwrap_or(25.0);
+    let accuracy = config.map(|c| c.attributes.accuracy).unwrap_or(0.9);
+
+    let camera_pos = camera
+        .iter()
+        .next()
+        .map(|g| g.translation())
+        .unwrap_or(Vec3::ZERO);
+
+    for (target, transform, mut timer) in query.iter_mut() {
+        if !target.armed {
+            continue;
         }
+        timer.0.tick(time.delta());
+        if !timer.0.just_finished() {
+            continue;
+        }
+        // Same spread formula as the player's fire_weapon (no heat for the
+        // dummy), applied to the dummy's own right/up axes.
+        let base_spread = ((1.0 - accuracy) * 0.1).max(0.001);
+        let r1 = rand::rng().random_range(-base_spread..base_spread);
+        let r2 = rand::rng().random_range(-base_spread..base_spread);
+        let forward = transform.forward().as_vec3();
+        let right = transform.right().as_vec3();
+        let up = transform.up().as_vec3();
+        let velocity = (forward + right * r1 + up * r2).normalize() * ammo_velocity;
+        let origin = transform.translation + forward * 0.8 + Vec3::Y * 0.6;
+
+        crate::player::shooting::spawn_tracer_projectile(
+            &mut commands,
+            &tracer_assets,
+            origin,
+            camera_pos,
+            velocity,
+            Timer::from_seconds(3.0, TimerMode::Once),
+            ammo_damage,
+            false,
+            "Target Dummy".to_string(),
+        );
     }
 }
 
-#[derive(Component)]
-pub struct TurretProjectile;
-
 fn handle_death(
     mut commands: Commands,
-    query: Query<(Entity, &Health, &GlobalTransform, Option<&Enemy>, Option<&Turret>), Without<PlayerBody>>,
+    query: Query<(Entity, &Health, &GlobalTransform, Option<&Enemy>), Without<PlayerBody>>,
     mut death_events: MessageWriter<DeathEvent>,
     mut progression: ResMut<PlayerProgression>,
     mut match_state: Option<ResMut<MatchState>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    for (entity, health, global_tf, enemy, turret) in query.iter() {
+    for (entity, health, global_tf, enemy) in query.iter() {
         if health.current <= 0.0 {
-            let name = if turret.is_some() { "Turret" } else if enemy.is_some() { "Target Dummy" } else { "Unknown" };
+            let name = if enemy.is_some() { "Target Dummy" } else { "Unknown" };
             death_events.write(DeathEvent {
                 message: format!("Player killed {}", name),
             });
             
             // Grant XP for kill
-            let xp_reward = if turret.is_some() { 50 } else { 25 };
+            let xp_reward = 25;
             progression.add_xp(xp_reward);
             
             // Update match scoring
@@ -813,6 +922,7 @@ fn respawn_player(
     player_team: Option<Res<PlayerTeam>>,
     spawn_areas: Query<&TeamSpawnArea>,
     selected_mode: Res<SelectedGameMode>,
+    selected_map: Res<crate::world::SelectedMapId>,
     tcp: Option<Res<crate::net::tcp::TcpClient>>,
 ) {
     // In multiplayer, the server controls respawns via PlayerRespawned events.
@@ -824,7 +934,12 @@ fn respawn_player(
             if let Some((mut health, mut transform, mut phys, mut prev_phys, mut velocity)) = query.iter_mut().next() {
                 health.current = health.max;
                 velocity.0 = Vec3::ZERO;
-                let spawn_pos = team_spawn_pos(&player_team, &spawn_areas, selected_mode.mode);
+                let spawn_pos = team_spawn_pos(
+                    &player_team,
+                    &spawn_areas,
+                    selected_mode.mode,
+                    crate::world::map_spawn_point(&selected_map),
+                );
                 transform.translation = spawn_pos;
                 phys.0 = spawn_pos;
                 prev_phys.0 = spawn_pos;
@@ -874,6 +989,7 @@ fn death_screen_respawn_button(
     player_team: Option<Res<PlayerTeam>>,
     spawn_areas: Query<&TeamSpawnArea>,
     selected_mode: Res<SelectedGameMode>,
+    selected_map: Res<crate::world::SelectedMapId>,
     tcp: Option<Res<crate::net::tcp::TcpClient>>,
     rt: Option<Res<crate::net::TokioRuntime>>,
 ) {
@@ -899,7 +1015,12 @@ fn death_screen_respawn_button(
     if let Some((mut health, mut transform, mut phys, mut prev_phys, mut velocity)) = player_query.iter_mut().next() {
         health.current = health.max;
         velocity.0 = Vec3::ZERO;
-        let spawn_pos = team_spawn_pos(&player_team, &spawn_areas, selected_mode.mode);
+        let spawn_pos = team_spawn_pos(
+            &player_team,
+            &spawn_areas,
+            selected_mode.mode,
+            crate::world::map_spawn_point(&selected_map),
+        );
         transform.translation = spawn_pos;
         phys.0 = spawn_pos;
         prev_phys.0 = spawn_pos;
@@ -909,11 +1030,12 @@ fn death_screen_respawn_button(
 }
 
 /// Compute a spawn position within the player's team spawn area, falling back
-/// to the origin for non-team modes or when no area is available.
+/// to `fallback` for non-team modes or when no area is available.
 fn team_spawn_pos(
     player_team: &Option<Res<PlayerTeam>>,
     spawn_areas: &Query<&TeamSpawnArea>,
     mode: GameMode,
+    fallback: Vec3,
 ) -> Vec3 {
     if mode.is_team_mode() {
         if let Some(team) = player_team {
@@ -930,7 +1052,7 @@ fn team_spawn_pos(
             }
         }
     }
-    Vec3::new(0.0, 1.0, 0.0)
+    fallback
 }
 
 /// One-shot system: move the player to their team spawn area on the first
@@ -944,9 +1066,9 @@ fn assign_team_spawn(
 ) {
     if player_query.is_empty() { return; }
 
-    let spawn_pos = team_spawn_pos(&player_team, &spawn_areas, selected_mode.mode);
-
     for (entity, mut phys, mut prev_phys) in player_query.iter_mut() {
+        // Keep the map spawn point unless a team spawn area applies.
+        let spawn_pos = team_spawn_pos(&player_team, &spawn_areas, selected_mode.mode, phys.0);
         phys.0 = spawn_pos;
         prev_phys.0 = spawn_pos;
         commands.entity(entity).remove::<NeedsTeamSpawn>();

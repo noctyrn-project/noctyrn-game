@@ -238,7 +238,7 @@ pub fn chat_history_display(
     if !has_recent {
         if *last_gen != 0 {
             for entity in existing.iter() {
-                commands.entity(entity).despawn();
+                commands.entity(entity).try_despawn();
             }
             *last_gen = 0;
         }
@@ -252,7 +252,7 @@ pub fn chat_history_display(
     *last_gen = history.generation;
 
     for entity in existing.iter() {
-        commands.entity(entity).despawn();
+        commands.entity(entity).try_despawn();
     }
 
     let visible: Vec<_> = history.messages.iter().filter(|m| now - m.created_at < MESSAGE_LIFETIME).collect();
@@ -312,7 +312,7 @@ pub fn chat_input_display(
     if !should_show {
         if *last_open {
             for entity in existing.iter() {
-                commands.entity(entity).despawn();
+                commands.entity(entity).try_despawn();
             }
             *last_open = false;
         }
@@ -320,7 +320,7 @@ pub fn chat_input_display(
     }
 
     for entity in existing.iter() {
-        commands.entity(entity).despawn();
+        commands.entity(entity).try_despawn();
     }
     *last_open = true;
 

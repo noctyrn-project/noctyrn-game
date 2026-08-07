@@ -197,7 +197,7 @@ pub fn handle_weapon_switching(
                 if inventory.switch_timer.is_finished() {
                     // Despawn old
                     for (entity, _) in weapon_query.iter() {
-                        commands.entity(entity).despawn();
+                        commands.entity(entity).try_despawn();
                     }
                     
                     // Switch slot

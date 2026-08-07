@@ -28,9 +28,6 @@ pub struct FriendActionBody {
 }
 
 #[derive(Serialize)]
-pub struct MatchmakingQueueBody {
-    pub game_mode: String,
-}
 
 /// Response types from the server.
 #[derive(Deserialize, Debug)]

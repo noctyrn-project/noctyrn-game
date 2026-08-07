@@ -20,6 +20,7 @@ pub fn spawn(
     commands.spawn((
         WorldAssetRoot(asset_server.load(&cfg.glb)),
         Transform::from_scale(Vec3::splat(scale)),
+        Visibility::default(),
         GameWorldEntity,
     ));
 

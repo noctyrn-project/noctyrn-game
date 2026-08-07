@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use rand::Rng;
-use crate::player::shooting::Target;
 use bevy_rapier3d::rapier::parry::shape::TriMesh;
 use bevy_rapier3d::rapier::parry::math::Vector;
 
@@ -181,10 +180,6 @@ pub fn update_glass_shards(
 }
 
 /// Store the original pane extents for grid-based glass fracture.
-#[derive(Component, Clone, Debug)]
-pub struct ShatterInfo {
-    pub half_extents: Vec3,
-}
 
 /// Spawn glass shatter using grid fracture for pane-like glass or
 /// random shards for arbitrary shapes.

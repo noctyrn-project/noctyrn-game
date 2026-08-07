@@ -24,9 +24,9 @@ pub fn default_health_bar_color() -> [f32; 4] { to_rgba(SUCCESS, 1.0) }
 pub fn default_text_color() -> [f32; 4] { to_rgba(TEXT, 1.0) }
 pub fn default_background_color() -> [f32; 4] { to_rgba(BG_PANEL, 0.85) }
 pub fn default_health_bar_position() -> [f32; 2] { [20.0, 20.0] }
-pub fn default_health_bar_size() -> [f32; 2] { [200.0, 20.0] }
+pub fn default_health_bar_size() -> [f32; 2] { [200.0, 26.0] }
 
-pub fn default_ammo_position() -> [f32; 2] { [20.0, 50.0] }
+pub fn default_ammo_position() -> [f32; 2] { [20.0, 62.0] }
 pub fn default_ammo_size() -> [f32; 2] { [100.0, 30.0] }
 
 pub fn default_kill_feed_position() -> [f32; 2] { [20.0, 20.0] }
@@ -61,4 +61,3 @@ pub fn default_mouse_binds() -> [(String, MouseButton); 2] {
     ]
 }
 
-pub fn default_starting_credits() -> u64 { 500 }

@@ -967,6 +967,7 @@ pub fn spawn_weapon_visual_skinned(
             commands.spawn((
                 WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                 transform,
+                Visibility::default(),
                 BaseWeaponTransform(transform),
                 WeaponRecoil::default(),
                 WeaponSkinTag { skin, applied: false },
@@ -977,6 +978,7 @@ pub fn spawn_weapon_visual_skinned(
                 Mesh3d(mesh),
                 MeshMaterial3d(material),
                 transform,
+                Visibility::default(),
                 BaseWeaponTransform(transform),
                 WeaponRecoil::default(),
                 WeaponSkinTag { skin, applied: true },
@@ -1123,6 +1125,7 @@ pub fn spawn_weapon_visual_by_id(
             Some(commands.spawn((
                 WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                 transform,
+                Visibility::default(),
                 BaseWeaponTransform(transform),
                 WeaponRecoil::default(),
             )).id())

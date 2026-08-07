@@ -1,10 +1,8 @@
 use bevy::prelude::*;
-use rand::Rng;
 use crate::player::shooting::Target;
-use crate::gameplay::{Billboard, Health, Enemy, HealthBar, HealthBarForeground, Turret};
+use crate::gameplay::{Billboard, Health, Enemy, HealthBar, HealthBarForeground};
 use crate::world::objects::*;
-use crate::world::GameWorldEntity;
-use crate::menu::GameMode;
+
 
 /// Spawn the full testing-grounds geometry.
 pub fn spawn_map(
@@ -21,9 +19,6 @@ pub fn spawn_map(
 
 fn concrete() -> StandardMaterial {
     StandardMaterial { base_color: Color::srgb(0.35, 0.35, 0.38), perceptual_roughness: 0.9, ..default() }
-}
-fn dark_concrete() -> StandardMaterial {
-    StandardMaterial { base_color: Color::srgb(0.2, 0.2, 0.22), perceptual_roughness: 0.95, ..default() }
 }
 fn metal_mat() -> StandardMaterial {
     StandardMaterial { base_color: Color::srgb(0.4, 0.42, 0.45), perceptual_roughness: 0.3, metallic: 0.8, ..default() }
@@ -98,7 +93,7 @@ fn spawn_shooting_range(
             Mesh3d(meshes.add(Cuboid::new(0.8, 1.6, 0.2))),
             MeshMaterial3d(olive.clone()),
             Transform::from_translation(origin + Vec3::new(2.5, 1.0, z)),
-            Target,
+            Target { armed: false },
         ));
         commands.spawn((
             Text2d::new(label),
@@ -114,7 +109,7 @@ fn spawn_shooting_range(
         Mesh3d(meshes.add(Cuboid::new(1.0, 0.6, 0.3))),
         MeshMaterial3d(green.clone()),
         Transform::from_translation(origin + Vec3::new(0.0, 2.0, -25.0)),
-        Target, MovingTarget {
+        Target { armed: false }, MovingTarget {
             origin: origin + Vec3::new(0.0, 2.0, -25.0),
             axis: Vec3::new(1.0, 0.0, 0.0), amplitude: 2.5, speed: 1.5, phase: 0.0,
         },
@@ -125,7 +120,7 @@ fn spawn_shooting_range(
         Mesh3d(meshes.add(Cuboid::new(0.6, 0.8, 0.2))),
         MeshMaterial3d(brown),
         Transform::from_translation(origin + Vec3::new(-2.5, 0.4, -40.0)),
-        Target, PopUpTarget { base_y: 0.4, raised_y: 2.0, timer: Timer::from_seconds(2.0, TimerMode::Repeating), is_up: false },
+        Target { armed: false }, PopUpTarget { base_y: 0.4, raised_y: 2.0, timer: Timer::from_seconds(2.0, TimerMode::Repeating), is_up: false },
     ));
 }
 
@@ -210,7 +205,7 @@ fn spawn_material_test_area(
             Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
             MeshMaterial3d(m),
             Transform::from_translation(origin + Vec3::new(x, size.y * 0.5, 0.0)),
-            Target,
+            Target { armed: false },
             mat_type.clone(),
         ));
         commands.spawn((
@@ -226,17 +221,18 @@ fn spawn_material_test_area(
             Mesh3d(meshes.add(Cuboid::new(0.8, 1.6, 0.2))),
             MeshMaterial3d(red.clone()),
             Transform::from_translation(origin + Vec3::new(x, 1.0, -3.0)),
-            Target,
+            Target { armed: false },
         ));
     }
 }
 
-/// Spawn test target dummies (as pill capsules) and a turret.
+/// Spawn test target dummies (as pill capsules) and an armed dummy.
 pub fn spawn_enemies(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     selected_mode: Res<crate::menu::SelectedGameMode>,
+    asset_server: Res<AssetServer>,
 ) {
     if selected_mode.mode != crate::menu::GameMode::TestingGrounds {
         return;
@@ -289,14 +285,47 @@ pub fn spawn_enemies(
         });
     }
 
-    // Spawn Turret as a red cube
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.1, 0.1))),
-        Transform::from_xyz(7.0, 0.5, -10.0).looking_at(Vec3::new(7.0, 0.5, 0.0), Vec3::Y),
+    // Armed dummy: holds an HK416 and shoots at the local player using the
+    // gun's real stats (see armed_target_fire). Fires straight ahead (no
+    // tracking), so its bullets cross the spawn line and the whole lane.
+    let armed_pos = Vec3::new(0.0, 0.0, -10.0);
+    let armed_dummy = commands.spawn((
+        Mesh3d(pill.clone()),
+        MeshMaterial3d(dummy_mat.clone()),
+        Transform::from_translation(armed_pos + Vec3::new(0.0, 0.9, 0.0)),
         Visibility::default(),
-        Turret { fire_timer: Timer::from_seconds(2.0, TimerMode::Repeating) },
         Enemy,
-        Health { current: 100.0, max: 100.0 },
-    ));
+        Target { armed: true },
+        crate::gameplay::ArmedTargetTimer(Timer::from_seconds(2.0, TimerMode::Repeating)),
+        Health { current: 150.0, max: 150.0 },
+    )).id();
+
+    commands.entity(armed_dummy).with_children(|parent| {
+        // Holds a real HK416 (same model as the player's weapon), facing
+        // forward at the dummy's right side.
+        parent.spawn((
+            WorldAssetRoot(asset_server.load("weapons/models/primary/assault/hk416.glb#Scene0")),
+            Transform::from_xyz(0.4, 0.8, 0.35)
+                .with_rotation(Quat::from_rotation_y(1.57))
+                .with_scale(Vec3::splat(0.2)),
+        ));
+        parent.spawn((
+            Transform::from_translation(Vec3::new(0.0, 2.2, 0.0)),
+            HealthBar { target: armed_dummy, offset: Vec3::new(0.0, 2.2, 0.0) },
+            Billboard,
+            Visibility::Inherited,
+        )).with_children(|hb_parent| {
+            hb_parent.spawn((
+                Mesh3d(bar.clone()),
+                MeshMaterial3d(bg.clone()),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -0.01)),
+            ));
+            hb_parent.spawn((
+                Mesh3d(bar.clone()),
+                MeshMaterial3d(fg.clone()),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                HealthBarForeground,
+            ));
+        });
+    });
 }

@@ -1,5 +1,47 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+use bevy::math::Mat3;
 use bevy::prelude::*;
 use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::light::NotShadowCaster;
 use super::inventory::{Inventory, WeaponModel};
 use super::movement::Velocity;
 use crate::weapons::{WeaponSlot, WeaponRecoil, BaseWeaponTransform, FireMode};
@@ -8,9 +50,204 @@ use crate::player::{spawn_hit_marker, spawn_damage_number};
 use std::collections::HashMap;
 use rand::Rng;
 
+/// Shared tracer meshes + materials, built once. Uses the built-in
+/// StandardMaterial (unlit) with per-mesh `NotShadowCaster` so tracers are
+/// shadowless — the reliable path instead of a custom shader material.
+#[derive(Resource)]
+pub struct TracerAssets {
+    /// Streak quad: 0.08 wide, 2.0 long (scaled per frame to the bullet's
+    /// travel distance — the classic COD-style light trail). The width is
+    /// what keeps shots visible when the card is edge-on (aimed along the
+    /// view axis): a 0.03 card degenerates to a sub-pixel sliver at range.
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<StandardMaterial>,
+    /// Hot core: a small bright sphere at the bullet so straight-on shots
+    /// stay visible even when the streak is edge-on.
+    pub core_mesh: Handle<Mesh>,
+    pub core_material: Handle<StandardMaterial>,
+}
+
+impl FromWorld for TracerAssets {
+    fn from_world(world: &mut World) -> Self {
+        let mesh = world
+            .resource_mut::<Assets<Mesh>>()
+            .add(Rectangle::new(0.08, 2.0));
+        let material = world
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial {
+                base_color: Color::linear_rgba(1.0, 0.8, 0.2, 1.0),
+                unlit: true,
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            });
+        let core_mesh = world
+            .resource_mut::<Assets<Mesh>>()
+            .add(Sphere::new(0.05));
+        let core_material = world
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial {
+                base_color: Color::linear_rgba(1.0, 0.85, 0.3, 1.0),
+                unlit: true,
+                ..default()
+            });
+        Self {
+            mesh,
+            material,
+            core_mesh,
+            core_material,
+        }
+    }
+}
+
+/// Marker on the tracer bullet entity (holds `Projectile`); its streak
+/// child carries `TracerStreakVisual`.
+#[derive(Component)]
+pub struct TracerStreak;
+
+/// Marker on the stretched streak quad child of a tracer bullet.
+#[derive(Component)]
+pub struct TracerStreakVisual;
+
+/// Orient a tracer card so its long axis (+Y) rides the flight direction
+/// and its face (+Z) tracks the camera horizontally (yaw only — the card
+/// stays vertical). Shared by the spawn (initial rotation, no vertical
+/// first frame) and the per-frame update.
+pub fn tracer_card_rotation(velocity: Vec3, to_cam: Vec3) -> Quat {
+    let v = velocity.normalize_or_zero();
+    if v.length_squared() < 1e-6 {
+        return Quat::IDENTITY;
+    }
+    // Horizontal direction from the streak toward the camera — the card's
+    // facing (yaw only, no pitch/roll).
+    let face = Vec3::new(to_cam.x, 0.0, to_cam.z).normalize_or_zero();
+    if face.length_squared() < 1e-6 {
+        return Quat::from_rotation_arc(Vec3::Y, v);
+    }
+    // Long axis: the flight direction itself.
+    let y = v;
+    // Facing: the part of `face` perpendicular to the flight direction, so
+    // the card's plane contains the flight path. When the bullet flies
+    // straight at/away from the camera this is degenerate — any
+    // perpendicular works, since the card is edge-on and invisible.
+    let z = (face - v * v.dot(face)).normalize_or_zero();
+    let z = if z.length_squared() < 1e-6 {
+        let alt = v.cross(Vec3::Y);
+        if alt.length_squared() > 1e-6 {
+            alt.normalize()
+        } else {
+            v.cross(Vec3::X).normalize()
+        }
+    } else {
+        z
+    };
+    // Right-handed orthonormal basis: x = y×z (NOT z×y — that inverts the
+    // determinant and mirrors the rotation).
+    let x = y.cross(z).normalize();
+    Quat::from_mat3(&Mat3::from_cols(x, y, z))
+}
+
+/// Spawn a bullet tracer: a bright hot core at the bullet plus a light
+/// streak that stretches across the bullet's recent travel (prev → current
+/// position) — the classic shooter look. The streak card is scaled each
+/// frame by `update_tracer_streaks`; the core keeps straight-on shots
+/// visible when the streak is edge-on.
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_tracer_projectile(
+    commands: &mut Commands,
+    assets: &TracerAssets,
+    origin: Vec3,
+    camera_pos: Vec3,
+    velocity: Vec3,
+    timer: Timer,
+    damage: f32,
+    from_player: bool,
+    source_name: String,
+) {
+    let bullet = commands
+        .spawn((
+            Transform::from_translation(origin)
+                .with_rotation(tracer_card_rotation(velocity, camera_pos - origin)),
+            Visibility::default(),
+            NotShadowCaster,
+            TracerStreak,
+            Projectile {
+                velocity,
+                prev_pos: origin,
+                timer,
+                damage,
+                from_player,
+                source_name,
+            },
+        ))
+        .id();
+    commands.entity(bullet).with_children(|parent| {
+        // Streak quad: spawns as a tiny sliver (scale.y 0.02 ≈ 0.04m) so
+        // the very first frame shows just a muzzle spark — never a 2m trail
+        // poking BACK through the gun. `update_tracer_streaks` re-anchors
+        // it each frame to span from the bullet back to the previous
+        // frame's position (behind the muzzle from frame 1 on).
+        parent.spawn((
+            Mesh3d(assets.mesh.clone()),
+            MeshMaterial3d(assets.material.clone()),
+            NotShadowCaster,
+            Transform::from_translation(Vec3::new(0.0, -0.02, 0.0))
+                .with_scale(Vec3::new(1.0, 0.02, 1.0)),
+            Visibility::default(),
+            TracerStreakVisual,
+        ));
+        // Hot core: bright dot at the bullet position.
+        parent.spawn((
+            Mesh3d(assets.core_mesh.clone()),
+            MeshMaterial3d(assets.core_material.clone()),
+            NotShadowCaster,
+            Transform::IDENTITY,
+            Visibility::default(),
+        ));
+    });
+}
+
+/// Update tracer visuals: orient the bullet's card along its flight path
+/// (long axis = flight direction, face tracks the camera horizontally) and
+/// stretch each streak quad to span the bullet's travel since the last
+/// frame — the classic shooter light-trail. The streak is anchored at the
+/// bullet and extends BACKWARD along the flight path. Fast bullets (900 m/s
+/// ≈ 15 m per frame) leave long continuous streaks instead of hopping
+/// between positions.
+pub fn update_tracer_streaks(
+    camera: Query<(&GlobalTransform, &Transform), (With<super::MainCamera>, Without<TracerStreak>, Without<TracerStreakVisual>)>,
+    mut bullets: Query<(Entity, &mut Transform, &Projectile), (With<TracerStreak>, Without<TracerStreakVisual>)>,
+    mut streak_visuals: Query<(&mut Transform, &ChildOf), (With<TracerStreakVisual>, Without<TracerStreak>)>,
+) {
+    let Ok((cam_gt, _)) = camera.single() else { return };
+    let cam_pos = cam_gt.translation();
+
+    // Min/max streak length (mesh is 2.0 long; scale.y = len/2).
+    const MIN_LEN: f32 = 0.4;
+    const MAX_LEN: f32 = 25.0;
+
+    let mut visuals: Vec<(Entity, f32)> = Vec::new();
+    for (entity, mut tf, proj) in bullets.iter_mut() {
+        tf.rotation = tracer_card_rotation(proj.velocity, cam_pos - tf.translation);
+        let len = (tf.translation - proj.prev_pos).length().clamp(MIN_LEN, MAX_LEN);
+        visuals.push((entity, len / 2.0));
+    }
+
+    for (mut tf, parent) in streak_visuals.iter_mut() {
+        if let Some((_, half)) = visuals.iter().find(|(e, _)| *e == parent.0) {
+            // Anchor at the bullet and stretch BACKWARD (card local +Y is
+            // the flight direction, so -Y trails behind it).
+            tf.scale.y = *half;
+            tf.translation.y = -*half;
+        }
+    }
+}
+
 #[derive(Component)]
 pub struct Projectile {
     pub velocity: Vec3,
+    /// World position at the start of the current frame's travel — the
+    /// streak stretches between this and the current translation.
+    pub prev_pos: Vec3,
     pub timer: Timer,
     pub damage: f32,
     pub from_player: bool,
@@ -23,13 +260,52 @@ pub struct MuzzleFlash {
 }
 
 #[derive(Component)]
-pub struct Target;
-
-#[derive(Component, Default)]
-pub struct CameraRecoil {
-    pub current_kick: Vec2, // Pitch, Yaw
-    pub target_kick: Vec2,
+pub struct Target {
+    /// Armed dummies hold and shoot guns at the local player.
+    pub armed: bool,
 }
+
+/// Recoil climb model (COD/Siege/Phantom Forces style).
+///
+/// Each shot adds a kick to `climb`, but the kick shrinks as `climb`
+/// approaches `RECOIL_MAX_PITCH` — the camera rises quickly at first,
+/// then levels off at a plateau. `pitch` chases `climb` for a smooth
+/// climb. Recovery only runs while the fire trigger is RELEASED, so a
+/// burst never decays the climb between shots, and the camera settles
+/// the moment you stop holding the button.
+#[derive(Component)]
+pub struct CameraRecoil {
+    /// Current applied pitch offset (radians; positive = looking up).
+    pub pitch: f32,
+    /// Accumulated climb target, capped at `RECOIL_MAX_PITCH`.
+    pub climb: f32,
+    /// Current applied yaw offset.
+    pub yaw: f32,
+    /// Horizontal jitter target.
+    pub yaw_target: f32,
+}
+
+impl Default for CameraRecoil {
+    fn default() -> Self {
+        Self {
+            pitch: 0.0,
+            climb: 0.0,
+            yaw: 0.0,
+            yaw_target: 0.0,
+        }
+    }
+}
+
+/// Where the vertical climb plateaus (~6.9°).
+const RECOIL_MAX_PITCH: f32 = 0.12;
+/// How much the climb slows near the plateau (0.8 = slows to 20%).
+const RECOIL_FALLOFF: f32 = 0.8;
+/// Recoil multiplier while aiming down sights.
+const RECOIL_ADS_MULT: f32 = 0.6;
+/// How fast the camera settles back to center after recovery kicks in.
+/// Applied as an exponential approach (per-second lerp factor): the drop
+/// starts fast and eases out as the camera nears center.
+const RECOIL_RECOVERY_SPEED: f32 = 4.0;
 
 #[derive(Component, Default)]
 pub struct AmmoStatus {
@@ -66,6 +342,192 @@ pub struct ExplosionParticle {
     pub end_scale: f32,
 }
 
+/// Procedural bullet-hole decals: a semi-transparent square RING around an
+/// opaque square center — reads as a single bullet hole. Built once via
+/// `FromWorld` and shared by every hole.
+#[derive(Resource)]
+pub struct BulletHoleAssets {
+    pub outer_mesh: Handle<Mesh>,
+    pub inner_mesh: Handle<Mesh>,
+    pub outer_material: Handle<StandardMaterial>,
+    pub inner_material: Handle<StandardMaterial>,
+}
+
+impl FromWorld for BulletHoleAssets {
+    fn from_world(world: &mut World) -> Self {
+        // Flat squares facing +Z with outward normals; `spawn_bullet_hole`
+        // orients +Z along the surface normal.
+        fn solid_square(meshes: &mut Assets<Mesh>, half: f32) -> Handle<Mesh> {
+            let positions = vec![
+                [-half, -half, 0.0],
+                [half, -half, 0.0],
+                [half, half, 0.0],
+                [-half, half, 0.0],
+            ];
+            let indices = vec![[0u32, 1, 2], [0, 2, 3]];
+            meshes.add(
+                Mesh::new(
+                    bevy::render::mesh::PrimitiveTopology::TriangleList,
+                    bevy::asset::RenderAssetUsages::default(),
+                )
+                .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+                .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; 4])
+                .with_inserted_indices(bevy::render::mesh::Indices::U32(indices.into_iter().flat_map(|t| t.into_iter()).collect())),
+            )
+        }
+
+        // Square annulus: four trapezoid quads between the outer and inner
+        // square perimeters.
+        fn ring_square(meshes: &mut Assets<Mesh>, outer: f32, inner: f32) -> Handle<Mesh> {
+            let mut positions: Vec<[f32; 3]> = Vec::new();
+            let mut indices: Vec<[u32; 3]> = Vec::new();
+            for i in 0..4 {
+                let (sx, sy) = if i == 0 {
+                    (-1.0, -1.0)
+                } else if i == 1 {
+                    (1.0, -1.0)
+                } else if i == 2 {
+                    (1.0, 1.0)
+                } else {
+                    (-1.0, 1.0)
+                };
+                let base = positions.len() as u32;
+                // outer corner, inner corner (same direction), then next segment
+                positions.push([sx * outer, sy * outer, 0.0]);
+                positions.push([sx * inner, sy * inner, 0.0]);
+                let (nx, ny) = if i == 3 {
+                    (-1.0, -1.0)
+                } else if i == 0 {
+                    (1.0, -1.0)
+                } else if i == 1 {
+                    (1.0, 1.0)
+                } else {
+                    (-1.0, 1.0)
+                };
+                positions.push([nx * outer, ny * outer, 0.0]);
+                positions.push([nx * inner, ny * inner, 0.0]);
+                indices.push([base, base + 1, base + 2]);
+                indices.push([base + 1, base + 3, base + 2]);
+            }
+            let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
+            let flat_indices: Vec<u32> = indices.into_iter().flat_map(|t| t.into_iter()).collect();
+            meshes.add(
+                Mesh::new(
+                    bevy::render::mesh::PrimitiveTopology::TriangleList,
+                    bevy::asset::RenderAssetUsages::default(),
+                )
+                .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+                .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+                .with_inserted_indices(bevy::render::mesh::Indices::U32(flat_indices)),
+            )
+        }
+
+        let mut meshes = world.resource_mut::<Assets<Mesh>>();
+        let outer_mesh = ring_square(&mut meshes, 0.07, 0.045);
+        let inner_mesh = solid_square(&mut meshes, 0.045);
+
+        let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+        let outer_material = materials.add(StandardMaterial {
+            base_color: Color::srgba(0.05, 0.04, 0.08, 0.85),
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            ..default()
+        });
+        let inner_material = materials.add(StandardMaterial {
+            base_color: Color::srgb(0.012, 0.008, 0.02),
+            unlit: true,
+            ..default()
+        });
+
+        Self {
+            outer_mesh,
+            inner_mesh,
+            outer_material,
+            inner_material,
+        }
+    }
+}
+
+/// A live bullet hole decal on world geometry.
+#[derive(Component)]
+pub struct BulletHole {
+    pub timer: Timer,
+}
+
+/// Caps the number of active bullet holes; oldest are evicted first.
+#[derive(Resource)]
+pub struct BulletHolePool {
+    pub entities: std::collections::VecDeque<Entity>,
+    pub max: usize,
+}
+
+impl Default for BulletHolePool {
+    fn default() -> Self {
+        Self {
+            entities: std::collections::VecDeque::new(),
+            max: 200,
+        }
+    }
+}
+
+/// Spawn a bullet-hole decal at `pos` on a surface with outward `normal`.
+fn spawn_bullet_hole(
+    commands: &mut Commands,
+    assets: &BulletHoleAssets,
+    pool: &mut BulletHolePool,
+    pos: Vec3,
+    normal: Vec3,
+) {
+    if pool.entities.len() >= pool.max {
+        if let Some(oldest) = pool.entities.pop_front() {
+            commands.entity(oldest).try_despawn();
+        }
+    }
+    let roll = rand::rng().random_range(0.0..std::f32::consts::TAU);
+    let orient = Quat::from_rotation_arc(Vec3::Z, normal) * Quat::from_rotation_z(roll);
+    let entity = commands
+        .spawn((
+            Transform::from_translation(pos + normal * 0.012).with_rotation(orient),
+            Visibility::default(),
+            BulletHole {
+                timer: Timer::from_seconds(30.0, TimerMode::Once),
+            },
+            crate::world::GameWorldEntity,
+        ))
+        .with_children(|parent| {
+            // Semi-transparent outer square ring.
+            parent.spawn((
+                Mesh3d(assets.outer_mesh.clone()),
+                MeshMaterial3d(assets.outer_material.clone()),
+                Transform::default(),
+            ));
+            // Opaque inner square, recessed a hair to avoid z-fighting.
+            parent.spawn((
+                Mesh3d(assets.inner_mesh.clone()),
+                MeshMaterial3d(assets.inner_material.clone()),
+                Transform::from_xyz(0.0, 0.0, -0.001),
+            ));
+        })
+        .id();
+    pool.entities.push_back(entity);
+}
+
+/// Ticks bullet-hole lifetimes and despawns expired decals.
+pub fn update_bullet_holes(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut BulletHole)>,
+    mut pool: ResMut<BulletHolePool>,
+) {
+    for (entity, mut hole) in query.iter_mut() {
+        hole.timer.tick(time.delta());
+        if hole.timer.is_finished() {
+            commands.entity(entity).try_despawn();
+            pool.entities.retain(|e| *e != entity);
+        }
+    }
+}
+
 pub fn handle_muzzle_flash(
     mut commands: Commands,
     time: Res<Time>,
@@ -79,26 +541,28 @@ pub fn handle_muzzle_flash(
     }
 }
 
+/// Updates the recoil state only — the offsets are composed into the camera
+/// rotation by `apply_lean` (camera.rs) so no other system can overwrite them.
 pub fn handle_camera_recoil(
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut CameraRecoil)>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
+    mut query: Query<&mut CameraRecoil>,
 ) {
-    for (mut transform, mut recoil) in query.iter_mut() {
-        let dt = time.delta_secs();
-        
-        let previous_kick = recoil.current_kick;
-        
-        // Interpolate current towards target
-        recoil.current_kick = recoil.current_kick.lerp(recoil.target_kick, dt * 20.0);
-        
-        // Decay target back to zero (recovery)
-        recoil.target_kick = recoil.target_kick.lerp(Vec2::ZERO, dt * 5.0);
-        
-        // Apply delta to transform
-        let delta = recoil.current_kick - previous_kick;
-        
-        let (yaw, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw + delta.y, pitch + delta.x, roll);
+    let dt = time.delta_secs();
+    let trigger_down = mouse_input.pressed(MouseButton::Left);
+    for mut recoil in query.iter_mut() {
+        // Recovery runs only while the fire trigger is released — between
+        // burst shots the climb keeps building instead of resetting, and
+        // the moment you stop holding the button the camera settles.
+        // Exponential approach: fast at first, easing out near center.
+        if !trigger_down {
+            recoil.climb = recoil.climb.lerp(0.0, dt * RECOIL_RECOVERY_SPEED);
+            recoil.yaw_target = recoil.yaw_target.lerp(0.0, dt * RECOIL_RECOVERY_SPEED);
+        }
+
+        // Pitch chases the climb target — fast rise, smooth plateau.
+        recoil.pitch = recoil.pitch.lerp(recoil.climb, dt * 25.0);
+        recoil.yaw = recoil.yaw.lerp(recoil.yaw_target, dt * 25.0);
     }
 }
 
@@ -318,15 +782,19 @@ pub fn fire_weapon(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     keybinds: Res<Keybinds>,
     mut inventory_query: Query<(&mut Inventory, &mut AmmoStatus)>,
-    camera: Single<(&GlobalTransform, &Transform), With<super::MainCamera>>,
+    mut camera_set: ParamSet<(
+        Single<(&GlobalTransform, &Transform), With<super::MainCamera>>,
+        Query<&mut CameraRecoil, With<super::MainCamera>>,
+        Query<&GlobalTransform, With<WeaponModel>>,
+    )>,
     mut weapon_query: Query<(Entity, &mut WeaponRecoil, &mut Transform, Option<&MeleeSwing>), (With<WeaponModel>, Without<super::MainCamera>)>,
-    mut camera_recoil_query: Query<&mut CameraRecoil, With<super::MainCamera>>,
     mut health_query: Query<(Entity, &GlobalTransform, &mut Health, Option<&PlayerBody>, Option<&Enemy>, Option<&mut Regenerating>), Without<Projectile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
     mut fire_state: Local<FireState>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
+    tracer_assets: Res<TracerAssets>,
     asset_server: Res<AssetServer>,
     pause_open: Res<super::PauseMenuOpen>,
 ) {
@@ -448,7 +916,7 @@ pub fn fire_weapon(
         }
     }
 
-    let (fire_rate, speed, color, size, muzzle_offset, v_recoil, h_recoil, fire_mode, damage, accuracy) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+    let (fire_rate, speed, _color, _size, muzzle_offset, v_recoil, h_recoil, fire_mode, damage, accuracy) = if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
         let mode_idx = *ammo_status.current_fire_mode.get(&inventory.active_slot).unwrap_or(&0);
         let mode_str = config.attributes.fire_modes.get(mode_idx).map(|s| s.as_str()).unwrap_or("Auto");
         let mode = match mode_str {
@@ -460,8 +928,10 @@ pub fn fire_weapon(
         
         let muzzle = config.attachments.barrel.as_ref().and_then(|b| b.meta.as_ref()).and_then(|m| m.muzzle_flash_offset);
         let dmg = config.attachments.ammo.as_ref().map(|a| a.damage).unwrap_or(10.0);
+        // Bullet speed comes from the ammo's velocity stat (m/s).
+        let ammo_velocity = config.attachments.ammo.as_ref().map(|a| a.velocity).unwrap_or(40.0);
         
-        (config.attributes.fire_rate, 40.0, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, config.attributes.horizontal_recoil, mode, dmg, config.attributes.accuracy)
+        (config.attributes.fire_rate, ammo_velocity, Color::srgb(1.0, 0.8, 0.2), 0.05, muzzle, config.attributes.vertical_recoil, config.attributes.horizontal_recoil, mode, dmg, config.attributes.accuracy)
     } else {
         match inventory.active_slot {
             WeaponSlot::Melee => (0.5, 0.0, Color::NONE, 0.0, None, 0.0, 0.0, FireMode::Semi, 50.0, 1.0),
@@ -583,7 +1053,8 @@ pub fn fire_weapon(
 
         fire_state.last_fire = time.elapsed_secs();
 
-        let (global_transform, _) = camera.into_inner();
+        let (global_transform, _) = camera_set.p0().into_inner();
+        let camera_pos = global_transform.translation();
         let transform = global_transform.compute_transform();
         let forward = transform.forward();
         let spawn_pos = transform.translation + forward * 1.0;
@@ -687,6 +1158,25 @@ pub fn fire_weapon(
                 let num_projectiles = if pellet_count > 0 { pellet_count } else { 1 };
                 let per_pellet_damage = damage;
 
+                // Bullets leave the gun barrel (same spot as the muzzle
+                // flash), falling back to the camera when no barrel exists.
+                // The weapon is a child of the camera, so its *Global*
+                // Transform is required — the local Transform would be in
+                // camera space and trail the player's spawn position.
+                // The offset is scaled by the weapon's GlobalTransform scale
+                // to match the flash children, which are transformed by the
+                // parent's scale in world space.
+                let muzzle_world = {
+                    let gt = camera_set.p2().iter().next().map(|g| *g);
+                    match (gt, muzzle_offset) {
+                        (Some(gt), Some(off)) => Some(
+                            gt.translation() + gt.rotation() * (gt.scale() * Vec3::from(off)),
+                        ),
+                        _ => None,
+                    }
+                };
+                let bullet_origin = muzzle_world.unwrap_or(spawn_pos);
+
                 let right = transform.right();
                 let up = transform.up();
 
@@ -704,52 +1194,43 @@ pub fn fire_weapon(
                     let r1 = rng.random_range(-base_spread..base_spread);
                     let r2 = rng.random_range(-base_spread..base_spread);
                     let final_velocity = (forward.as_vec3() + right.as_vec3() * r1 + up.as_vec3() * r2).normalize() * speed;
-                    let dir_norm = final_velocity.normalize_or_zero();
-                    let rot = if dir_norm.length_squared() > 0.001 {
-                        Quat::from_rotation_arc(Vec3::Z, dir_norm)
-                    } else {
-                        Quat::IDENTITY
-                    };
 
-                    commands.spawn((
-                        Mesh3d(meshes.add(Cuboid::new(0.02, 0.02, 2.5))),
-                        MeshMaterial3d(materials.add(StandardMaterial {
-                            base_color: Color::srgb(1.0, 0.85, 0.2),
-                            emissive: LinearRgba::rgb(5.0, 2.5, 0.4),
-                            ..default()
-                        })),
-                        Transform::from_translation(spawn_pos)
-                            .with_rotation(rot),
-                        Projectile {
-                            velocity: final_velocity,
-                            timer: Timer::from_seconds(3.0, TimerMode::Once),
-                            damage: per_pellet_damage,
-                            from_player: true,
-                            source_name: "Player".to_string(),
-                        },
-                    )).with_children(|b| {
-                        b.spawn((
-                            PointLight {
-                                color: Color::srgb(1.0, 0.8, 0.2),
-                                intensity: 600.0,
-                                range: 3.0,
-                                shadow_maps_enabled: false,
-                                ..default()
-                            },
-                        ));
-                    });
+                    spawn_tracer_projectile(
+                        &mut commands,
+                        &tracer_assets,
+                        bullet_origin,
+                        camera_pos,
+                        final_velocity,
+                        Timer::from_seconds(3.0, TimerMode::Once),
+                        per_pellet_damage,
+                        true,
+                        "Player".to_string(),
+                    );
                 }
 
-                // Apply Camera Recoil
-                if let Some(mut camera_recoil) = camera_recoil_query.iter_mut().next() {
-                    let v_recoil_rad = v_recoil * 0.01;
-                    let h_recoil_rad = h_recoil * 0.01;
-                    
-                    let mut rng = rand::rng();
-                    camera_recoil.target_kick += Vec2::new(
-                        rng.random_range(v_recoil_rad * 0.5..v_recoil_rad * 1.5), // Pitch (X)
-                        rng.random_range(-h_recoil_rad..h_recoil_rad) // Yaw (Y)
-                    );
+                // Apply Camera Recoil — climb curve: kicks shrink as the
+                // accumulated climb nears the plateau; ADS reduces recoil.
+                if let Some(mut camera_recoil) = camera_set.p1().iter_mut().next() {
+                    let v_recoil_rad = v_recoil * 0.04;
+                    let h_recoil_rad = h_recoil * 0.04;
+
+                    let is_aiming = mouse_input.pressed(MouseButton::Right);
+                    let ads_mult = if is_aiming { RECOIL_ADS_MULT } else { 1.0 };
+                    let headroom = 1.0 - RECOIL_FALLOFF
+                        * (camera_recoil.climb / RECOIL_MAX_PITCH).clamp(0.0, 1.0);
+
+                    let pitch_kick = rng.random_range(v_recoil_rad * 0.5..v_recoil_rad * 1.5)
+                        * headroom
+                        * ads_mult;
+                    camera_recoil.climb = (camera_recoil.climb + pitch_kick).min(RECOIL_MAX_PITCH);
+                    // Soft peak: once the climb sits at the cap, the kick is
+                    // passed straight to the pitch as a visual bump — the gun
+                    // still recoils per shot without forcing the view higher.
+                    let bounce = pitch_kick * (1.0 - headroom) * 1.5;
+                    camera_recoil.pitch =
+                        (camera_recoil.pitch + bounce).min(RECOIL_MAX_PITCH * 1.4);
+                    camera_recoil.yaw_target +=
+                        rng.random_range(-h_recoil_rad..h_recoil_rad) * headroom;
                 }
 
                 // Apply Weapon Recoil & Muzzle Flash
@@ -1063,14 +1544,18 @@ pub fn handle_explosion_particles(
 
 pub fn update_ammo_ui(
     inventory_query: Query<(&Inventory, &AmmoStatus)>,
-    mut text_query: Query<&mut Text, With<AmmoUi>>,
+    mut text_query: Query<(&mut Text, &mut TextColor), With<AmmoUi>>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
+    ui_config: Res<crate::ui_config::UiConfig>,
 ) {
     let (inventory, ammo_status) = if let Ok(res) = inventory_query.single() { res } else { return };
-    let mut text = if let Ok(t) = text_query.single_mut() { t } else { return };
+    let (mut text, mut text_color) = if let Ok(t) = text_query.single_mut() { t } else { return };
+    let config = &ui_config.ammo_ui;
+    let normal_color = Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3]);
 
     if let Some((_, timer)) = &ammo_status.reloading {
         **text = format!("Reloading... {:.1}s", timer.remaining_secs());
+        text_color.0 = crate::theme::WARNING;
     } else if matches!(inventory.active_slot, WeaponSlot::Primary | WeaponSlot::Secondary) {
         let current = ammo_status.current_ammo.get(&inventory.active_slot).copied().unwrap_or(0);
         let reserve = ammo_status.reserve_ammo.get(&inventory.active_slot).copied().unwrap_or(0);
@@ -1081,11 +1566,21 @@ pub fn update_ammo_ui(
             let ammo_type = config.attachments.ammo.as_ref().map(|a| a.name.as_str()).unwrap_or("Unknown");
             
             **text = format!("{} | {}\n{} | {}", current, reserve, ammo_type, mode_str);
+
+            // Low-ammo warning: bottom 15% of the magazine.
+            let mag_size = config.attachments.magazine.as_ref().map(|m| m.capacity).unwrap_or(30) as f32;
+            if current as f32 <= (mag_size * 0.15).max(1.0) && reserve > 0 {
+                text_color.0 = crate::theme::DANGER;
+            } else {
+                text_color.0 = normal_color;
+            }
         } else {
              **text = format!("{} | {}", current, reserve);
+             text_color.0 = normal_color;
         }
     } else {
         **text = "Ammo: --".to_string();
+        text_color.0 = normal_color;
     }
 }
 
@@ -1099,6 +1594,8 @@ pub fn move_projectiles(
     mesh_query: Query<(Entity, &Transform, &crate::world::objects::MeshCollider, Option<&crate::world::objects::MaterialType>), Without<Projectile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    bullet_hole_assets: Res<BulletHoleAssets>,
+    mut bullet_hole_pool: ResMut<BulletHolePool>,
 ) {
     // Track glass entities to despawn after iteration
     let mut glass_to_despawn: Vec<Entity> = Vec::new();
@@ -1111,24 +1608,35 @@ pub fn move_projectiles(
         }
 
         let delta = projectile.velocity * time.delta_secs();
-        let _old_pos = transform.translation;
+        let old_pos = transform.translation;
+        projectile.prev_pos = old_pos;
         transform.translation += delta;
-        let new_pos = transform.translation;
+        let _new_pos = transform.translation;
         // Triangle mesh collider hit-test (ray vs TriMesh)
         let mut hit_collider = false;
         for (_col_entity, col_transform, mesh_collider, material_type) in mesh_query.iter() {
             use bevy_rapier3d::rapier::parry::query::{Ray, RayCast};
             use bevy_rapier3d::rapier::parry::math::Vector;
 
-            let origin = Vector::new(new_pos.x, new_pos.y, new_pos.z);
+            // Ray from the PRE-MOVE position along velocity, so the segment
+            // covers exactly this frame's travel — impact points land on the
+            // surface (e.g. the floor on downward shots), not past it.
+            let origin = Vector::new(old_pos.x, old_pos.y, old_pos.z);
             let vel = projectile.velocity;
-            let dir = Vector::new(vel.x, vel.y, vel.z);
+            let speed = vel.length();
+            if speed <= 0.0 { break; }
+            // Normalized ray direction — parry's TOI is then a physical
+            // distance, so the impact point computed from it is exact.
+            let dir = Vector::new(vel.x / speed, vel.y / speed, vel.z / speed);
             let ray = Ray::new(origin, dir);
-            let max_toi = dir.length() * time.delta_secs();
-            if max_toi <= 0.0 { break; }
+            let max_toi = speed * time.delta_secs();
 
-            if let Some(_hit) = mesh_collider.mesh.cast_local_ray(&ray, max_toi, true) {
-                let bullet_dir = (vel / vel.length()).into();
+            if let Some(hit) = mesh_collider.mesh.cast_local_ray_and_get_normal(&ray, max_toi, true) {
+                let bullet_dir = Vec3::new(dir.x, dir.y, dir.z);
+                // Impact point + outward surface normal (colliders spawn
+                // axis-aligned, so rotate the local normal by the transform).
+                let hit_point = old_pos + bullet_dir * hit.time_of_impact;
+                let normal = col_transform.rotation * Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z);
                 if let Some(mat_type) = material_type {
                     if mat_type.shatters() {
                         let he = mesh_collider.mesh.local_aabb();
@@ -1138,7 +1646,7 @@ pub fn move_projectiles(
                             (he.maxs.z - he.mins.z) * 0.5,
                         );
                         crate::world::objects::spawn_glass_shatter(
-                            &mut commands, &mut meshes, &mut materials, new_pos, bullet_dir,
+                            &mut commands, &mut meshes, &mut materials, hit_point, bullet_dir,
                             Some(col_transform), Some(half_ext),
                         );
                         glass_to_despawn.push(_col_entity);
@@ -1148,11 +1656,20 @@ pub fn move_projectiles(
                     }
                     let bullet_pen = projectile.damage / 100.0;
                     if bullet_pen > mat_type.resistance() * 0.5 {
+                        // Bullet passes through — leave an entry hole.
+                        spawn_bullet_hole(
+                            &mut commands, &bullet_hole_assets, &mut bullet_hole_pool,
+                            hit_point, normal,
+                        );
                         projectile.damage *= mat_type.damage_falloff();
                         projectile.velocity *= 0.7;
                         continue;
                     }
                 }
+                spawn_bullet_hole(
+                    &mut commands, &bullet_hole_assets, &mut bullet_hole_pool,
+                    hit_point, normal,
+                );
                 commands.entity(entity).despawn();
                 hit_collider = true;
                 break;
@@ -1165,8 +1682,22 @@ pub fn move_projectiles(
             if projectile.from_player && is_player.is_some() { continue; }
             if !projectile.from_player && is_enemy.is_some() { continue; }
 
-            let hit_radius = if is_enemy.is_some() { 0.6 } else { 1.5 };
-            if transform.translation.distance(target_transform.translation()) < hit_radius {
+            // Entity collision check — swept: the closest point on this
+            // frame's travel segment to the target, so fast bullets (280+
+            // m/s ≈ 4.7 m/frame) can't tunnel through a target between
+            // frames. Enemy radius is generous because dummies are tall
+            // and chest-high shots are the norm.
+            let hit_radius = if is_enemy.is_some() { 0.9 } else { 1.5 };
+            let target_pos = target_transform.translation();
+            let travel = transform.translation - old_pos;
+            let travel_len2 = travel.length_squared();
+            let t = if travel_len2 > 1e-8 {
+                ((target_pos - old_pos).dot(travel) / travel_len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let closest = old_pos + travel * t;
+            if closest.distance(target_pos) < hit_radius {
                 health.current -= projectile.damage;
                 if let Some(r) = regen.as_mut() {
                     r.timer.reset();
@@ -1201,4 +1732,293 @@ pub fn move_projectiles(
 /// Matches the implementation in `noctyrn_shared::spread`.
 pub fn apply_spread_seeded(dir: &[f32; 3], spread_rad: f32, seed: u64, index: u32) -> [f32; 3] {
     noctyrn_shared::spread::apply_spread_seeded(dir, spread_rad, seed, index)
+}
+
+#[cfg(test)]
+mod streak_orientation_tests {
+    use super::*;
+
+    fn run_streak(velocity: Vec3) -> Quat {
+        let mut world = World::new();
+        world.spawn((
+            Transform::from_xyz(0.0, 1.7, 0.0),
+            GlobalTransform::from_xyz(0.0, 1.7, 0.0),
+            super::super::MainCamera,
+        ));
+        let streak = world
+            .spawn((
+                Transform::from_xyz(0.0, 1.5, -9.0),
+                Projectile {
+                    velocity,
+                    prev_pos: Vec3::new(0.0, 1.5, -9.0),
+                    timer: Timer::from_seconds(3.0, TimerMode::Once),
+                    damage: 10.0,
+                    from_player: true,
+                    source_name: "test".into(),
+                },
+                TracerStreak,
+            ))
+            .id();
+        let id = world.register_system(update_tracer_streaks);
+        world.run_system(id).unwrap();
+        world.get::<Transform>(streak).unwrap().rotation
+    }
+
+    fn local_y_world(rot: Quat) -> Vec3 {
+        rot * Vec3::Y
+    }
+
+    #[test]
+    fn side_shot_long_axis_follows_flight() {
+        // Bullet crossing the view: long axis must ride the flight dir.
+        let rot = run_streak(Vec3::new(1.0, 0.0, 0.0));
+        let long_axis = local_y_world(rot);
+        assert!(
+            long_axis.dot(Vec3::X).abs() > 0.99,
+            "side-shot streak long axis should be +X, got {long_axis:?}"
+        );
+        // And the card must stay vertical (contains world up).
+        assert!(
+            long_axis.y.abs() < 0.01,
+            "side-shot streak must stay vertical, got y={}", long_axis.y
+        );
+    }
+
+    #[test]
+    fn straight_shot_collapses_along_flight() {
+        // Bullet flying straight away from the camera: the streak must lie
+        // along the flight path (edge-on → dot), never stand sideways.
+        let rot = run_streak(Vec3::new(0.0, 0.0, -22.0));
+        let long_axis = local_y_world(rot);
+        assert!(
+            long_axis.dot(Vec3::NEG_Z).abs() > 0.99,
+            "straight-shot streak long axis should follow -Z, got {long_axis:?}"
+        );
+    }
+
+    #[test]
+    fn spread_shot_points_along_full_flight() {
+        // A shot with spread deviates slightly from the view axis. The
+        // streak must point along the FULL flight velocity — not along the
+        // tiny perpendicular spread offset (which made bullets look
+        // vertical when shot downrange).
+        let v = Vec3::new(0.0, 0.03, -1.0).normalize();
+        let rot = run_streak(v * 900.0);
+        let long_axis = local_y_world(rot);
+        assert!(
+            long_axis.dot(v).abs() > 0.99,
+            "spread-shot streak long axis should follow the flight velocity, got {long_axis:?} vs {v:?}"
+        );
+    }
+
+    #[test]
+    fn streak_trails_behind_the_bullet() {
+        // The streak quad must sit BEHIND the bullet along the flight path
+        // (card local -Y), never centered on it.
+        let mut world = World::new();
+        world.spawn((
+            Transform::from_xyz(0.0, 1.7, 0.0),
+            GlobalTransform::from_xyz(0.0, 1.7, 0.0),
+            super::super::MainCamera,
+        ));
+        let bullet = world
+            .spawn((
+                Transform::from_xyz(0.0, 1.5, -9.0),
+                Projectile {
+                    velocity: Vec3::new(1.0, 0.0, 0.0),
+                    prev_pos: Vec3::new(0.0, 1.5, -9.0),
+                    timer: Timer::from_seconds(3.0, TimerMode::Once),
+                    damage: 10.0,
+                    from_player: true,
+                    source_name: "test".into(),
+                },
+                TracerStreak,
+            ))
+            .id();
+        let visual = world
+            .spawn((Transform::IDENTITY, ChildOf(bullet), TracerStreakVisual))
+            .id();
+        let id = world.register_system(update_tracer_streaks);
+        world.run_system(id).unwrap();
+        let tf = world.get::<Transform>(visual).unwrap();
+        // No travel yet → len clamps to MIN_LEN (0.4) → half = 0.2 behind.
+        assert!(
+            (tf.translation.y - (-0.2)).abs() < 1e-4,
+            "streak must trail BEHIND the bullet, got translation.y={}",
+            tf.translation.y
+        );
+        assert!(
+            (tf.scale.y - 0.2).abs() < 1e-4,
+            "streak half-length mismatch, got scale.y={}",
+            tf.scale.y
+        );
+    }
+
+    #[test]
+    fn spawn_rotation_aligns_before_first_update() {
+        // The tracer must spawn already aligned with its flight direction —
+        // no vertical card on the first frame.
+        let mut world = World::new();
+        world.init_resource::<Assets<Mesh>>();
+        world.init_resource::<Assets<StandardMaterial>>();
+        world.init_resource::<TracerAssets>();
+        let (mesh, material, core_mesh, core_material) = {
+            let a = world.resource::<TracerAssets>();
+            (a.mesh.clone(), a.material.clone(), a.core_mesh.clone(), a.core_material.clone())
+        };
+        let assets = TracerAssets { mesh, material, core_mesh, core_material };
+        let camera_pos = Vec3::new(0.0, 1.7, 0.0);
+        let origin = Vec3::new(0.0, 1.5, -3.0);
+        let velocity = Vec3::new(0.0, 0.0, -900.0);
+        let mut commands = world.commands();
+        spawn_tracer_projectile(
+            &mut commands,
+            &assets,
+            origin,
+            camera_pos,
+            velocity,
+            Timer::from_seconds(3.0, TimerMode::Once),
+            25.0,
+            true,
+            "test".into(),
+        );
+        world.flush();
+        let bullet = world
+            .query_filtered::<&Transform, (With<TracerStreak>, Without<TracerStreakVisual>)>()
+            .single(&world)
+            .unwrap();
+        let long_axis = bullet.rotation * Vec3::Y;
+        assert!(
+            long_axis.dot(Vec3::NEG_Z).abs() > 0.99,
+            "spawned streak long axis should already follow -Z, got {long_axis:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod recoil_tests {
+    use super::*;
+    use bevy::time::Time;
+
+    fn run_frames(world: &mut World, n: u32) {
+        for _ in 0..n {
+            let dt = std::time::Duration::from_secs_f32(1.0 / 60.0);
+            world.resource_mut::<Time>().advance_by(dt);
+            let id = world.register_system(handle_camera_recoil);
+            world.run_system(id).unwrap();
+        }
+    }
+
+    fn test_world() -> World {
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.init_resource::<Time>();
+        world
+    }
+
+    #[test]
+    fn climb_raises_pitch_and_holds() {
+        let mut world = test_world();
+        let mut input = ButtonInput::<MouseButton>::default();
+        input.press(MouseButton::Left);
+        world.insert_resource(input);
+        world.spawn(CameraRecoil {
+            pitch: 0.0,
+            climb: 0.1,
+            yaw: 0.0,
+            yaw_target: 0.0,
+        });
+        // Trigger held (burst fire): recovery must never decay the climb
+        // between shots.
+        run_frames(&mut world, 10);
+        let r = world.query::<&CameraRecoil>().single(&world).unwrap();
+        assert!(r.pitch > 0.05, "climb should raise pitch, got {:.4}", r.pitch);
+        assert!((r.pitch - 0.1).abs() < 0.02, "pitch should hold at climb, got {}", r.pitch);
+    }
+
+    #[test]
+    fn recovery_returns_camera_after_idle() {
+        let mut world = test_world();
+        world.insert_resource(ButtonInput::<MouseButton>::default());
+        world.spawn(CameraRecoil {
+            pitch: 0.08,
+            climb: 0.1,
+            yaw: 0.0,
+            yaw_target: 0.0,
+        });
+        // Trigger released — recovery is active from the first frame.
+        // ~1.5s of frames — the climb must decay back toward zero.
+        run_frames(&mut world, 90);
+        let r = world.query::<&CameraRecoil>().single(&world).unwrap();
+        assert!(r.climb < 0.01, "climb should recover after firing stops, got {:.4}", r.climb);
+        assert!(r.pitch < 0.05, "pitch should settle back down, got {:.4}", r.pitch);
+    }
+}
+
+
+#[cfg(test)]
+mod projectile_hit_tests {
+    use super::*;
+    use crate::gameplay::{Health, PlayerBody, Enemy};
+    use bevy::time::Time;
+
+    fn hit_world(from_player: bool, target_enemy: bool) -> (World, f32) {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.init_resource::<Assets<Mesh>>();
+        world.init_resource::<Assets<StandardMaterial>>();
+        world.init_resource::<BulletHoleAssets>();
+        world.init_resource::<BulletHolePool>();
+        let (target_pos, bullet_start) = if target_enemy {
+            (Vec3::new(0.0, 1.0, -10.0), Vec3::new(0.0, 1.3, -8.0))
+        } else {
+            (Vec3::new(0.0, 1.7, -20.0), Vec3::new(0.0, 1.3, -18.0))
+        };
+        let target = if target_enemy {
+            world.spawn((
+                Transform::from_translation(target_pos),
+                GlobalTransform::from_translation(target_pos),
+                Health { current: 100.0, max: 100.0 },
+                Enemy,
+            )).id()
+        } else {
+            world.spawn((
+                Transform::from_translation(target_pos),
+                GlobalTransform::from_translation(target_pos),
+                Health { current: 100.0, max: 100.0 },
+                PlayerBody,
+            )).id()
+        };
+        world.spawn((
+            Transform::from_translation(bullet_start),
+            Projectile {
+                velocity: Vec3::new(0.0, 0.0, -22.0),
+                prev_pos: bullet_start,
+                timer: Timer::from_seconds(3.0, TimerMode::Once),
+                damage: 25.0,
+                from_player,
+                source_name: "test".into(),
+            },
+        ));
+        let id = world.register_system(move_projectiles);
+        for _ in 0..20 {
+            world.resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(1.0 / 60.0));
+            world.run_system(id).unwrap();
+        }
+        let health = world.get::<Health>(target).unwrap().current;
+        (world, health)
+    }
+
+
+    #[test]
+    fn player_bullet_damages_enemy() {
+        let (_, hp) = hit_world(true, true);
+        assert!(hp < 100.0, "player bullet should damage enemy, hp={hp}");
+    }
+
+    #[test]
+    fn dummy_bullet_damages_player() {
+        let (_, hp) = hit_world(false, false);
+        assert!(hp < 100.0, "dummy bullet should damage player, hp={hp}");
+    }
 }

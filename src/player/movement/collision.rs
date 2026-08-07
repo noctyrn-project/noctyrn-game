@@ -38,6 +38,7 @@ pub fn resolve_collisions(
         &mut Velocity,
         &CrouchHeight,
         &MovementConfig,
+        &GroundedState,
         Option<&Health>,
     )>,
     ramp_query: Query<(&Transform, &RampCollider)>,
@@ -45,7 +46,7 @@ pub fn resolve_collisions(
 ) {
     let dt = fixed_time.delta_secs();
 
-    for (mut position, mut velocity, crouch_height, config, health) in
+    for (mut position, mut velocity, crouch_height, config, ground, health) in
         query.iter_mut()
     {
         if let Some(h) = health {
@@ -200,11 +201,11 @@ pub fn resolve_collisions(
                 let normal = Vec3::new(best_normal.x, best_normal.y, best_normal.z);
 
                 // ── Auto step-up ──
-                // If the hit is a wall (mostly horizontal normal) and we're near
-                // the ground, try stepping over obstacles up to `step_up_height`.
+                // Only while grounded (runs after GroundDetection) — an airborne
+                // player near a wall must not be lifted at the top of a jump.
                 let wall_like = normal.y.abs() < 0.35;
                 let mut stepped = false;
-                if wall_like && velocity.y <= 0.5 {
+                if wall_like && velocity.y <= 0.5 && ground.is_grounded {
                     stepped = try_step_up(
                         &mut position,
                         old_center,
@@ -217,9 +218,27 @@ pub fn resolve_collisions(
                 }
 
                 if !stepped {
-                    // Move to the hit position minus a small margin
-                    let margin = normal * 0.001;
-                    position.0 = hit_pos + margin - Vec3::Y * player_half_height;
+                    // Compare the hit by PHYSICAL distance, not raw TOI —
+                    // TOI is a fraction of the sweep, so at speed even a
+                    // hair of contact gap yields a misleading TOI.
+                    let sweep_len = sweep_dir.length();
+                    let hit_distance = earliest_toi * sweep_len;
+
+                    if hit_distance >= 0.01 {
+                        // Real obstacle: move to the impact point minus a margin.
+                        let margin = normal * 0.001;
+                        position.0 = hit_pos + margin - Vec3::Y * player_half_height;
+                    } else {
+                        // Contact/brushing: the integration already moved the
+                        // capsule into the wall this frame. Restore the
+                        // position to the surface by pushing OUT along the
+                        // normal (the penetration depth), keeping tangential
+                        // progress intact — otherwise the player sinks
+                        // through the wall while pressing into it.
+                        let penetration = (-velocity.0.dot(normal) * dt).max(0.0);
+                        position.0 += normal * penetration;
+                        position.0 += normal * 0.001;
+                    }
 
                     // Kill velocity along the hit normal
                     let vn = velocity.0.dot(normal);
@@ -246,6 +265,10 @@ fn try_step_up(
     player_half_height: f32,
 ) -> bool {
     // Probe forward at step height (slightly above so a max-height step clears).
+    // The probe sweeps TWICE the movement distance: a wall whose contact
+    // boundary sits exactly at the movement end (toi ≈ 1.0) is not reported
+    // by cast_shapes, which would let the step-up teleport the player through
+    // tall walls.
     let probe_center = old_center + Vec3::Y * (config.step_up_height * 1.1);
 
     let options = ShapeCastOptions {
@@ -258,7 +281,7 @@ fn try_step_up(
     for mesh_collider in mesh_query.iter() {
         if let Ok(Some(_)) = cast_shapes(
             &Pose::translation(probe_center.x, probe_center.y, probe_center.z),
-            Vector::new(sweep_dir.x, sweep_dir.y, sweep_dir.z),
+            Vector::new(sweep_dir.x * 2.0, sweep_dir.y * 2.0, sweep_dir.z * 2.0),
             capsule,
             &Pose::identity(),
             Vector::ZERO,
@@ -447,5 +470,169 @@ mod tests {
             assert!(hit.normal2.z.abs() > hit.normal2.x.abs(),
                 "wall hit normal z={:.4} should dominate x={:.4}", hit.normal2.z, hit.normal2.x);
         }
+    }
+
+    #[test]
+    fn brush_contact_preserves_slide() {
+        use bevy::time::Time;
+
+        // Brushing a wall: the capsule starts slightly penetrated and moves
+        // parallel to the wall face. The resolver must NOT snap the position
+        // back to the sweep origin (that zeroes forward progress) — it should
+        // keep the along-wall position/velocity and only strip the normal
+        // component.
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: wall_mesh() });
+        world.spawn((
+            PhysicalTranslation(Vec3::new(0.0, 0.9, 0.35)),
+            Velocity(Vec3::new(3.0, 0.0, 0.0)),
+            CrouchHeight { current: 1.8, target: 1.8 },
+            MovementConfig::default(),
+            GroundedState { is_grounded: true, ..default() },
+        ));
+
+        let system_id = world.register_system(resolve_collisions);
+        world.run_system(system_id).unwrap();
+
+        let (pos, vel) = world
+            .query::<(&PhysicalTranslation, &Velocity)>()
+            .single(&world)
+            .unwrap();
+        assert!(pos.0.x >= 0.0,
+            "brushing a wall snapped the player backward: x={:.4}", pos.0.x);
+        assert!(vel.0.x > 2.0,
+            "along-wall velocity was lost: x={:.4}", vel.0.x);
+        assert!(vel.0.z >= -0.001,
+            "velocity into the wall not removed: z={:.4}", vel.0.z);
+    }
+
+    #[test]
+    fn near_contact_brush_slides_full_speed() {
+        use bevy::time::Time;
+
+        // Brushing with a hair of gap (capsule at z=0.401, radius 0.4 — 1mm
+        // from the wall face) moving parallel to it. The sweep reports a
+        // contact; the resolver must not snap the position back to the sweep
+        // start (which previously made brushing feel like wading through mud).
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: wall_mesh() });
+        world.spawn((
+            PhysicalTranslation(Vec3::new(0.0, 0.9, 0.401)),
+            Velocity(Vec3::new(3.0, 0.0, 0.0)),
+            CrouchHeight { current: 1.8, target: 1.8 },
+            MovementConfig::default(),
+            GroundedState { is_grounded: true, ..default() },
+        ));
+
+        let system_id = world.register_system(resolve_collisions);
+        // Simulate two frames of the real pipeline: integrate, then resolve.
+        let dt = 1.0 / 60.0;
+        for _ in 0..2 {
+            let vel = *world.query::<&Velocity>().single(&world).unwrap();
+            let mut pos = world.query::<&mut PhysicalTranslation>().single_mut(&mut world).unwrap();
+            pos.0 += vel.0 * dt;
+            drop(pos);
+            world.run_system(system_id).unwrap();
+        }
+
+        let (pos, vel) = world
+            .query::<(&PhysicalTranslation, &Velocity)>()
+            .single(&world)
+            .unwrap();
+        // Two frames at 3 m/s / 60 Hz ≈ 0.10 units. A snap-back leaves x ≈ 0.
+        assert!(pos.0.x > 0.08,
+            "near-contact brushing must keep tangential progress, x={:.4}", pos.0.x);
+        assert!(vel.0.x > 2.0,
+            "along-wall velocity was lost: x={:.4}", vel.0.x);
+    }
+
+    #[test]
+    fn head_on_never_passes_through_wall() {
+        use bevy::time::Time;
+
+        // Sprint straight into a wall for 2 seconds of frames: the capsule
+        // center must never cross the wall plane minus the capsule radius.
+        // (Regression: an earlier brushing fix let head-on approaches walk
+        // through walls.)
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: wall_mesh() });
+        world.spawn((
+            PhysicalTranslation(Vec3::new(0.0, 0.9, 2.0)),
+            Velocity(Vec3::new(0.0, 0.0, -3.0)),
+            CrouchHeight { current: 1.8, target: 1.8 },
+            MovementConfig::default(),
+            GroundedState { is_grounded: true, ..default() },
+        ));
+
+        let system_id = world.register_system(resolve_collisions);
+        let dt = 1.0 / 60.0;
+        let mut min_z = f32::MAX;
+        for _ in 0..120 {
+            // Player holds forward: keep pushing into the wall via velocity.
+            let mut vel = world.query::<&mut Velocity>().single_mut(&mut world).unwrap();
+            vel.0.z = -3.0;
+            drop(vel);
+            let vel = *world.query::<&Velocity>().single(&world).unwrap();
+            let mut pos = world.query::<&mut PhysicalTranslation>().single_mut(&mut world).unwrap();
+            pos.0 += vel.0 * dt;
+            drop(pos);
+            // Advance the fixed clock so the resolver sees dt > 0.
+            world.resource_mut::<Time::<Fixed>>().advance_by(std::time::Duration::from_secs_f32(dt));
+            world.run_system(system_id).unwrap();
+            // Track the POST-resolve position — the pre-resolve position
+            // legitimately dips a frame's worth into the wall before the
+            // resolver pushes it back out.
+            let pos = world.query::<&PhysicalTranslation>().single(&world).unwrap();
+            min_z = min_z.min(pos.0.z);
+        }
+
+        let pos = world.query::<&PhysicalTranslation>().single(&world).unwrap();
+        let wall_face = 0.0;
+        let radius = 0.4;
+        assert!(pos.0.z >= wall_face + radius - 0.02,
+            "player passed through the wall: z={:.4} (wall face at {wall_face}, radius {radius})", pos.0.z);
+        assert!(min_z >= wall_face + radius - 0.02,
+            "player crossed the wall plane mid-simulation: min z={:.4}", min_z);
+    }
+
+    #[test]
+    fn slow_brush_keeps_full_speed() {
+        use bevy::time::Time;
+
+        // Brushing at walking pace (1 m/s) along a wall in contact — must not
+        // be slowed by the collision resolver.
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: wall_mesh() });
+        world.spawn((
+            PhysicalTranslation(Vec3::new(0.0, 0.9, 0.401)),
+            Velocity(Vec3::new(1.0, 0.0, 0.0)),
+            CrouchHeight { current: 1.8, target: 1.8 },
+            MovementConfig::default(),
+            GroundedState { is_grounded: true, ..default() },
+        ));
+
+        let system_id = world.register_system(resolve_collisions);
+        let dt = 1.0 / 60.0;
+        for _ in 0..10 {
+            let vel = *world.query::<&Velocity>().single(&world).unwrap();
+            let mut pos = world.query::<&mut PhysicalTranslation>().single_mut(&mut world).unwrap();
+            pos.0 += vel.0 * dt;
+            drop(pos);
+            world.run_system(system_id).unwrap();
+        }
+
+        let (pos, vel) = world
+            .query::<(&PhysicalTranslation, &Velocity)>()
+            .single(&world)
+            .unwrap();
+        // 10 frames at 1 m/s ≈ 0.167 units; snap-back would leave x ≈ 0.
+        assert!(pos.0.x > 0.15,
+            "slow brushing must keep tangential progress, x={:.4}", pos.0.x);
+        assert!(vel.0.x > 0.8,
+            "along-wall velocity was lost: x={:.4}", vel.0.x);
     }
 }

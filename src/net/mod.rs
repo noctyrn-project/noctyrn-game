@@ -9,13 +9,7 @@ pub mod http;
 pub mod tcp;
 pub mod udp;
 pub mod prediction;
-pub mod interpolation;
 
-#[derive(Component)]
-pub struct RemoteHealthBarFill;
-
-#[derive(Component)]
-pub struct RemoteHealthBarBg;
 
 #[derive(Component)]
 pub struct RemoteHealthBar {
@@ -452,7 +446,7 @@ fn process_snapshots(
                         } else {
                             Quat::IDENTITY
                         };
-                        let beam = commands.spawn((
+                        let _beam = commands.spawn((
                             Mesh3d(meshes.add(Cuboid::new(0.02, 0.02, 2.5))),
                             MeshMaterial3d(materials.add(StandardMaterial {
                                 base_color: Color::srgb(1.0, 0.85, 0.2),
@@ -461,8 +455,10 @@ fn process_snapshots(
                             })),
                             Transform::from_translation(origin_v)
                                 .with_rotation(rot),
+                            Visibility::default(),
                             crate::player::shooting::Projectile {
                                 velocity: dir_v * speed,
+                                prev_pos: origin_v,
                                 timer: Timer::from_seconds(
                                     (140.0 / speed.max(1.0)).min(3.0),
                                     TimerMode::Once,
@@ -556,7 +552,7 @@ fn process_snapshots(
                 // We set a resource to signal game-over to that system.
                 commands.insert_resource(crate::gameplay::MatchOverFromServer { winner: *winner_id });
             }
-            noctyrn_shared::protocol::GameEvent::GrenadeExploded { owner_id, position, weapon, damage, radius } => {
+            noctyrn_shared::protocol::GameEvent::GrenadeExploded { owner_id, position, weapon, damage, radius: _radius } => {
                 info!("Grenade exploded at ({:.1},{:.1},{:.1}) from {owner_id} ({weapon}, dmg={damage})", position[0], position[1], position[2]);
                 let center = Vec3::new(position[0], position[1], position[2]);
                 let mut rng = rand::rng();
@@ -626,9 +622,6 @@ fn process_snapshots(
     let pill_mat = materials.add(StandardMaterial {
         base_color: Color::srgb(0.15, 0.2, 0.35), ..default()
     });
-    let bar_bg_mat = materials.add(StandardMaterial { base_color: Color::srgb(0.1, 0.1, 0.1), ..default() });
-    let bar_fill_mat = materials.add(StandardMaterial { base_color: Color::srgb(0.2, 0.8, 0.2), ..default() });
-    let bar_mesh = meshes.add(Rectangle::new(0.8, 0.08));
 
     for p in &snapshot.players {
         if let Some(lid) = local_player_id { if p.id == lid { continue; } }
@@ -885,10 +878,15 @@ pub fn spawn_remote_weapon(
                 config.meta.rotation_offset[1],
                 config.meta.rotation_offset[2],
             );
-            parent.spawn(RemoteWeaponModel { weapon_id: weapon_id.to_string() }).with_children(|w| {
+            parent.spawn((
+                RemoteWeaponModel { weapon_id: weapon_id.to_string() },
+                Transform::default(),
+                Visibility::default(),
+            )).with_children(|w| {
                 w.spawn((
                     WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                     Transform::from_translation(pos).with_rotation(rot).with_scale(Vec3::splat(config.meta.scale * 0.7)),
+                    Visibility::default(),
                 ));
             });
         } else {
@@ -968,7 +966,7 @@ pub fn update_remote_weapons(
             }
         }
         if let Some(old) = existing_weapon {
-            commands.entity(old).despawn();
+            commands.entity(old).try_despawn();
             commands.entity(entity).with_children(|parent| {
                 spawn_remote_weapon(parent, &asset_server, &mut meshes, &mut materials, &registry, &rp.weapon_id);
             });

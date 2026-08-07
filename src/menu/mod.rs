@@ -293,10 +293,10 @@ impl Plugin for MenuPlugin {
         // Camera animation + freecam run during any menu state.
         app.add_systems(Update, main_menu::update_menu_camera.run_if(
             in_state(GameState::MainMenu)
-            .or(in_state(GameState::LoadoutSelect))
-            .or(in_state(GameState::CrateOpening))
-            .or(in_state(GameState::GameModeSelect))
-            .or(in_state(GameState::Cosmetics)),
+            .or_else(in_state(GameState::LoadoutSelect))
+            .or_else(in_state(GameState::CrateOpening))
+            .or_else(in_state(GameState::GameModeSelect))
+            .or_else(in_state(GameState::Cosmetics)),
         ));
         app.add_systems(Update, (
             main_menu::menu_camera_look,
@@ -304,10 +304,10 @@ impl Plugin for MenuPlugin {
             main_menu::menu_freecam_toggle,
         ).run_if(
             in_state(GameState::MainMenu)
-            .or(in_state(GameState::LoadoutSelect))
-            .or(in_state(GameState::CrateOpening))
-            .or(in_state(GameState::GameModeSelect))
-            .or(in_state(GameState::Cosmetics)),
+            .or_else(in_state(GameState::LoadoutSelect))
+            .or_else(in_state(GameState::CrateOpening))
+            .or_else(in_state(GameState::GameModeSelect))
+            .or_else(in_state(GameState::Cosmetics)),
         ));
 
         // Profile overlay (within MainMenu)

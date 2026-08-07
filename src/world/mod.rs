@@ -33,6 +33,21 @@ impl Default for SelectedMapId {
     }
 }
 
+/// First spawn point of the selected map (scaled), or a safe fallback for
+/// procedural maps. Used for player spawn and respawns.
+pub fn map_spawn_point(selected_map: &SelectedMapId) -> Vec3 {
+    match selected_map.0.as_str() {
+        "dust_storm" | "city" => {
+            let data = noctyrn_shared::map_data::load_map_data(&selected_map.0);
+            data.spawns
+                .first()
+                .map(|s| Vec3::new(s[0], s[1], s[2]) * data.scale)
+                .unwrap_or(Vec3::new(0.0, 1.7, 0.0))
+        }
+        _ => Vec3::new(0.0, 1.7, 0.0),
+    }
+}
+
 pub struct World;
 
 impl Plugin for World {
@@ -100,7 +115,7 @@ fn despawn_game_map(
         .chain(main_light_query.iter())
     {
         if let Ok(mut cmds) = commands.get_entity(entity) {
-            cmds.despawn();
+            cmds.try_despawn();
         }
     }
 }

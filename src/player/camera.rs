@@ -287,7 +287,7 @@ pub fn spawn_camera_shake(commands: &mut Commands, intensity: f32, duration: f32
 pub fn apply_lean(
     time: Res<Time>,
     sway: Res<CameraSway>,
-    mut camera: Query<(&mut Transform, &CameraRotation), With<super::MainCamera>>,
+    mut camera: Query<(&mut Transform, &CameraRotation, &mut super::shooting::CameraRecoil), With<super::MainCamera>>,
     mut player: Query<(
         &mut super::movement::LeanState,
         &AccumulatedInput,
@@ -300,7 +300,7 @@ pub fn apply_lean(
     if debug_settings.free_cam { return; }
 
     let Ok((mut lean, input, config, state, dive)) = player.single_mut() else { return };
-    let Ok((mut cam_transform, cam_rot)) = camera.single_mut() else { return };
+    let Ok((mut cam_transform, cam_rot, recoil)) = camera.single_mut() else { return };
 
     let dt = time.delta_secs();
 
@@ -325,12 +325,71 @@ pub fn apply_lean(
         0.0
     };
 
-    // Build final rotation
+    // Build final rotation — recoil is composed here so it can never be
+    // overwritten by the per-frame camera rotation rebuild.
     let combined_roll = lean.current + sway.roll_offset;
     cam_transform.rotation = Quat::from_euler(
         EulerRot::YXZ,
-        cam_rot.yaw + sway.yaw_offset,
-        cam_rot.pitch + sway.pitch_offset + dive_pitch_offset,
+        cam_rot.yaw + sway.yaw_offset + recoil.yaw,
+        cam_rot.pitch + sway.pitch_offset + dive_pitch_offset + recoil.pitch,
         combined_roll,
     );
+}
+
+#[cfg(test)]
+mod recoil_compose_tests {
+    use super::*;
+    use crate::player::movement::{DiveState, LeanState, MovementConfig};
+    use crate::player::{AccumulatedInput, DebugSettings, MainCamera};
+    use crate::player::shooting::{CameraRecoil, handle_camera_recoil};
+    use crate::gameplay::PlayerBody;
+
+    fn spawn_world() -> World {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.init_resource::<CameraSway>();
+        world.init_resource::<DebugSettings>();
+        let mut input = ButtonInput::<MouseButton>::default();
+        input.press(MouseButton::Left);
+        world.insert_resource(input);
+        world.spawn((
+            Transform::IDENTITY,
+            CameraRotation { yaw: 0.0, pitch: 0.0 },
+            CameraRecoil { pitch: 0.0, climb: 0.1, yaw: 0.0, yaw_target: 0.0 },
+            MainCamera,
+        ));
+        world.spawn((
+            LeanState::default(),
+            AccumulatedInput::default(),
+            MovementConfig::default(),
+            MovementState::Idle,
+            DiveState::default(),
+            PlayerBody,
+        ));
+        world
+    }
+
+    #[test]
+    fn recoil_pitch_reaches_camera_transform() {
+        let mut world = spawn_world();
+
+        // Let the pitch chase the climb target for a few frames…
+        for _ in 0..10 {
+            world.resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(1.0 / 60.0));
+            let id = world.register_system(handle_camera_recoil);
+            world.run_system(id).unwrap();
+        }
+        // …then compose through apply_lean exactly like the frame does.
+        let id = world.register_system(apply_lean);
+        world.run_system(id).unwrap();
+
+        let (cam, recoil) = world.query::<(&Transform, &CameraRecoil)>().single(&world).unwrap();
+        let (_, pitch, _) = cam.rotation.to_euler(EulerRot::YXZ);
+        assert!(
+            pitch > 0.03,
+            "recoil pitch must reach the camera transform, got {:.4} (recoil.pitch={:.4})",
+            pitch,
+            recoil.pitch
+        );
+    }
 }

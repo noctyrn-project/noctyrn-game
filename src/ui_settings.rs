@@ -884,10 +884,6 @@ pub struct Selector {
     pub current_index: usize,
 }
 
-#[derive(Component)]
-pub struct SelectorOption {
-    pub index: usize,
-}
 
 fn spawn_slider(commands: &mut Commands, parent: Entity, label: &str, value: f32, min: f32, max: f32, step: f32, action: SettingAction) {
     commands.entity(parent).with_children(|parent| {
@@ -1060,8 +1056,6 @@ fn spawn_selector(commands: &mut Commands, parent: Entity, label: &str, options:
     });
 }
 
-fn on_slider_drag_start() {}
-// Old observer-based drag system removed - using +/- buttons and click-drag now
 
 /// System to handle click-and-drag on slider tracks
 pub fn handle_slider_drag(

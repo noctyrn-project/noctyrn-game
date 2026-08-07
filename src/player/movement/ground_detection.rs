@@ -1,7 +1,6 @@
 use bevy::prelude::*;
-use bevy_rapier3d::rapier::parry::shape::Capsule;
-use bevy_rapier3d::rapier::parry::math::Pose;
-use bevy_rapier3d::rapier::parry::query::distance;
+use bevy_rapier3d::rapier::parry::query::{Ray, RayCast};
+use bevy_rapier3d::rapier::parry::math::Vector;
 
 use super::components::*;
 use super::config::MovementConfig;
@@ -38,7 +37,6 @@ pub fn detect_ground(
         ground.ground_normal = Vec3::Y;
 
         let foot_margin = config.foot_margin;
-        let player_radius = config.player_radius;
 
         // ── Floor plane (y = 0) ──
         if position.y <= foot_margin {
@@ -60,12 +58,17 @@ pub fn detect_ground(
         }
 
         // ── Mesh collider ground detection ──
-        let foot_capsule = Capsule::new_y(0.01, player_radius);
-        for mesh in mesh_query.iter() {
-            let foot_pos = Vec3::new(position.x, position.y + 0.01, position.z);
-            let iso = Pose::translation(foot_pos.x, foot_pos.y, foot_pos.z);
-            if let Ok(d) = distance(&iso, &foot_capsule, &Pose::identity(), &mesh.mesh) {
-                if d < foot_margin * 3.0 && velocity.y <= 0.1 {
+        // Directional: only surfaces BELOW the player's feet can ground them.
+        // (A wall beside the player must not register as ground — otherwise
+        // brushing a wall would grant infinite jumps and constant friction.)
+        let foot_origin = Vec3::new(position.x, position.y + 0.02, position.z);
+        let down_ray = Ray::new(
+            Vector::new(foot_origin.x, foot_origin.y, foot_origin.z),
+            Vector::new(0.0, -1.0, 0.0),
+        );
+        if velocity.y <= 0.1 {
+            for mesh in mesh_query.iter() {
+                if mesh.mesh.cast_local_ray(&down_ray, foot_margin * 3.0, true).is_some() {
                     ground.is_grounded = true;
                     break;
                 }

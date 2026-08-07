@@ -19,7 +19,7 @@ pub fn integrate_velocity(
     for (
         mut position,
         mut prev_position,
-        mut velocity,
+        velocity,
         state,
         mantle,
         health,

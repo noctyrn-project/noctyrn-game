@@ -149,7 +149,7 @@ fn record_ping(
     if let Some(udp) = udp {
         let snapshot = udp.latest_snapshot.lock().unwrap();
         let now = std::time::Instant::now();
-        if let Some(ref snap) = *snapshot {
+        if snapshot.is_some() {
             let is_new = tracker.last_snapshot_time.map_or(true, |prev| {
                 now.duration_since(prev).as_secs_f64() > 0.001
             });

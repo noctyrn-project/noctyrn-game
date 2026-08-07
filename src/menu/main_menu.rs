@@ -179,6 +179,7 @@ pub fn setup_main_menu_scene(
         commands.spawn((
             WorldAssetRoot(asset_server.load("maps/lobby.glb#Scene0")),
             Transform::from_scale(Vec3::splat(LOBBY_SCALE)),
+            Visibility::default(),
             MainMenuSceneEntity,
         ));
     }
@@ -197,14 +198,6 @@ pub fn setup_main_menu_scene(
     }
 }
 
-pub fn cleanup_main_menu_scene(
-    mut commands: Commands,
-    query: Query<Entity, With<MainMenuSceneEntity>>,
-) {
-    for entity in query.iter() {
-        commands.entity(entity).despawn();
-    }
-}
 
 /// Kick off a smooth camera animation towards a target pose.
 pub fn start_camera_anim(

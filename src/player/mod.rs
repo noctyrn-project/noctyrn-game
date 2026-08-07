@@ -5,15 +5,15 @@ use bevy::settings::SaveSettings;
 use bevy::app::AppExit;
 use bevy::ecs::relationship::Relationship;
 use bevy::camera::visibility::RenderLayers;
-use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout, WeaponConfig, sync_loadout_to_configs, slot_from_weapon_type};
-use crate::gameplay::{Health, PlayerBody, Regenerating, TurretProjectile, NeedsTeamSpawn};
+use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout};
+use crate::gameplay::{Health, PlayerBody};
 use crate::ui_config::UiConfig;
 use crate::gameplay::DeathEvent;
 use crate::ui_settings::{spawn_settings_menu, update_settings_menu, handle_settings_interaction, handle_slider_drag, SettingsState};
 use crate::settings::GameSettings;
 use crate::menu::{MenuPlugin};
 use crate::theme::*;
-use rand::Rng;
+
 
 mod movement;
 mod input;
@@ -30,11 +30,10 @@ use movement::{
 };
 use input::{AccumulatedInput, accumulate_input, clear_input, send_player_input, send_shot_fired, PlayerToggleState, InputSequence};
 pub use input::Keybinds;
-pub use input::ADSActive;
 use camera::{CameraSensitivity, CameraRotation, rotate_camera, translate_camera, free_cam_movement, update_fov, CameraSway, apply_camera_sway, apply_camera_shake, apply_lean};
 pub use inventory::WeaponModel;
-use inventory::{Inventory, handle_weapon_switching, SwitchState};
-use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil, Projectile, MuzzleFlash, Grenade, ExplosionParticle};
+use inventory::{Inventory, SwitchState};
+use shooting::{fire_weapon, move_projectiles, handle_weapon_recoil, handle_muzzle_flash, handle_melee_swing, handle_grenade_throw, update_ammo_ui, reload_weapon, handle_weapon_sway, update_bullet_holes, update_tracer_streaks, BulletHoleAssets, BulletHolePool, TracerAssets, AmmoStatus, AmmoUi, CameraRecoil, handle_camera_recoil, Projectile, MuzzleFlash, Grenade, ExplosionParticle};
 
 pub use movement::{Velocity, PhysicalTranslation, PreviousPhysicalTranslation};
 
@@ -93,12 +92,6 @@ pub struct RemappingState {
 }
 
 #[derive(Component)]
-pub struct KeybindingsUi;
-
-#[derive(Component)]
-pub struct DebugUi;
-
-#[derive(Component)]
 pub struct RemapButton {
     pub action: String,
 }
@@ -147,6 +140,9 @@ impl Plugin for Player {
         app.init_resource::<CameraSway>();
         app.init_resource::<InputSequence>();
         app.init_resource::<input::LocalFireState>();
+        app.init_resource::<BulletHoleAssets>();
+        app.init_resource::<TracerAssets>();
+        app.init_resource::<BulletHolePool>();
         
         app.add_systems(OnEnter(GameState::Playing), (spawn_player, spawn_crosshair, spawn_ammo_ui, spawn_kill_feed, spawn_stance_indicator));
         app.add_systems(OnExit(GameState::Playing), (despawn_gameplay_ui, cleanup_pause_menu_on_exit, crate::menu::close_chat));
@@ -190,6 +186,9 @@ impl Plugin for Player {
         
         app.add_systems(Update, inventory::handle_weapon_switching.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, move_projectiles.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, update_tracer_streaks.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, update_bullet_holes.run_if(in_state(GameState::Playing)));
+        app.add_systems(Update, update_hit_markers.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, apply_debug_cheats.run_if(in_state(GameState::Playing)));
         app.add_systems(Update, fire_weapon); // Note: fire_weapon checks pause state internally
         app.add_systems(Update, (
@@ -265,7 +264,11 @@ fn spawn_player(
     weapon_registry: Res<WeaponRegistry>,
     loadout: Res<PlayerLoadout>,
     game_settings: Res<GameSettings>,
+    selected_map: Res<crate::world::SelectedMapId>,
 ) {
+    // Spawn from the map's shared spawn points (avoid spawning inside geometry).
+    let initial_pos = crate::world::map_spawn_point(&selected_map);
+
     // Spawn Camera with settings-based FOV
     let camera_entity = commands.spawn((
         MainCamera,
@@ -320,7 +323,6 @@ fn spawn_player(
     initial_inventory.switch_state = SwitchState::Equipping;
     initial_inventory.switch_timer = Timer::from_seconds(0.4, TimerMode::Once);
 
-    let initial_pos = Vec3::new(0.0, 1.7, 0.0);
     let player_entity = commands.spawn((
         Name::new("Player"),
         Transform::from_translation(initial_pos).with_scale(Vec3::splat(1.0)),
@@ -368,21 +370,34 @@ fn spawn_player(
 
 fn spawn_ammo_ui(mut commands: Commands, ui_config: Res<UiConfig>) {
     let config = &ui_config.ammo_ui;
+    // Translucent pill behind the counter for readability over the world.
     commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(config.position[0]),
+            bottom: Val::Px(config.position[1]),
+            padding: UiRect::all(Val::Px(10.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            border_radius: RADIUS_SM,
+            ..default()
+        },
+        BackgroundColor(BG_PANEL.with_alpha(0.7)),
+        BorderColor::all(BORDER),
+        GameplayUi,
+        AmmoUiPanel,
+    )).with_child((
         Text::new("Ammo: -- / --"),
         TextFont { font_size: FontSize::Px(30.0),
             ..default()
         },
         TextColor(Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3])),
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(config.position[0]),
-            bottom: Val::Px(config.position[1]),
-            ..default()
-        },
         AmmoUi,
     ));
 }
+
+/// Marker on the translucent background behind the ammo counter.
+#[derive(Component)]
+pub struct AmmoUiPanel;
 
 /// Bottom-right stance indicator (standing/crouching/prone rectangle).
 #[derive(Component)]
@@ -412,7 +427,7 @@ fn spawn_stance_indicator(mut commands: Commands) {
 
 fn update_stance_indicator(
     time: Res<Time>,
-    mut indicator: Single<(&mut Node, &mut StanceIndicator)>,
+    indicator: Single<(&mut Node, &mut StanceIndicator)>,
     player: Single<&MovementState, With<LocalPlayer>>,
 ) {
     let dt = time.delta_secs();
@@ -438,6 +453,8 @@ pub struct CrosshairBottom;
 pub struct CrosshairLeft;
 #[derive(Component)]
 pub struct CrosshairRight;
+#[derive(Component)]
+pub struct CrosshairDot;
 
 fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
     let config = &ui_config.crosshair;
@@ -464,9 +481,11 @@ fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
                     top: Val::Px(-config.dot_size / 2.0),
                     width: Val::Px(config.dot_size),
                     height: Val::Px(config.dot_size),
+                    border_radius: Val::Px(config.dot_size / 2.0).into(),
                     ..default()
                 },
                 BackgroundColor(color),
+                CrosshairDot,
             ));
         }
 
@@ -478,6 +497,7 @@ fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
                 bottom: Val::Px(config.gap),
                 width: Val::Px(config.thickness),
                 height: Val::Px(config.size),
+                border_radius: Val::Px(config.thickness / 2.0).into(),
                 ..default()
             },
             BackgroundColor(color),
@@ -492,6 +512,7 @@ fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
                 top: Val::Px(config.gap),
                 width: Val::Px(config.thickness),
                 height: Val::Px(config.size),
+                border_radius: Val::Px(config.thickness / 2.0).into(),
                 ..default()
             },
             BackgroundColor(color),
@@ -506,6 +527,7 @@ fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
                 top: Val::Px(-config.thickness / 2.0),
                 width: Val::Px(config.size),
                 height: Val::Px(config.thickness),
+                border_radius: Val::Px(config.thickness / 2.0).into(),
                 ..default()
             },
             BackgroundColor(color),
@@ -520,6 +542,7 @@ fn spawn_crosshair(mut commands: Commands, ui_config: Res<UiConfig>) {
                 top: Val::Px(-config.thickness / 2.0),
                 width: Val::Px(config.size),
                 height: Val::Px(config.thickness),
+                border_radius: Val::Px(config.thickness / 2.0).into(),
                 ..default()
             },
             BackgroundColor(color),
@@ -533,45 +556,73 @@ fn update_crosshair(
     ammo_status_query: Query<&AmmoStatus>,
     inventory_query: Query<&Inventory>,
     weapon_registry: Res<WeaponRegistry>,
-    mut top_query: Query<&mut Node, (With<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairLeft>, Without<CrosshairRight>)>,
-    mut bottom_query: Query<&mut Node, (With<CrosshairBottom>, Without<CrosshairTop>, Without<CrosshairLeft>, Without<CrosshairRight>)>,
-    mut left_query: Query<&mut Node, (With<CrosshairLeft>, Without<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairRight>)>,
-    mut right_query: Query<&mut Node, (With<CrosshairRight>, Without<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairLeft>)>,
+    mut top_query: Query<(&mut Node, &mut BackgroundColor), (With<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairLeft>, Without<CrosshairRight>, Without<CrosshairDot>)>,
+    mut bottom_query: Query<(&mut Node, &mut BackgroundColor), (With<CrosshairBottom>, Without<CrosshairTop>, Without<CrosshairLeft>, Without<CrosshairRight>, Without<CrosshairDot>)>,
+    mut left_query: Query<(&mut Node, &mut BackgroundColor), (With<CrosshairLeft>, Without<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairRight>, Without<CrosshairDot>)>,
+    mut right_query: Query<(&mut Node, &mut BackgroundColor), (With<CrosshairRight>, Without<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairLeft>, Without<CrosshairDot>)>,
+    mut dot_query: Query<&mut BackgroundColor, (With<CrosshairDot>, Without<CrosshairTop>, Without<CrosshairBottom>, Without<CrosshairLeft>, Without<CrosshairRight>)>,
 ) {
-    let (heat, accuracy) = if let Some(status) = ammo_status_query.iter().next() {
-        let accuracy = if let Some(inventory) = inventory_query.iter().next() {
-             weapon_registry.configs.get(&inventory.active_slot)
-                .map(|c| c.attributes.accuracy)
-                .unwrap_or(1.0)
+    // Shotguns get a wide, fixed crosshair driven by their pellet spread
+    // cone (the full cone, so the spread reads clearly) with no heat bloom
+    // and no center dot; everything else grows from accuracy + heat.
+    let (heat, spread_angle, shotgun) = if let Some(status) = ammo_status_query.iter().next() {
+        if let Some(inventory) = inventory_query.iter().next() {
+            if let Some(config) = weapon_registry.configs.get(&inventory.active_slot) {
+                if config.attributes.pellet_count > 0 {
+                    let cone = config.attributes.spread_cone.to_radians();
+                    (0.0, cone.max(0.001), true)
+                } else {
+                    let max_spread = 0.1;
+                    let heat_penalty = status.heat * 0.05;
+                    (
+                        status.heat,
+                        ((1.0 - config.attributes.accuracy) * max_spread + heat_penalty).max(0.001),
+                        false,
+                    )
+                }
+            } else {
+                (status.heat, 0.1, false)
+            }
         } else {
-            1.0
-        };
-        (status.heat, accuracy)
+            (status.heat, 0.1, false)
+        }
     } else {
-        (0.0, 1.0)
+        (0.0, 0.1, false)
     };
-
-    let max_spread = 0.1; 
-    let heat_penalty = heat * 0.05;
-    let spread_angle = ((1.0 - accuracy) * max_spread + heat_penalty).max(0.001);
-    
     // Convert spread angle to pixels (Approximate)
     let spread_pixels = spread_angle * 1000.0; 
 
     let config = &ui_config.crosshair;
     let gap = config.gap + spread_pixels;
 
-    for mut node in top_query.iter_mut() {
+    // Fade the crosshair out as the spread grows (shotguns don't bloom).
+    let base_color = Color::srgba(config.color[0], config.color[1], config.color[2], config.color[3]);
+    let fade = (1.0 - heat * 0.35).clamp(0.35, 1.0);
+    let faded = base_color.with_alpha(base_color.alpha() * fade);
+
+    for (mut node, mut color) in top_query.iter_mut() {
         node.bottom = Val::Px(gap);
+        color.0 = faded;
     }
-    for mut node in bottom_query.iter_mut() {
+    for (mut node, mut color) in bottom_query.iter_mut() {
         node.top = Val::Px(gap);
+        color.0 = faded;
     }
-    for mut node in left_query.iter_mut() {
+    for (mut node, mut color) in left_query.iter_mut() {
         node.right = Val::Px(gap);
+        color.0 = faded;
     }
-    for mut node in right_query.iter_mut() {
+    for (mut node, mut color) in right_query.iter_mut() {
         node.left = Val::Px(gap);
+        color.0 = faded;
+    }
+    for mut color in dot_query.iter_mut() {
+        // Shotguns drop the center dot so the wide spread reads clearly.
+        color.0 = if shotgun {
+            Color::NONE
+        } else {
+            faded
+        };
     }
 }
 
@@ -664,7 +715,6 @@ fn despawn_gameplay_ui(
     grenade_query: Query<Entity, With<Grenade>>,
     weapon_model_query: Query<Entity, With<WeaponModel>>,
     explosion_query: Query<Entity, With<ExplosionParticle>>,
-    turret_proj_query: Query<Entity, With<TurretProjectile>>,
 ) {
     for entity in query.iter()
         .chain(health_ui_query.iter())
@@ -676,10 +726,9 @@ fn despawn_gameplay_ui(
         .chain(grenade_query.iter())
         .chain(weapon_model_query.iter())
         .chain(explosion_query.iter())
-        .chain(turret_proj_query.iter())
     {
         if let Ok(mut cmds) = commands.get_entity(entity) {
-            cmds.despawn();
+            cmds.try_despawn();
         }
     }
 }
@@ -1065,7 +1114,7 @@ fn ensure_weapon_render_layers(
 
 fn draw_hitboxes(
     mut gizmos: Gizmos,
-    enemy_query: Query<(&GlobalTransform, Option<&crate::gameplay::Turret>), With<crate::gameplay::Enemy>>,
+    enemy_query: Query<&GlobalTransform, With<crate::gameplay::Enemy>>,
     remote_query: Query<&GlobalTransform, With<RemotePlayer>>,
     ramp_query: Query<(&GlobalTransform, &crate::world::objects::RampCollider)>,
     mesh_query: Query<&crate::world::objects::MeshCollider>,
@@ -1115,19 +1164,13 @@ fn draw_hitboxes(
         }
     }
 
-    // Draw enemy hitboxes (red)
-    for (transform, turret) in enemy_query.iter() {
+    // Draw enemy hitboxes (red capsule approximation)
+    for transform in enemy_query.iter() {
         let pos = transform.translation();
-        let color = Color::srgb(1.0, 0.0, 0.0);
-        if turret.is_some() {
-            gizmos.cube(Transform::from_translation(pos).with_scale(Vec3::splat(1.0)), color);
-        } else {
-            // Capsule approximation for testing grounds dummies (radius 0.3, height 0.6)
-            gizmos.cube(
-                Transform::from_translation(pos).with_scale(Vec3::new(0.6, 0.6, 0.6)),
-                color,
-            );
-        }
+        gizmos.cube(
+            Transform::from_translation(pos).with_scale(Vec3::new(0.6, 0.6, 0.6)),
+            Color::srgb(1.0, 0.0, 0.0),
+        );
     }
 }
 
@@ -1185,9 +1228,68 @@ pub struct DamageNumber {
 }
 
 /// Spawn a hit marker crosshair effect.
+/// Short-lived hit-marker flash (X shape) that despawns after a moment.
+#[derive(Component)]
+pub struct HitMarkerFlash {
+    pub timer: Timer,
+}
+
 pub fn spawn_hit_marker(commands: &mut Commands) {
-    // Simple crosshair flash — could spawn a colored ring animation.
-    // For now, this is a placeholder; the crosshair system handles the visual.
+    let size = 10.0;
+    let thickness = 2.0;
+    let color = Color::srgba(0.95, 0.9, 0.85, 0.95);
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Percent(50.0),
+                top: Val::Percent(50.0),
+                width: Val::Px(0.0),
+                height: Val::Px(0.0),
+                ..default()
+            },
+            GameplayUi,
+            HitMarkerFlash {
+                timer: Timer::from_seconds(0.15, TimerMode::Once),
+            },
+        ))
+        .with_children(|parent| {
+            for rot in [
+                bevy::math::Rot2::degrees(45.0),
+                bevy::math::Rot2::degrees(-45.0),
+            ] {
+                parent.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(-size / 2.0),
+                        top: Val::Px(-thickness / 2.0),
+                        width: Val::Px(size),
+                        height: Val::Px(thickness),
+                        border_radius: Val::Px(thickness / 2.0).into(),
+                        ..default()
+                    },
+                    BackgroundColor(color),
+                    UiTransform {
+                        rotation: rot,
+                        ..default()
+                    },
+                ));
+            }
+        });
+}
+
+/// Despawns expired hit-marker flashes.
+pub fn update_hit_markers(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut HitMarkerFlash)>,
+) {
+    for (entity, mut flash) in query.iter_mut() {
+        flash.timer.tick(time.delta());
+        if flash.timer.is_finished() {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 /// Spawn a floating damage number at a world position.

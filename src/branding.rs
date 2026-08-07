@@ -123,6 +123,7 @@ fn spawn_splash(
     mut boot: ResMut<PendingBootLoad>,
 ) {
     spawn_branded_screen(&mut commands, &asset_server, &mut atlas_assets);
+    spawn_branded_camera(&mut commands);
     boot.lobby = Some(asset_server.load::<WorldAsset>("maps/lobby.glb#Scene0"));
 }
 
@@ -138,6 +139,7 @@ fn spawn_loading(
     target: Res<PendingLoadingTarget>,
 ) {
     spawn_branded_screen(&mut commands, &asset_server, &mut atlas_assets);
+    spawn_branded_camera(&mut commands);
 
     // GLB maps load asynchronously; procedural maps have nothing to load.
     pending.scene = match target.0 {
@@ -175,6 +177,7 @@ fn spawn_branded_screen(
             ..default()
         },
         BackgroundColor(BRAND_BG),
+        Visibility::default(),
         BrandedScreen,
     ));
     root.with_child((
@@ -193,17 +196,24 @@ fn spawn_branded_screen(
         BrandTimeline::default(),
         BrandLogo,
     ));
-    // Branded screens always bring their own camera — at boot and when
-    // leaving a match there is no other camera alive.
-    root.with_child((
+    root.id()
+}
+
+/// Branded screens always bring their own camera — at boot and when leaving
+/// a match there is no other camera alive. It's spawned as a SEPARATE
+/// top-level entity (not a child of the UI root): UI nodes use `UiTransform`,
+/// so a camera child of the UI root would trigger a GlobalTransform B0004.
+/// Tagged `BrandedScreen` so the exit cleanup despawns it too.
+fn spawn_branded_camera(commands: &mut Commands) {
+    commands.spawn((
         Camera2d::default(),
         Camera {
             order: 1,
             clear_color: ClearColorConfig::Custom(BRAND_BG),
             ..default()
         },
+        BrandedScreen,
     ));
-    root.id()
 }
 
 fn despawn_branded_screens(
@@ -211,7 +221,7 @@ fn despawn_branded_screens(
     screens: Query<Entity, With<BrandedScreen>>,
 ) {
     for entity in &screens {
-        commands.entity(entity).despawn();
+        commands.entity(entity).try_despawn();
     }
 }
 

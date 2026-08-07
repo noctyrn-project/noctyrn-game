@@ -14,9 +14,6 @@ pub struct ProfileLogoutButton;
 #[derive(Component)]
 pub struct ProfileGoToLoginButton;
 
-#[derive(Component)]
-pub struct ProfileStatText(String);
-
 #[derive(Resource, Default)]
 pub struct ProfileOverlayState {
     pub show: bool,

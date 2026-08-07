@@ -37,7 +37,7 @@ impl Default for SelectedMapId {
 /// procedural maps. Used for player spawn and respawns.
 pub fn map_spawn_point(selected_map: &SelectedMapId) -> Vec3 {
     match selected_map.0.as_str() {
-        "dust_storm" | "city" => {
+        "dust_storm" | "city" | "testing_grounds" => {
             let data = noctyrn_shared::map_data::load_map_data(&selected_map.0);
             data.spawns
                 .first()

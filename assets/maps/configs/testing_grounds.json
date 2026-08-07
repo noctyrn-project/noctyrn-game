@@ -1,0 +1,9 @@
+{
+  "glb": "maps/testing_grounds.glb#Scene0",
+  "scale": 1.0,
+  "lights": [
+    { "position": [0.0, 25.0, 0.0], "intensity": 15000000.0, "shadows": true },
+    { "position": [50.0, 20.0, 50.0], "intensity": 15000000.0, "shadows": false },
+    { "position": [-50.0, 20.0, -50.0], "intensity": 15000000.0, "shadows": false }
+  ]
+}

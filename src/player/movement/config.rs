@@ -3,6 +3,11 @@ use bevy::prelude::*;
 use super::components::MovementState;
 use crate::player::input::AccumulatedInput;
 
+/// Surfaces steeper than this are walls, not ground (UE4's walkable floor
+/// angle is 44.76° ≈ cos⁻¹(0.71)). Used for ground detection, step-up
+/// gating, and slope riding.
+pub const WALKABLE_SLOPE_THRESHOLD: f32 = 0.7;
+
 #[derive(Debug, Component, Clone)]
 pub struct MovementConfig {
     // ── Ground Movement ──
@@ -134,8 +139,8 @@ impl Default for MovementConfig {
             slide_boost: 1.5,
             slide_cancel_speed_preservation: 0.85,
 
-            // Step-up (auto-step obstacles up to 0.25m)
-            step_up_height: 0.25,
+            // Step-up (auto-step obstacles up to 0.45m — UE4 default)
+            step_up_height: 0.45,
 
             // Directional speed
             strafe_speed_multiplier: 0.85,

@@ -42,6 +42,7 @@ pub fn load(name: &str) -> MapConfig {
     let json = match name {
         "dust_storm" => include_str!("../../assets/maps/configs/dust_storm.json"),
         "city" => include_str!("../../assets/maps/configs/city.json"),
+        "testing_grounds" => include_str!("../../assets/maps/configs/testing_grounds.json"),
         _ => panic!("Unknown map config: {name}"),
     };
     serde_json::from_str(json).expect("Invalid map config JSON")

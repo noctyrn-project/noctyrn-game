@@ -11,7 +11,7 @@ pub fn spawn_map_by_id(
     asset_server: &AssetServer,
 ) -> bool {
     match map_id {
-        "dust_storm" | "city" => {
+        "dust_storm" | "city" | "testing_grounds" => {
             spawner::spawn(map_id, commands, meshes, materials, asset_server);
             true
         }

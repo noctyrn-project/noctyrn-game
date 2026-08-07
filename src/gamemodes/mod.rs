@@ -1,12 +1,11 @@
 //! Per-gamemode modules.
 //!
 //! Each sub-module exposes:
-//! - `spawn_map(commands, meshes, materials)` – spawns the geometry for that mode.
 //! - `spawn_mode_entities(commands, meshes, materials)` – spawns objectives, NPCs,
 //!   or other mode-specific entities.
 //!
-//! Note: Only `TestingGrounds` retains its procedural arena. All other gamemodes
-//! use GLB-based maps selected from the global map pool.
+//! Note: All maps are GLB-based (selected from the map pool); gamemodes only
+//! add entities on top of the map.
 
 pub mod testing_grounds;
 pub mod ffa;
@@ -18,18 +17,15 @@ use bevy::prelude::*;
 use crate::menu::GameMode;
 
 /// Convenience: spawn the correct map for a game mode (procedural fallback).
-/// Only `TestingGrounds` has a dedicated procedural map; all other modes
-/// are handled by the `maps` module via `MapId`.
+/// All maps are now GLB-based via the `maps` module — this is a no-op kept
+/// for the fallback path in `world::spawn_game_map`.
 pub fn spawn_map_for_mode(
-    mode: GameMode,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    _mode: GameMode,
+    _commands: &mut Commands,
+    _meshes: &mut ResMut<Assets<Mesh>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    match mode {
-        GameMode::TestingGrounds => testing_grounds::spawn_map(commands, meshes, materials),
-        _ => {} // Other modes use GLB-based maps via `SelectedMapId`.
-    }
+    // All maps are GLB-based — nothing to spawn procedurally.
 }
 
 /// Convenience: spawn mode-specific entities (objectives, zones, enemies).

@@ -58,9 +58,10 @@ pub fn detect_ground(
         }
 
         // ── Mesh collider ground detection ──
-        // Directional: only surfaces BELOW the player's feet can ground them.
-        // (A wall beside the player must not register as ground — otherwise
-        // brushing a wall would grant infinite jumps and constant friction.)
+        // Directional + walkable-angle filtered: only surfaces BELOW the
+        // player's feet with a mostly-upward normal can ground them. (A wall
+        // beside the player must not register as ground — otherwise brushing
+        // a wall grants infinite jumps and constant friction.)
         let foot_origin = Vec3::new(position.x, position.y + 0.02, position.z);
         let down_ray = Ray::new(
             Vector::new(foot_origin.x, foot_origin.y, foot_origin.z),
@@ -68,9 +69,14 @@ pub fn detect_ground(
         );
         if velocity.y <= 0.1 {
             for mesh in mesh_query.iter() {
-                if mesh.mesh.cast_local_ray(&down_ray, foot_margin * 3.0, true).is_some() {
-                    ground.is_grounded = true;
-                    break;
+                if let Some(hit) = mesh
+                    .mesh
+                    .cast_local_ray_and_get_normal(&down_ray, foot_margin * 3.0, true)
+                {
+                    if hit.normal.y > super::config::WALKABLE_SLOPE_THRESHOLD {
+                        ground.is_grounded = true;
+                        break;
+                    }
                 }
             }
         }
@@ -126,4 +132,108 @@ pub fn ramp_surface_y(
     }
 
     Some(surface_world.y)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_rapier3d::rapier::parry::math::Vector;
+    use bevy_rapier3d::rapier::parry::shape::TriMesh;
+
+    fn spawn(world: &mut World, feet: Vec3) {
+        world.spawn((
+            PhysicalTranslation(feet),
+            Velocity(Vec3::ZERO),
+            MovementConfig::default(),
+            GroundedState::default(),
+        ));
+    }
+
+    fn run_detect(world: &mut World) -> bool {
+        let id = world.register_system(detect_ground);
+        world.run_system(id).unwrap();
+        world.query::<&GroundedState>().single(world).unwrap().is_grounded
+    }
+
+    #[test]
+    fn steep_slope_does_not_ground() {
+        // 60° surface (y = 1.732·z): steeper than the walkable threshold —
+        // the player must NOT be grounded on it (they should slide off, not
+        // stick to a near-vertical face).
+        let verts = vec![
+            Vector::new(-1.0, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(1.0, 1.732, 1.0),
+            Vector::new(-1.0, 1.732, 1.0),
+        ];
+        // Winding so the face normal is (0, 0.5, -0.866).
+        let idx = vec![[0, 2, 1], [0, 3, 2]];
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider {
+            mesh: TriMesh::new(verts, idx).unwrap(),
+        });
+        // Feet ON the slope (surface at z=0.3 is y=0.52).
+        spawn(&mut world, Vec3::new(0.0, 0.52, 0.3));
+        assert!(!run_detect(&mut world), "a 60° face must not ground the player");
+    }
+
+    #[test]
+    fn gentle_slope_grounds() {
+        // 30° surface: walkable → grounded.
+        let verts = vec![
+            Vector::new(-1.0, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(1.0, 0.577, 1.0),
+            Vector::new(-1.0, 0.577, 1.0),
+        ];
+        let idx = vec![[0, 2, 1], [0, 3, 2]];
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider {
+            mesh: TriMesh::new(verts, idx).unwrap(),
+        });
+        spawn(&mut world, Vec3::new(0.0, 0.173, 0.3));
+        assert!(run_detect(&mut world), "a 30° face must ground the player");
+    }
+
+    #[test]
+    fn box_top_grounds_and_overhang_does_not() {
+        // Outward 2×2×2 box at the origin (top at y=1.0).
+        let verts = vec![
+            Vector::new(-1.0, 1.0, 1.0), Vector::new(1.0, 1.0, 1.0),
+            Vector::new(1.0, 1.0, -1.0), Vector::new(-1.0, 1.0, -1.0),
+            Vector::new(1.0, -1.0, -1.0), Vector::new(1.0, 1.0, -1.0),
+            Vector::new(1.0, 1.0, 1.0), Vector::new(1.0, -1.0, 1.0),
+            Vector::new(-1.0, -1.0, 1.0), Vector::new(-1.0, 1.0, 1.0),
+            Vector::new(-1.0, 1.0, -1.0), Vector::new(-1.0, -1.0, -1.0),
+            Vector::new(-1.0, -1.0, 1.0), Vector::new(1.0, -1.0, 1.0),
+            Vector::new(1.0, 1.0, 1.0), Vector::new(-1.0, 1.0, 1.0),
+            Vector::new(-1.0, -1.0, -1.0), Vector::new(1.0, 1.0, -1.0),
+            Vector::new(1.0, -1.0, -1.0), Vector::new(-1.0, 1.0, -1.0),
+            Vector::new(-1.0, -1.0, 1.0), Vector::new(1.0, -1.0, -1.0),
+            Vector::new(1.0, -1.0, 1.0), Vector::new(-1.0, -1.0, -1.0),
+        ];
+        let idx = vec![
+            [0, 1, 2], [0, 2, 3], [4, 5, 6], [4, 6, 7],
+            [8, 9, 10], [8, 10, 11], [12, 13, 14], [12, 14, 15],
+            [16, 17, 18], [16, 19, 17], [20, 21, 22], [20, 23, 21],
+        ];
+        let box_mesh = TriMesh::new(verts, idx).unwrap();
+
+        // Standing on the box top → grounded.
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: box_mesh.clone() });
+        spawn(&mut world, Vec3::new(0.5, 1.0, 0.0));
+        assert!(run_detect(&mut world), "box top must ground the player");
+
+        // Feet overhanging the edge (no surface below) → NOT grounded, even
+        // though the box's side face is beside them.
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: box_mesh });
+        spawn(&mut world, Vec3::new(1.05, 1.0, 0.0));
+        assert!(!run_detect(&mut world), "an overhanging edge must not ground the player");
+    }
 }

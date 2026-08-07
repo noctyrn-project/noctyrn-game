@@ -287,3 +287,35 @@ pub fn spawn_glass_shatter(
         }
     }
 }
+
+#[cfg(test)]
+mod map_collider_tests {
+    use super::*;
+
+    /// Mirrors the runtime path in `maps::spawner::spawn`: parse the baked
+    /// collider JSON and build a parry TriMesh for every node.
+    #[test]
+    fn testing_grounds_colliders_build() {
+        let colliders = noctyrn_shared::map_data::load_colliders("testing_grounds");
+        let data = noctyrn_shared::map_data::load_map_data("testing_grounds");
+        assert!(!colliders.colliders.is_empty(), "no colliders baked");
+        for (i, m) in colliders.colliders.iter().enumerate() {
+            let mc = MeshCollider::from_json(m, data.scale);
+            assert!(mc.is_some(), "collider #{i} failed to build a TriMesh");
+            assert!(!m.vertices.is_empty() && !m.indices.is_empty(), "collider #{i} is empty");
+        }
+    }
+
+    #[test]
+    fn testing_grounds_spawn_point_inside_ground() {
+        let data = noctyrn_shared::map_data::load_map_data("testing_grounds");
+        let spawn = data.spawns.first().copied().unwrap_or([0.0, 1.0, 0.0]);
+        assert!(spawn[1] >= 0.0, "spawn must not be below the ground plane");
+        // The client-side config (GLB path/scale/lights) must parse too —
+        // `maps::spawner::spawn` calls it at match start.
+        let cfg = crate::maps::config::load("testing_grounds");
+        assert!(cfg.glb.contains("testing_grounds.glb"), "unexpected glb path: {}", cfg.glb);
+        assert_eq!(cfg.scale, data.scale, "config scale must match map data scale");
+        assert!(!cfg.lights.is_empty(), "map has no lights");
+    }
+}

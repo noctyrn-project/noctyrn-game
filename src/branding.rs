@@ -145,7 +145,7 @@ fn spawn_loading(
     pending.scene = match target.0 {
         LoadingTarget::BackToMenu => None,
         LoadingTarget::IntoMatch => match selected_map.0.as_str() {
-            "dust_storm" | "city" => {
+            "dust_storm" | "city" | "testing_grounds" => {
                 Some(asset_server.load::<WorldAsset>(&maps::config::load(&selected_map.0).glb))
             }
             _ => None,

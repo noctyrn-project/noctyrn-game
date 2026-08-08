@@ -54,9 +54,35 @@ pub enum MaterialType {
     Wood,
     Glass,
     Drywall,
+    /// Default material for anything not explicitly assigned one (the GLB's
+    /// "world" material, plus any unrecognized/unassigned material name).
+    /// Impenetrable — bullets never pass through it.
+    World,
 }
 
 impl MaterialType {
+    /// Map a baked GLB material name to a material type. Names are matched
+    /// case-insensitively with Blender's ".NNN" duplicate suffixes stripped
+    /// ("wood.001" → Wood). Any unrecognized or missing name becomes the
+    /// default `World` material.
+    pub fn from_name(name: Option<&str>) -> MaterialType {
+        let normalized = name
+            .unwrap_or("")
+            .trim()
+            .to_lowercase()
+            .trim_end_matches(|c: char| c.is_ascii_digit())
+            .trim_end_matches('.')
+            .to_string();
+        match normalized.as_str() {
+            "concrete" => MaterialType::Concrete,
+            "metal" => MaterialType::Metal,
+            "wood" => MaterialType::Wood,
+            "glass" => MaterialType::Glass,
+            "drywall" => MaterialType::Drywall,
+            _ => MaterialType::World,
+        }
+    }
+
     /// Returns the penetration resistance (0.0 = no resistance, 1.0 = impenetrable)
     pub fn resistance(&self) -> f32 {
         match self {
@@ -65,6 +91,9 @@ impl MaterialType {
             MaterialType::Wood => 0.4,
             MaterialType::Glass => 0.1,
             MaterialType::Drywall => 0.2,
+            // Impenetrable: the bullet's pen (damage/100) must exceed 0.5
+            // (a >50-damage shot) to pass — effectively never.
+            MaterialType::World => 1.0,
         }
     }
 
@@ -76,6 +105,8 @@ impl MaterialType {
             MaterialType::Wood => 0.6,
             MaterialType::Glass => 0.9,
             MaterialType::Drywall => 0.75,
+            // If a shot somehow passed World, it carries no damage.
+            MaterialType::World => 0.0,
         }
     }
 
@@ -193,8 +224,8 @@ pub fn spawn_glass_shatter(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     position: Vec3,
     bullet_dir: Vec3,
-    glass_transform: Option<&Transform>,
-    half_extents: Option<Vec3>,
+    pane_center: Vec3,
+    half_extents: Vec3,
 ) {
     let mut rng = rand::rng();
     let glass_mat = materials.add(StandardMaterial {
@@ -205,82 +236,47 @@ pub fn spawn_glass_shatter(
         ..default()
     });
 
-    if let (Some(gt), Some(he)) = (glass_transform, half_extents) {
-        // Grid fracture — divide the pane surface into pieces.
-        let nx = (he.x * 4.0).max(2.0).round() as usize;
-        let ny = (he.y * 4.0).max(2.0).round() as usize;
-        let cell_w = he.x * 2.0 / nx as f32;
-        let cell_h = he.y * 2.0 / ny as f32;
-        let thickness = he.z * 2.0;
+    // Grid fracture — divide the pane surface into pieces. The collider's
+    // mesh is baked in world space (the collider entity itself sits at the
+    // origin), so the pane's world position is its AABB center — never the
+    // collider's transform.
+    let he = half_extents;
+    let nx = (he.x * 4.0).max(2.0).round() as usize;
+    let ny = (he.y * 4.0).max(2.0).round() as usize;
+    let cell_w = he.x * 2.0 / nx as f32;
+    let cell_h = he.y * 2.0 / ny as f32;
+    let thickness = he.z * 2.0;
 
-        for ix in 0..nx {
-            for iy in 0..ny {
-                let lx = -he.x + cell_w * (ix as f32 + 0.5 + rng.random_range(-0.15..0.15));
-                let ly = -he.y + cell_h * (iy as f32 + 0.5 + rng.random_range(-0.15..0.15));
-                let cw = cell_w * rng.random_range(0.7..1.3);
-                let ch = cell_h * rng.random_range(0.7..1.3);
-                let ct = thickness * rng.random_range(0.5..1.0);
+    for ix in 0..nx {
+        for iy in 0..ny {
+            let lx = -he.x + cell_w * (ix as f32 + 0.5 + rng.random_range(-0.15..0.15));
+            let ly = -he.y + cell_h * (iy as f32 + 0.5 + rng.random_range(-0.15..0.15));
+            let cw = cell_w * rng.random_range(0.7..1.3);
+            let ch = cell_h * rng.random_range(0.7..1.3);
+            let ct = thickness * rng.random_range(0.5..1.0);
 
-                let world_pos = gt.translation + gt.rotation * Vec3::new(lx, ly, 0.0);
-                let offset = world_pos - position;
-                let dist = offset.length().max(0.01);
-                let outward = offset / dist;
-                let speed = (1.5 + rng.random_range(0.0..2.0)) / (1.0 + dist * 0.3);
-
-                commands.spawn((
-                    Mesh3d(meshes.add(Cuboid::new(cw.max(0.01), ch.max(0.01), ct.max(0.005)))),
-                    MeshMaterial3d(glass_mat.clone()),
-                    Transform::from_translation(world_pos).with_rotation(
-                        gt.rotation * Quat::from_euler(
-                            EulerRot::XYZ,
-                            rng.random_range(-0.2..0.2),
-                            rng.random_range(-0.2..0.2),
-                            rng.random_range(-0.2..0.2),
-                        ),
-                    ),
-                    GlassShard {
-                        velocity: outward * speed + Vec3::new(0.0, rng.random_range(0.0..1.5), 0.0) + bullet_dir * 0.2,
-                        timer: Timer::from_seconds(rng.random_range(1.5..3.0), TimerMode::Once),
-                        angular_velocity: Vec3::new(
-                            rng.random_range(-6.0..6.0),
-                            rng.random_range(-6.0..6.0),
-                            rng.random_range(-6.0..6.0),
-                        ),
-                    },
-                ));
-            }
-        }
-    } else {
-        // Fallback: random shards at impact point.
-        for _ in 0..12 {
-            let sx = rng.random_range(0.03..0.12);
-            let sy = rng.random_range(0.03..0.12);
-            let sz = rng.random_range(0.005..0.02);
-
-            let spread = Vec3::new(
-                rng.random_range(-2.0..2.0),
-                rng.random_range(-1.0..3.0),
-                rng.random_range(-2.0..2.0),
-            );
-            let vel = bullet_dir * rng.random_range(1.0..4.0) + spread;
+            let world_pos = pane_center + Vec3::new(lx, ly, 0.0);
+            let offset = world_pos - position;
+            let dist = offset.length().max(0.01);
+            let outward = offset / dist;
+            let speed = (1.5 + rng.random_range(0.0..2.0)) / (1.0 + dist * 0.3);
 
             commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(sx, sy, sz))),
+                Mesh3d(meshes.add(Cuboid::new(cw.max(0.01), ch.max(0.01), ct.max(0.005)))),
                 MeshMaterial3d(glass_mat.clone()),
-                Transform::from_translation(position)
-                    .with_rotation(Quat::from_euler(
-                        EulerRot::XYZ,
-                        rng.random_range(0.0..std::f32::consts::TAU),
-                        rng.random_range(0.0..std::f32::consts::TAU),
-                        rng.random_range(0.0..std::f32::consts::TAU),
-                    )),
+                Transform::from_translation(world_pos).with_rotation(Quat::from_euler(
+                    EulerRot::XYZ,
+                    rng.random_range(-0.2..0.2),
+                    rng.random_range(-0.2..0.2),
+                    rng.random_range(-0.2..0.2),
+                )),
                 GlassShard {
-                    velocity: vel,
+                    velocity: outward * speed + Vec3::new(0.0, rng.random_range(0.0..1.5), 0.0) + bullet_dir * 0.2,
                     timer: Timer::from_seconds(rng.random_range(1.5..3.0), TimerMode::Once),
                     angular_velocity: Vec3::new(
-                        rng.random_range(-10.0..10.0),
-                        rng.random_range(-10.0..10.0),
-                        rng.random_range(-10.0..10.0),
+                        rng.random_range(-6.0..6.0),
+                        rng.random_range(-6.0..6.0),
+                        rng.random_range(-6.0..6.0),
                     ),
                 },
             ));
@@ -317,5 +313,65 @@ mod map_collider_tests {
         assert!(cfg.glb.contains("testing_grounds.glb"), "unexpected glb path: {}", cfg.glb);
         assert_eq!(cfg.scale, data.scale, "config scale must match map data scale");
         assert!(!cfg.lights.is_empty(), "map has no lights");
+    }
+}
+
+#[cfg(test)]
+mod material_name_tests {
+    use super::*;
+
+    #[test]
+    fn known_names_map_to_types() {
+        assert!(matches!(MaterialType::from_name(Some("concrete")), MaterialType::Concrete));
+        assert!(matches!(MaterialType::from_name(Some("metal")), MaterialType::Metal));
+        assert!(matches!(MaterialType::from_name(Some("glass")), MaterialType::Glass));
+        assert!(matches!(MaterialType::from_name(Some("drywall")), MaterialType::Drywall));
+        // Blender appends .NNN to duplicate material names.
+        assert!(matches!(MaterialType::from_name(Some("wood.001")), MaterialType::Wood));
+        // Case-insensitive.
+        assert!(matches!(MaterialType::from_name(Some("GLASS")), MaterialType::Glass));
+    }
+
+    #[test]
+    fn everything_else_defaults_to_world() {
+        assert!(matches!(MaterialType::from_name(Some("world")), MaterialType::World));
+        assert!(matches!(MaterialType::from_name(Some("terrain")), MaterialType::World));
+        assert!(matches!(MaterialType::from_name(Some("Material.003")), MaterialType::World));
+        assert!(matches!(MaterialType::from_name(Some("banana")), MaterialType::World));
+        assert!(matches!(MaterialType::from_name(None), MaterialType::World));
+        assert!(matches!(MaterialType::from_name(Some("")), MaterialType::World));
+    }
+
+    #[test]
+    fn world_is_impenetrable() {
+        let world = MaterialType::World;
+        assert!(!world.shatters());
+        // A 50-damage shot has pen 0.5, which must not exceed World's
+        // resistance threshold (1.0 * 0.5) — the bullet stops.
+        assert!(0.5 <= world.resistance() * 0.5);
+        assert_eq!(world.damage_falloff(), 0.0);
+    }
+
+    #[test]
+    fn baked_testing_grounds_materials_are_recognized() {
+        let colliders = noctyrn_shared::map_data::load_colliders("testing_grounds");
+        let names: Vec<Option<String>> = colliders
+            .colliders
+            .iter()
+            .map(|c| c.material.clone())
+            .collect();
+        assert!(!names.is_empty(), "no colliders baked");
+        for name in &names {
+            // Every baked name must map to something (never panics, and the
+            // known gameplay materials are all present somewhere).
+            let _ = MaterialType::from_name(name.as_deref());
+        }
+        let flat: Vec<&str> = names.iter().flatten().map(|s| s.as_str()).collect();
+        for expected in ["concrete", "metal", "wood.001", "glass", "drywall", "world"] {
+            assert!(
+                flat.contains(&expected),
+                "baked colliders missing material {expected:?}: {flat:?}"
+            );
+        }
     }
 }

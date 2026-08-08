@@ -308,6 +308,7 @@ impl Plugin for GameplayPlugin {
             update_player_health_ui,
             update_player_visibility_on_death,
             armed_target_fire,
+            update_knife_swings,
             handle_death,
             assign_team_spawn,
         ).run_if(in_state(GameState::Playing)));
@@ -442,13 +443,23 @@ fn handle_regeneration(
 }
 
 fn billboard_system(
-    mut query: Query<&mut Transform, With<Billboard>>,
+    mut query: Query<(&mut Transform, &ChildOf), With<Billboard>>,
+    parent_query: Query<&GlobalTransform, (Without<Billboard>, Without<MainCamera>)>,
     camera_query: Query<&Transform, (With<MainCamera>, Without<Billboard>)>,
 ) {
     let camera_transform = if let Some(t) = camera_query.iter().next() { t } else { return };
-    
-    for mut transform in query.iter_mut() {
-        transform.rotation = camera_transform.rotation;
+
+    for (mut transform, parent) in query.iter_mut() {
+        if let Ok(parent_gt) = parent_query.get(parent.get()) {
+            // The billboard is a child of a possibly-rotated entity (e.g. a
+            // 90°-yawed target dummy). Express the camera rotation in the
+            // parent's local space so the composed WORLD rotation faces the
+            // camera — otherwise the parent's yaw swings the billboard 90°
+            // off.
+            transform.rotation = parent_gt.rotation().inverse() * camera_transform.rotation;
+        } else {
+            transform.rotation = camera_transform.rotation;
+        }
     }
 }
 
@@ -739,6 +750,50 @@ pub struct HealthBarForeground;
 #[derive(Component)]
 pub struct ArmedTargetTimer(pub Timer);
 
+/// The weapon an armed target dummy holds (looked up in the WeaponRegistry
+/// so the dummy fires with that gun's real stats).
+#[derive(Component)]
+pub struct ArmedWeapon {
+    pub weapon_id: String,
+}
+
+/// A target dummy that constantly swings a melee weapon.
+#[derive(Component)]
+pub struct KnifeSwinging {
+    pub timer: Timer,
+}
+
+/// Marker on a knife dummy's swung blade; holds the model's base yaw so the
+/// swing animation composes with the weapon's orientation.
+#[derive(Component)]
+pub struct KnifeVisual {
+    pub base_yaw: f32,
+}
+
+/// Loop the knife dummy's blade through a wind-up → swipe → recover cycle.
+fn update_knife_swings(
+    time: Res<Time>,
+    mut query: Query<(&mut KnifeSwinging, &Children)>,
+    mut knives: Query<(&mut Transform, &KnifeVisual)>,
+) {
+    for (mut swing, children) in query.iter_mut() {
+        swing.timer.tick(time.delta());
+        let t = swing.timer.elapsed().as_secs_f32() / swing.timer.duration().as_secs_f32();
+        let angle = if t < 0.15 {
+            -0.4 + (t / 0.15) * 0.4
+        } else if t < 0.45 {
+            (t - 0.15) / 0.30 * 1.4
+        } else {
+            1.4 - (t - 0.45) / 0.55 * 1.8
+        };
+        for child in children {
+            if let Ok((mut tf, visual)) = knives.get_mut(*child) {
+                tf.rotation = Quat::from_rotation_y(visual.base_yaw + angle);
+            }
+        }
+    }
+}
+
 
 fn update_health_bars(
     mut query: Query<(&mut Transform, &ChildOf), With<HealthBarForeground>>,
@@ -769,30 +824,18 @@ fn update_health_bars(
 fn armed_target_fire(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(&Target, &Transform, &mut ArmedTargetTimer)>,
+    mut query: Query<(&Target, &Transform, &mut ArmedTargetTimer, Option<&ArmedWeapon>)>,
     tracer_assets: Res<crate::player::shooting::TracerAssets>,
     weapon_registry: Res<crate::weapons::WeaponRegistry>,
     camera: Query<&GlobalTransform, With<crate::player::MainCamera>>,
 ) {
-    // The dummy holds an HK416 — use all of that gun's math.
-    let config = weapon_registry.weapons.get("hk416");
-    let ammo_velocity = config
-        .and_then(|c| c.attachments.ammo.as_ref())
-        .map(|a| a.velocity)
-        .unwrap_or(22.0);
-    let ammo_damage = config
-        .and_then(|c| c.attachments.ammo.as_ref())
-        .map(|a| a.damage)
-        .unwrap_or(25.0);
-    let accuracy = config.map(|c| c.attributes.accuracy).unwrap_or(0.9);
-
     let camera_pos = camera
         .iter()
         .next()
         .map(|g| g.translation())
         .unwrap_or(Vec3::ZERO);
 
-    for (target, transform, mut timer) in query.iter_mut() {
+    for (target, transform, mut timer, weapon) in query.iter_mut() {
         if !target.armed {
             continue;
         }
@@ -800,6 +843,26 @@ fn armed_target_fire(
         if !timer.0.just_finished() {
             continue;
         }
+        // The dummy fires with its OWN weapon's stats (rifle/pistol/sniper/
+        // shotgun). Falls back to the HK416 when unset.
+        let weapon_id = weapon.map(|w| w.weapon_id.as_str()).unwrap_or("hk416");
+        let Some(config) = weapon_registry.weapons.get(weapon_id) else {
+            continue;
+        };
+        let ammo_velocity = config
+            .attachments
+            .ammo
+            .as_ref()
+            .map(|a| a.velocity)
+            .unwrap_or(22.0);
+        let ammo_damage = config
+            .attachments
+            .ammo
+            .as_ref()
+            .map(|a| a.damage)
+            .unwrap_or(25.0);
+        let accuracy = config.attributes.accuracy;
+
         // Same spread formula as the player's fire_weapon (no heat for the
         // dummy), applied to the dummy's own right/up axes.
         let base_spread = ((1.0 - accuracy) * 0.1).max(0.001);
@@ -1791,5 +1854,47 @@ fn update_flag_trail(
         if particle.timer.is_finished() {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn billboards_face_camera_inside_rotated_parents() {
+        // A billboarded health bar hangs off a 90°-yawed target dummy: the
+        // composed world rotation must still face the camera (regression:
+        // the billboard copied the camera rotation verbatim, so the parent's
+        // yaw swung it 90° off).
+        let mut world = World::new();
+        let camera_rot = Quat::from_euler(EulerRot::XYZ, 0.2, 2.1, 0.0);
+        world.spawn((
+            Transform::from_rotation(camera_rot),
+            MainCamera,
+        ));
+        let parent_rot = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        let parent = world
+            .spawn((
+                Transform::from_rotation(parent_rot),
+                GlobalTransform::from_rotation(parent_rot),
+            ))
+            .id();
+        let billboard = world
+            .spawn((Transform::IDENTITY, Billboard, ChildOf(parent)))
+            .id();
+
+        let system = world.register_system(billboard_system);
+        world.run_system(system).unwrap();
+
+        let local = world.get::<Transform>(billboard).unwrap().rotation;
+        let world_rot = parent_rot * local;
+        let facing = world_rot * Vec3::Z;
+        let camera_facing = camera_rot * Vec3::Z;
+        assert!(
+            facing.dot(camera_facing) > 0.99,
+            "billboard in a rotated parent must face the camera: facing {facing:?} vs {camera_facing:?}"
+        );
     }
 }

@@ -1,43 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use bevy::math::Mat3;
 use bevy::prelude::*;
 use bevy::input::mouse::AccumulatedMouseMotion;
@@ -1640,6 +1600,11 @@ pub fn move_projectiles(
                 if let Some(mat_type) = material_type {
                     if mat_type.shatters() {
                         let he = mesh_collider.mesh.local_aabb();
+                        let pane_center = Vec3::new(
+                            (he.maxs.x + he.mins.x) * 0.5,
+                            (he.maxs.y + he.mins.y) * 0.5,
+                            (he.maxs.z + he.mins.z) * 0.5,
+                        );
                         let half_ext = Vec3::new(
                             (he.maxs.x - he.mins.x) * 0.5,
                             (he.maxs.y - he.mins.y) * 0.5,
@@ -1647,7 +1612,7 @@ pub fn move_projectiles(
                         );
                         crate::world::objects::spawn_glass_shatter(
                             &mut commands, &mut meshes, &mut materials, hit_point, bullet_dir,
-                            Some(col_transform), Some(half_ext),
+                            pane_center, half_ext,
                         );
                         glass_to_despawn.push(_col_entity);
                         projectile.damage *= mat_type.damage_falloff();
@@ -1960,7 +1925,10 @@ mod recoil_tests {
 mod projectile_hit_tests {
     use super::*;
     use crate::gameplay::{Health, PlayerBody, Enemy};
+    use crate::world::objects::{MaterialType, MeshCollider};
     use bevy::time::Time;
+    use bevy_rapier3d::rapier::parry::math::Vector;
+    use bevy_rapier3d::rapier::parry::shape::TriMesh;
 
     fn hit_world(from_player: bool, target_enemy: bool) -> (World, f32) {
         let mut world = World::new();
@@ -2020,5 +1988,78 @@ mod projectile_hit_tests {
     fn dummy_bullet_damages_player() {
         let (_, hp) = hit_world(false, false);
         assert!(hp < 100.0, "dummy bullet should damage player, hp={hp}");
+    }
+
+    /// Fire a 25-damage bullet from z=-8 at a wall at z=-10 with the given
+    /// material; a target enemy sits at z=-12. Returns the target's health.
+    fn hit_material_wall(mat: MaterialType) -> f32 {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.init_resource::<Assets<Mesh>>();
+        world.init_resource::<Assets<StandardMaterial>>();
+        world.init_resource::<BulletHoleAssets>();
+        world.init_resource::<BulletHolePool>();
+        let target = world
+            .spawn((
+                Transform::from_translation(Vec3::new(0.0, 1.0, -12.0)),
+                GlobalTransform::from_translation(Vec3::new(0.0, 1.0, -12.0)),
+                Health { current: 100.0, max: 100.0 },
+                Enemy,
+            ))
+            .id();
+        let wall = TriMesh::new(
+            vec![
+                Vector::new(-5.0, 0.0, -10.0),
+                Vector::new(5.0, 0.0, -10.0),
+                Vector::new(5.0, 5.0, -10.0),
+                Vector::new(-5.0, 5.0, -10.0),
+            ],
+            vec![[0, 1, 2], [0, 2, 3]],
+        )
+        .unwrap();
+        world.spawn((Transform::IDENTITY, MeshCollider { mesh: wall }, mat));
+        world.spawn((
+            Transform::from_translation(Vec3::new(0.0, 1.0, -8.0)),
+            Projectile {
+                velocity: Vec3::new(0.0, 0.0, -22.0),
+                prev_pos: Vec3::new(0.0, 1.0, -8.0),
+                timer: Timer::from_seconds(3.0, TimerMode::Once),
+                damage: 25.0,
+                from_player: true,
+                source_name: "test".into(),
+            },
+        ));
+        let id = world.register_system(move_projectiles);
+        for _ in 0..30 {
+            world
+                .resource_mut::<Time>()
+                .advance_by(std::time::Duration::from_secs_f32(1.0 / 60.0));
+            world.run_system(id).unwrap();
+        }
+        world.get::<Health>(target).unwrap().current
+    }
+
+    #[test]
+    fn world_material_stops_bullets() {
+        let hp = hit_material_wall(MaterialType::World);
+        assert_eq!(hp, 100.0, "world material must stop the bullet, hp={hp}");
+    }
+
+    #[test]
+    fn drywall_lets_bullets_through() {
+        let hp = hit_material_wall(MaterialType::Drywall);
+        assert!(
+            hp < 100.0,
+            "drywall must be penetrable (damage falls off), hp={hp}"
+        );
+    }
+
+    #[test]
+    fn glass_shatters_and_lets_bullets_through() {
+        let hp = hit_material_wall(MaterialType::Glass);
+        assert!(
+            hp < 100.0,
+            "glass must shatter and let the bullet pass (70% speed + falloff), hp={hp}"
+        );
     }
 }

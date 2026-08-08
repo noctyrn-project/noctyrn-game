@@ -1193,3 +1193,36 @@ fn apply_weapon_skins(
         }
     }
 }
+
+#[cfg(test)]
+mod dummy_weapon_tests {
+    use super::*;
+
+    /// The weapons the testing-grounds target dummies use must all resolve:
+    /// valid models, scales, and (for guns) usable ammo stats.
+    #[test]
+    fn testing_grounds_dummy_weapons_are_valid() {
+        let weapons = [
+            ("hk416", include_str!("../../assets/weapons/data/primary/assault/hk416.json")),
+            ("g17", include_str!("../../assets/weapons/data/secondary/pistol/g17.json")),
+            ("remington_700", include_str!("../../assets/weapons/data/primary/sniper/remington_700.json")),
+            ("franchi_spas_12", include_str!("../../assets/weapons/data/primary/shotgun/franchi_spas_12.json")),
+            ("km2000", include_str!("../../assets/weapons/data/melee/km2000.json")),
+        ];
+        for (id, json) in weapons {
+            let cfg: WeaponConfig =
+                serde_json::from_str(json).unwrap_or_else(|e| panic!("{id} failed to parse: {e}"));
+            assert!(!cfg.meta.model_path.is_empty(), "{id} has no model path");
+            assert!(cfg.meta.scale > 0.0, "{id} has no scale");
+            if id != "km2000" {
+                let ammo = cfg
+                    .attachments
+                    .ammo
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{id} has no ammo"));
+                assert!(ammo.velocity > 0.0 && ammo.damage > 0.0, "{id} has bad ammo stats");
+                assert!(cfg.attributes.accuracy > 0.0, "{id} has no accuracy");
+            }
+        }
+    }
+}

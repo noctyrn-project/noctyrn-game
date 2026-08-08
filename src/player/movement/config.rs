@@ -8,6 +8,13 @@ use crate::player::input::AccumulatedInput;
 /// gating, and slope riding.
 pub const WALKABLE_SLOPE_THRESHOLD: f32 = 0.7;
 
+/// Maximum fall speed (m/s) at which a nearby surface still counts as
+/// "ground" for surface snapping and ground detection. A real jump falls
+/// past this speed within a few frames, so a mid-air player is never snapped
+/// onto a surface — they keep falling naturally and the sweep catches the
+/// landing. Slow descents (ledge step-downs) still ride the snap.
+pub const FALL_SNAP_SPEED: f32 = 1.0;
+
 #[derive(Debug, Component, Clone)]
 pub struct MovementConfig {
     // ── Ground Movement ──

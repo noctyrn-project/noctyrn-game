@@ -3,7 +3,7 @@ use bevy_rapier3d::rapier::parry::query::{Ray, RayCast};
 use bevy_rapier3d::rapier::parry::math::Vector;
 
 use super::components::*;
-use super::config::MovementConfig;
+use super::config::{MovementConfig, FALL_SNAP_SPEED};
 use crate::world::objects::{MeshCollider, RampCollider};
 
 /// Updates [`GroundedState`] by checking the player's position against
@@ -49,7 +49,13 @@ pub fn detect_ground(
                 ramp_surface_y(position.0, ramp_transform, ramp_collider)
             {
                 let feet_dist = position.y - surface_y;
-                if feet_dist.abs() < foot_margin * 3.0 && velocity.y <= 1.0 {
+                // A falling player must not be grounded high above the
+                // surface (that cuts gravity and floats the descent) — only
+                // slow descents count, like the mesh ray below.
+                if feet_dist.abs() < foot_margin * 3.0
+                    && velocity.y <= 1.0
+                    && velocity.y >= -FALL_SNAP_SPEED
+                {
                     ground.is_grounded = true;
                     // Set the ground normal to the ramp's surface normal
                     ground.ground_normal = ramp_transform.rotation * Vec3::Y;
@@ -68,10 +74,20 @@ pub fn detect_ground(
             Vector::new(0.0, -1.0, 0.0),
         );
         if velocity.y <= 0.1 {
+            // While falling fast, only an actual touch counts as ground —
+            // grounding mid-air 24 cm above the surface cuts gravity and
+            // turns the landing into a hover-then-snap (jump on a mesh top).
+            // Slow descents keep the generous range that lets a downhill
+            // rider stay grounded between snap frames.
+            let range = if velocity.y < -FALL_SNAP_SPEED {
+                foot_margin
+            } else {
+                foot_margin * 3.0
+            };
             for mesh in mesh_query.iter() {
                 if let Some(hit) = mesh
                     .mesh
-                    .cast_local_ray_and_get_normal(&down_ray, foot_margin * 3.0, true)
+                    .cast_local_ray_and_get_normal(&down_ray, range, true)
                 {
                     if hit.normal.y > super::config::WALKABLE_SLOPE_THRESHOLD {
                         ground.is_grounded = true;

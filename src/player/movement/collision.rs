@@ -5,7 +5,7 @@ use bevy_rapier3d::rapier::parry::shape::Capsule;
 use bevy_rapier3d::rapier::parry::math::{Pose, Vector};
 
 use super::components::*;
-use super::config::{MovementConfig, WALKABLE_SLOPE_THRESHOLD};
+use super::config::{MovementConfig, FALL_SNAP_SPEED, WALKABLE_SLOPE_THRESHOLD};
 use super::ground_detection::ramp_surface_y;
 use crate::gameplay::Health;
 use crate::world::objects::{MeshCollider, RampCollider};
@@ -194,160 +194,166 @@ pub fn resolve_collisions(
             // misses geometry the segment already crossed (the fast
             // "phase through walls" bug).
             position.0 -= movement;
+        }
 
-            // ── Walkable surface snap (slope riding) ──
-            // Snap the feet onto any walkable surface directly below (slopes,
-            // box tops, stairs) and ride it: zero the fall and follow the
-            // surface as it rises/falls. This is how UE4-style movement walks
-            // up ramps instead of fighting the surface normal every frame.
-            // The snapped surface also decides whether a hit is a floor (a
-            // contact within a climbable height of it) or a wall (a ledge or
-            // a corner graze whose contact normal happens to look walkable).
-            // Runs on the REWOUND (frame-start) position — sampling the
-            // integrated position misses surfaces at exact edges.
-            let mut snapped = false;
-            let mut stand_surface_y = 0.0f32;
-            if velocity.y <= 0.1 {
-                let foot_ray = Ray::new(
-                    Vector::new(position.x, position.y + 0.02, position.z),
-                    Vector::new(0.0, -1.0, 0.0),
-                );
-                let mut snap: Option<(f32, Vec3)> = None;
-                for mesh_collider in mesh_query.iter() {
-                    if let Some(hit) = mesh_collider
-                        .mesh
-                        .cast_local_ray_and_get_normal(&foot_ray, SURFACE_SNAP_DIST, true)
-                    {
-                        if hit.normal.y > WALKABLE_SLOPE_THRESHOLD {
-                            let y = position.y + 0.02 - hit.time_of_impact;
-                            if snap.map_or(true, |(prev_y, _)| y > prev_y) {
-                                snap = Some((
-                                    y,
-                                    Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z),
-                                ));
-                            }
-                        }
+        // ── Walkable surface snap (slope riding) ──
+        // Snap the feet onto any walkable surface directly below (slopes,
+        // box tops, stairs) and ride it: zero the fall and follow the
+        // surface as it rises/falls. This is how UE4-style movement walks
+        // up ramps instead of fighting the surface normal every frame.
+        // The snapped surface also decides whether a hit is a floor (a
+        // contact within a climbable height of it) or a wall (a ledge or
+        // a corner graze whose contact normal happens to look walkable).
+        // Runs on the REWOUND (frame-start) position — sampling the
+        // integrated position misses surfaces at exact edges.
+        // Always runs (even with zero movement — the sweep then exits
+        // immediately) so a resting player is still pulled onto the
+        // surface: a landing stops a hair above a slope otherwise.
+        let mut snapped = false;
+        let mut stand_surface_y = 0.0f32;
+        // Snap only while not falling fast: a mid-air player whose feet
+        // come within SURFACE_SNAP_DIST of a surface mid-fall must keep
+        // falling (the sweep catches the landing) — snapping there
+        // teleports the feet onto the surface, the "snap to ground" seen
+        // on mesh tops after a jump. Slow descents (step-downs off
+        // ledges) still ride the snap.
+        if velocity.y <= 0.1 && velocity.y >= -FALL_SNAP_SPEED {
+            if let Some((surface_y, _surface_normal)) =
+                walkable_surface_below(position.0, &mesh_query, SURFACE_SNAP_DIST)
+            {
+                let diff = position.y - surface_y;
+                if diff <= SURFACE_SNAP_DIST && diff >= -0.05 {
+                    position.y = surface_y;
+                    snapped = true;
+                    stand_surface_y = surface_y;
+                    if velocity.y < 0.0 {
+                        velocity.y = 0.0;
                     }
                 }
-                if let Some((surface_y, _surface_normal)) = snap {
-                    let diff = position.y - surface_y;
-                    if diff <= SURFACE_SNAP_DIST && diff >= -0.05 {
-                        position.y = surface_y;
-                        snapped = true;
-                        stand_surface_y = surface_y;
-                        if velocity.y < 0.0 {
-                            velocity.y = 0.0;
-                        }
+            }
+        }
+
+        let frame_center =
+            Vec3::new(position.x, position.y + player_half_height + player_radius, position.z);
+
+        // CCD substeps with a movement budget: each pass advances at most
+        // MAX_SUBSTEP and `remaining` shrinks, so fast frames can't
+        // tunnel and a brushing player keeps the frame's full movement.
+        let mut remaining = movement;
+        let mut stepped = false;
+        for _ in 0..MAX_SUBSTEPS {
+            let rlen = remaining.length();
+            if rlen < 0.001 {
+                break;
+            }
+            let chunk = remaining * ((MAX_SUBSTEP / rlen).min(1.0));
+            let old_center =
+                Vec3::new(position.x, position.y + player_half_height + player_radius, position.z);
+            let sweep_dir = chunk;
+
+            let mut earliest_toi = 2.0f32;
+            let mut best_normal = Vector::ZERO;
+            let mut best_witness = Vector::ZERO;
+
+            for mesh_collider in mesh_query.iter() {
+                if let Ok(Some(hit)) = cast_shapes(
+                    &Pose::translation(old_center.x, old_center.y, old_center.z),
+                    Vector::new(sweep_dir.x, sweep_dir.y, sweep_dir.z),
+                    &capsule,
+                    &Pose::identity(),
+                    Vector::ZERO,
+                    &mesh_collider.mesh,
+                    ShapeCastOptions {
+                        max_time_of_impact: 1.0,
+                        target_distance: 0.001,
+                        stop_at_penetration: true,
+                        compute_impact_geometry_on_penetration: true,
+                    },
+                ) {
+                    if hit.time_of_impact < earliest_toi {
+                        earliest_toi = hit.time_of_impact;
+                        best_normal = hit.normal2; // outward normal of the mesh
+                        best_witness = hit.witness2;
                     }
                 }
             }
 
-            let frame_center =
-                Vec3::new(position.x, position.y + player_half_height + player_radius, position.z);
+            if earliest_toi > 1.0 {
+                position.0 += chunk;
+                remaining -= chunk;
+                continue;
+            }
 
-            // CCD substeps with a movement budget: each pass advances at most
-            // MAX_SUBSTEP and `remaining` shrinks, so fast frames can't
-            // tunnel and a brushing player keeps the frame's full movement.
-            let mut remaining = movement;
-            let mut stepped = false;
-            for _ in 0..MAX_SUBSTEPS {
-                let rlen = remaining.length();
-                if rlen < 0.001 {
+            let pseudo_normal = Vec3::new(best_normal.x, best_normal.y, best_normal.z);
+            let witness = Vec3::new(best_witness.x, best_witness.y, best_witness.z);
+            // The TRUE surface normal (triangle winding), not the witness
+            // pseudo-normal — used for the walkable gate and the velocity
+            // projection so walls push straight back, never sideways.
+            // Flipped to agree with the pseudo-normal's direction: the
+            // pseudo always points OUT of the geometry (closest-point
+            // direction), so inward-wound meshes (e.g. the cone in the
+            // testing grounds) get corrected to their real outward side.
+            let mut normal = true_surface_normal(witness, pseudo_normal, &mesh_query)
+                .unwrap_or(pseudo_normal);
+            if normal.dot(pseudo_normal) < 0.0 {
+                normal = -normal;
+            }
+            // A hit is a floor/slope when EITHER:
+            //  - the feet are on a walkable surface, the contact sits
+            //    within a climbable height of it, AND the contact normal
+            //    is walkable (ramps, stairs, box tops), or
+            //  - the contact is directly under the feet (flat ground —
+            //    parry's resting-contact normal is a witness pseudo-
+            //    normal that goes diagonal on big flat triangles, so the
+            //    normal gate can't be required here).
+            // Everything else — wall faces, corner grazes, cone sides —
+            // is a wall: the normal gate keeps low wall contacts from
+            // being misclassified as floors (which let the player clip
+            // into or slide along walls while brushing).
+            // A hit is a floor/slope when the surface PLANE under the
+            // feet is at (or just below) the feet — measured by
+            // extrapolating the hit's surface plane to the feet's XZ.
+            // A witness on a slope sits UP-SLOPE of the feet (the shape
+            // cast projects the capsule axis onto the surface plane), so
+            // a "witness near the feet XZ" test fails on ramps and the
+            // landing is misread as a wall (the player sinks through).
+            // Walls have near-horizontal normals and are excluded by the
+            // normal gate; ceilings (normal pointing down) likewise.
+            let plane_y_at_feet = if normal.y > WALKABLE_SLOPE_THRESHOLD {
+                witness.y
+                    - (normal.x * (position.x - witness.x)
+                        + normal.z * (position.z - witness.z))
+                        / normal.y
+            } else {
+                f32::NAN
+            };
+            let feet_to_plane = position.y - plane_y_at_feet;
+            let directly_below = normal.y > WALKABLE_SLOPE_THRESHOLD
+                && feet_to_plane >= -0.05
+                && feet_to_plane <= 0.3;
+            let walkable = directly_below
+                || (snapped
+                    && normal.y > WALKABLE_SLOPE_THRESHOLD
+                    && witness.y - stand_surface_y <= CLIMB_CONTACT_HEIGHT);
+
+            // ── Auto step-up (once per frame, from the frame start) ──
+            // Only while grounded (runs after GroundDetection) — an
+            // airborne player near a wall must not be lifted at the top
+            // of a jump.
+            if !stepped && !walkable && velocity.y <= 0.5 && ground.is_grounded {
+                stepped = true;
+                if try_step_up(
+                    &mut position,
+                    frame_center,
+                    movement,
+                    &capsule,
+                    &mesh_query,
+                    config,
+                    player_half_height,
+                ) {
                     break;
                 }
-                let chunk = remaining * ((MAX_SUBSTEP / rlen).min(1.0));
-                let old_center =
-                    Vec3::new(position.x, position.y + player_half_height + player_radius, position.z);
-                let sweep_dir = chunk;
-
-                let mut earliest_toi = 2.0f32;
-                let mut best_normal = Vector::ZERO;
-                let mut best_witness = Vector::ZERO;
-
-                for mesh_collider in mesh_query.iter() {
-                    if let Ok(Some(hit)) = cast_shapes(
-                        &Pose::translation(old_center.x, old_center.y, old_center.z),
-                        Vector::new(sweep_dir.x, sweep_dir.y, sweep_dir.z),
-                        &capsule,
-                        &Pose::identity(),
-                        Vector::ZERO,
-                        &mesh_collider.mesh,
-                        ShapeCastOptions {
-                            max_time_of_impact: 1.0,
-                            target_distance: 0.001,
-                            stop_at_penetration: true,
-                            compute_impact_geometry_on_penetration: true,
-                        },
-                    ) {
-                        if hit.time_of_impact < earliest_toi {
-                            earliest_toi = hit.time_of_impact;
-                            best_normal = hit.normal2; // outward normal of the mesh
-                            best_witness = hit.witness2;
-                        }
-                    }
-                }
-
-                if earliest_toi > 1.0 {
-                    position.0 += chunk;
-                    remaining -= chunk;
-                    continue;
-                }
-
-                let pseudo_normal = Vec3::new(best_normal.x, best_normal.y, best_normal.z);
-                let witness = Vec3::new(best_witness.x, best_witness.y, best_witness.z);
-                // The TRUE surface normal (triangle winding), not the witness
-                // pseudo-normal — used for the walkable gate and the velocity
-                // projection so walls push straight back, never sideways.
-                // Flipped to agree with the pseudo-normal's direction: the
-                // pseudo always points OUT of the geometry (closest-point
-                // direction), so inward-wound meshes (e.g. the cone in the
-                // testing grounds) get corrected to their real outward side.
-                let mut normal = true_surface_normal(witness, pseudo_normal, &mesh_query)
-                    .unwrap_or(pseudo_normal);
-                if normal.dot(pseudo_normal) < 0.0 {
-                    normal = -normal;
-                }
-                // A hit is a floor/slope when EITHER:
-                //  - the feet are on a walkable surface, the contact sits
-                //    within a climbable height of it, AND the contact normal
-                //    is walkable (ramps, stairs, box tops), or
-                //  - the contact is directly under the feet (flat ground —
-                //    parry's resting-contact normal is a witness pseudo-
-                //    normal that goes diagonal on big flat triangles, so the
-                //    normal gate can't be required here).
-                // Everything else — wall faces, corner grazes, cone sides —
-                // is a wall: the normal gate keeps low wall contacts from
-                // being misclassified as floors (which let the player clip
-                // into or slide along walls while brushing).
-                if position.z > 37.9 && position.z < 39.5 {
-                }
-                let directly_below = witness.y <= position.y + 0.15
-                    && Vec3::new(witness.x, 0.0, witness.z)
-                        .distance(Vec3::new(position.x, 0.0, position.z))
-                        <= 0.15;
-                let walkable = directly_below
-                    || (snapped
-                        && normal.y > WALKABLE_SLOPE_THRESHOLD
-                        && witness.y - stand_surface_y <= CLIMB_CONTACT_HEIGHT);
-
-                // ── Auto step-up (once per frame, from the frame start) ──
-                // Only while grounded (runs after GroundDetection) — an
-                // airborne player near a wall must not be lifted at the top
-                // of a jump.
-                if !stepped && !walkable && velocity.y <= 0.5 && ground.is_grounded {
-                    stepped = true;
-                    if try_step_up(
-                        &mut position,
-                        frame_center,
-                        movement,
-                        &capsule,
-                        &mesh_query,
-                        config,
-                        player_half_height,
-                    ) {
-                        break;
-                    }
-                }
+            }
 
                 if walkable {
                     // Floor/slope: never bounce, launch, or stop — the
@@ -355,144 +361,192 @@ pub fn resolve_collisions(
                     // and the feet are lifted onto the surface. Stopping on
                     // a walkable contact would eat forward progress while
                     // riding a slope.
+                    let falling = velocity.y < -0.5;
+                    let rising = velocity.y > 0.5;
                     if velocity.y < 0.0 {
                         velocity.y = 0.0;
                     }
-                    // Lift the feet onto the surface (vertical only, capped)
-                    // so rising slopes and steps are climbed smoothly. Only
-                    // genuine floor contacts count — a wall graze's depth
-                    // must not pop the player up (that jittered the position
-                    // when walking next to obstacles).
-                    let center = Vec3::new(
-                        position.x,
-                        position.y + player_half_height + player_radius,
-                        position.z,
-                    );
-                    let pose = Pose::translation(center.x, center.y, center.z);
-                    let mut lift = 0.0f32;
-                    for mesh_collider in mesh_query.iter() {
-                        if let Ok(Some(c)) = contact(
-                            &pose,
-                            &capsule,
-                            &Pose::identity(),
-                            &mesh_collider.mesh,
-                            0.01,
+                    // ── Surface-following ride / landing ──
+                    // Advance the horizontal movement, then follow the
+                    // surface under the feet EXACTLY (up or down — the probe
+                    // looks from slightly above the feet so a rising slope
+                    // is found even when the feet have drifted below it).
+                    // This replaces the old "lift the feet by the capsule's
+                    // penetration of the contact" — the front hemisphere's
+                    // penetration of a rising face is far deeper than the
+                    // climb the feet actually need, which popped the camera
+                    // up on every slope (worse for steeper slopes). The ramp
+                    // base climb works the same way: the probe finds the
+                    // higher surface under the new XZ and the feet follow it.
+                    // Skipped while ASCENDING (jumping): the frame-start
+                    // capsule still touches the surface (toi 0.0) and
+                    // snapping the feet back onto it would cancel the jump.
+                    if directly_below && !rising {
+                        position.0.x += chunk.x;
+                        position.0.z += chunk.z;
+                        if let Some((surface_y, _)) = walkable_surface_under(
+                            position.0,
+                            &mesh_query,
+                            SURFACE_SNAP_DIST,
+                            SURFACE_SNAP_DIST * 2.0,
                         ) {
-                            if c.dist < 0.0 && c.normal2.y > WALKABLE_SLOPE_THRESHOLD {
-                                lift = lift.max(-c.dist);
+                            if falling {
+                                // LANDING: fall through the remaining
+                                // vertical movement, clamped AT the surface —
+                                // the landing never teleports.
+                                position.y = (position.y + chunk.y).max(surface_y);
+                            } else {
+                                // RIDING/CLIMBING: feet follow the surface.
+                                position.y = surface_y;
                             }
                         }
+                        remaining = Vec3::ZERO;
+                        continue;
                     }
-                    if lift > 0.001 {
-                        position.y += lift.min(MAX_DEPENETRATION);
+                // Lift the feet onto the surface (vertical only, capped)
+                // so rising slopes and steps are climbed smoothly. Only
+                // genuine floor contacts count — a wall graze's depth
+                // must not pop the player up (that jittered the position
+                // when walking next to obstacles).
+                let center = Vec3::new(
+                    position.x,
+                    position.y + player_half_height + player_radius,
+                    position.z,
+                );
+                let pose = Pose::translation(center.x, center.y, center.z);
+                let mut lift = 0.0f32;
+                for mesh_collider in mesh_query.iter() {
+                    if let Ok(Some(c)) = contact(
+                        &pose,
+                        &capsule,
+                        &Pose::identity(),
+                        &mesh_collider.mesh,
+                        0.01,
+                    ) {
+                        if c.dist < 0.0 && c.normal2.y > WALKABLE_SLOPE_THRESHOLD {
+                            lift = lift.max(-c.dist);
+                        }
                     }
-                    position.0 += chunk;
-                    remaining -= chunk;
-                    continue;
                 }
-
-                // ── Wall: advance the chunk, then depenetrate ──
-                // Advancing first lets a brushing player slide along the
-                // wall at full speed (the depenetration only strips the
-                // overlap); a head-on approach nets back to the impact
-                // point because the depenetration pushes out exactly what
-                // was advanced.
+                if lift > 0.001 {
+                    position.y += lift.min(MAX_DEPENETRATION);
+                }
                 position.0 += chunk;
                 remaining -= chunk;
-                depenetrate(
-                    &mut position,
-                    &capsule,
-                    &mesh_query,
-                    normal,
-                    player_half_height,
-                    player_radius,
-                    velocity.y < 0.0,
-                    (-velocity.0.dot(normal) * dt).max(0.0),
-                );
-
-                // Wall: remove only the into-wall HORIZONTAL component.
-                // Vertical velocity is never touched by wall hits — a
-                // diagonal edge/corner normal must not launch the player
-                // upward (the old "jump when hitting walls" bug).
-                let n_h = Vec3::new(normal.x, 0.0, normal.z).normalize_or_zero();
-                if n_h.length_squared() > 0.5 {
-                    let v_h = Vec3::new(velocity.x, 0.0, velocity.z);
-                    let into = v_h.dot(n_h);
-                    if into < 0.0 {
-                        velocity.x -= n_h.x * into;
-                        velocity.z -= n_h.z * into;
-                    }
-                }
-
-                if velocity.0.length_squared() < 1e-6 {
-                    break;
-                }
+                continue;
             }
 
-            // ── Overlap recovery ──
-            // The swept casts can MISS grazing contacts against thin/complex
-            // geometry (GJK vs zero-thickness triangles is unreliable
-            // edge-on — the cone's side and the torus's tube let players
-            // walk through them). If the capsule ends the frame overlapping
-            // anything that ISN'T the floor beneath it (the floor overlap is
-            // legitimate riding/resting, handled by the snap + lift), push it
-            // straight out along the contact direction.
-            let center = Vec3::new(
-                position.x,
-                position.y + player_half_height + player_radius,
-                position.z,
+            // ── Wall: advance the chunk, then depenetrate ──
+            // Advancing first lets a brushing player slide along the
+            // wall at full speed (the depenetration only strips the
+            // overlap); a head-on approach nets back to the impact
+            // point because the depenetration pushes out exactly what
+            // was advanced.
+            position.0 += chunk;
+            remaining -= chunk;
+            depenetrate(
+                &mut position,
+                &capsule,
+                &mesh_query,
+                normal,
+                player_half_height,
+                player_radius,
+                velocity.y < 0.0,
+                (-velocity.0.dot(normal) * dt).max(0.0),
             );
-            let pose = Pose::translation(center.x, center.y, center.z);
-            let mut deepest = 0.0f32;
-            let mut contact_point = Vec3::ZERO;
-            let mut pseudo = Vec3::Y;
-            for mesh_collider in mesh_query.iter() {
-                if let Ok(Some(c)) =
-                    contact(&pose, &capsule, &Pose::identity(), &mesh_collider.mesh, 0.0)
-                {
-                    let p = Vec3::new(c.point2.x, c.point2.y, c.point2.z);
-                    // The legitimate floor/riding overlap is directly BELOW
-                    // the feet (the capsule's bottom in the ground/slope);
-                    // overlaps at body height are geometry the player walked
-                    // into (a missed sweep) and must be pushed out. Floor-
-                    // like contacts (normal mostly up) are riding — skip.
-                    let under_feet = p.y <= position.y + 0.15
-                        && Vec3::new(p.x, 0.0, p.z)
-                            .distance(Vec3::new(position.x, 0.0, position.z))
-                            <= 0.15;
-                    let floor_like = c.normal2.y > WALKABLE_SLOPE_THRESHOLD;
-                    if c.dist < deepest && !under_feet && !floor_like {
-                        deepest = c.dist;
-                        contact_point = p;
-                        pseudo = Vec3::new(c.normal2.x, c.normal2.y, c.normal2.z);
-                    }
+
+            // Wall: remove only the into-wall HORIZONTAL component.
+            // Vertical velocity is never touched by wall hits — a
+            // diagonal edge/corner normal must not launch the player
+            // upward (the old "jump when hitting walls" bug).
+            let n_h = Vec3::new(normal.x, 0.0, normal.z).normalize_or_zero();
+            if n_h.length_squared() > 0.5 {
+                let v_h = Vec3::new(velocity.x, 0.0, velocity.z);
+                let into = v_h.dot(n_h);
+                if into < 0.0 {
+                    velocity.x -= n_h.x * into;
+                    velocity.z -= n_h.z * into;
                 }
             }
-            // Only fire for a MEANINGFUL overlap: the swept casts miss
-            // grazing contacts against thin/complex geometry (the torus's
-            // tube) and the capsule ends up clearly inside — but the shallow
-            // riding contact against a slope/side the sweep DID catch must
-            // not push the player back (it would eat the wall-slide).
-            if deepest < -0.05 {
-                // Push out along the TRUE outward surface normal (flipped to
-                // agree with the contact normal), HORIZONTAL only: the player
-                // is pushed out of the geometry's side — never sunk into the
-                // ground, never climbed over the obstacle.
-                let mut n = true_surface_normal(contact_point, pseudo, &mesh_query)
-                    .unwrap_or(pseudo);
-                if n.dot(pseudo) < 0.0 {
-                    n = -n;
-                }
-                let mut d = Vec3::new(n.x, 0.0, n.z).normalize_or_zero();
-                if d.length_squared() < 0.5 {
-                    d = Vec3::Y;
-                }
-                position.0 += d * ((-deepest).min(MAX_DEPENETRATION) + 0.001);
+
+            if velocity.0.length_squared() < 1e-6 {
+                break;
             }
+        }
+
+        // ── Overlap recovery ──
+        // The swept casts can MISS grazing contacts against thin/complex
+        // geometry (GJK vs zero-thickness triangles is unreliable
+        // edge-on — the cone's side and the torus's tube let players
+        // walk through them). If the capsule ends the frame overlapping
+        // anything that ISN'T the floor beneath it (the floor overlap is
+        // legitimate riding/resting, handled by the snap + lift), push it
+        // straight out along the contact direction.
+        let center = Vec3::new(
+            position.x,
+            position.y + player_half_height + player_radius,
+            position.z,
+        );
+        let pose = Pose::translation(center.x, center.y, center.z);
+        let mut deepest = 0.0f32;
+        let mut contact_point = Vec3::ZERO;
+        let mut pseudo = Vec3::Y;
+        for mesh_collider in mesh_query.iter() {
+            if let Ok(Some(c)) =
+                contact(&pose, &capsule, &Pose::identity(), &mesh_collider.mesh, 0.0)
+            {
+                let p = Vec3::new(c.point2.x, c.point2.y, c.point2.z);
+                // The legitimate floor/riding overlap is directly BELOW
+                // the feet (the capsule's bottom in the ground/slope);
+                // overlaps at body height are geometry the player walked
+                // into (a missed sweep) and must be pushed out. Floor-
+                // like contacts (normal mostly up) are riding — skip —
+                // EXCEPT a floor-like contact sitting straight ABOVE the
+                // feet: that's the capsule UNDER a surface (a landing
+                // sweep missed the slope at a grazing angle — gravity
+                // keeps pulling, nothing pushes back, and the player
+                // slowly sinks through). Riding contacts sit ON the
+                // slope, offset UP-SLOPE from the feet.
+                let under_feet = p.y <= position.y + 0.15
+                    && Vec3::new(p.x, 0.0, p.z)
+                        .distance(Vec3::new(position.x, 0.0, position.z))
+                        <= 0.15;
+                let floor_like = c.normal2.y > WALKABLE_SLOPE_THRESHOLD;
+                let surface_above = floor_like
+                    && p.y > position.y
+                    && Vec3::new(p.x, 0.0, p.z)
+                        .distance(Vec3::new(position.x, 0.0, position.z))
+                        <= 0.15;
+                if c.dist < deepest && !under_feet && (!floor_like || surface_above) {
+                    deepest = c.dist;
+                    contact_point = p;
+                    pseudo = Vec3::new(c.normal2.x, c.normal2.y, c.normal2.z);
+                }
+            }
+        }
+        // Only fire for a MEANINGFUL overlap: the swept casts miss
+        // grazing contacts against thin/complex geometry (the torus's
+        // tube) and the capsule ends up clearly inside — but the shallow
+        // riding contact against a slope/side the sweep DID catch must
+        // not push the player back (it would eat the wall-slide).
+        if deepest < -0.05 {
+            // Push out along the TRUE outward surface normal (flipped to
+            // agree with the contact normal), HORIZONTAL only: the player
+            // is pushed out of the geometry's side — never sunk into the
+            // ground, never climbed over the obstacle.
+            let mut n = true_surface_normal(contact_point, pseudo, &mesh_query)
+                .unwrap_or(pseudo);
+            if n.dot(pseudo) < 0.0 {
+                n = -n;
+            }
+            let mut d = Vec3::new(n.x, 0.0, n.z).normalize_or_zero();
+            if d.length_squared() < 0.5 {
+                d = Vec3::Y;
+            }
+            position.0 += d * ((-deepest).min(MAX_DEPENETRATION) + 0.001);
         }
     }
 }
-
 /// Push the player out of penetrating geometry along the true contact normal
 /// by the true penetration depth (capped, iterated).
 ///
@@ -583,6 +637,49 @@ fn depenetrate(
         feet += dir * ((-deepest).min(MAX_DEPENETRATION) + 0.001);
     }
     position.0 = feet;
+}
+
+/// The highest walkable surface (normal.y above the walkable threshold)
+/// under the feet, within `probe_range`, found by a ray starting
+/// `probe_height` above the feet and casting straight down. A probe that
+/// starts slightly above the feet finds surfaces up to `probe_height` above
+/// them (a rising slope the feet have drifted below) as well as surfaces
+/// below. Returns `(surface_y, surface_normal)` or `None`.
+fn walkable_surface_under(
+    feet: Vec3,
+    mesh_query: &Query<&MeshCollider>,
+    probe_height: f32,
+    probe_range: f32,
+) -> Option<(f32, Vec3)> {
+    let ray = Ray::new(
+        Vector::new(feet.x, feet.y + probe_height, feet.z),
+        Vector::new(0.0, -1.0, 0.0),
+    );
+    let mut best: Option<(f32, Vec3)> = None;
+    for mesh_collider in mesh_query.iter() {
+        if let Some(hit) = mesh_collider
+            .mesh
+            .cast_local_ray_and_get_normal(&ray, probe_range, true)
+        {
+            if hit.normal.y > WALKABLE_SLOPE_THRESHOLD {
+                let y = feet.y + probe_height - hit.time_of_impact;
+                if best.map_or(true, |(prev_y, _)| y > prev_y) {
+                    best = Some((y, Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z)));
+                }
+            }
+        }
+    }
+    best
+}
+
+/// The highest walkable surface directly below the feet within `max_dist`
+/// (downward-only probe from the feet).
+fn walkable_surface_below(
+    feet: Vec3,
+    mesh_query: &Query<&MeshCollider>,
+    max_dist: f32,
+) -> Option<(f32, Vec3)> {
+    walkable_surface_under(feet, mesh_query, 0.02, max_dist)
 }
 
 /// The TRUE surface normal at a contact point. parry's shape-cast contact
@@ -1696,5 +1793,519 @@ mod tests {
             "slow brushing must keep tangential progress, x={:.4}", pos.0.x);
         assert!(vel.0.x > 0.8,
             "along-wall velocity was lost: x={:.4}", vel.0.x);
+    }
+
+    /// Jump from the spawn surface and measure the single worst one-frame
+    /// descent drop (meters) during the fall back down. A natural free fall
+    /// from the 1.06 m apex (jump 6.5, gravity 20) peaks at ~6.5 m/s ≈
+    /// 0.108 m/frame; a "snap to ground" shows up as a much larger drop.
+    /// `mesh: None` measures the y=0 floor plane (no mesh collider).
+    fn measure_jump_descent_max_drop(mesh: Option<TriMesh>, spawn_feet: Vec3) -> f32 {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        if let Some(m) = mesh {
+            world.spawn(MeshCollider { mesh: m });
+        }
+        spawn_player(&mut world, spawn_feet, Vec3::ZERO);
+        let mut vel = world.query::<&mut Velocity>().single_mut(&mut world).unwrap();
+        vel.0.y = 6.5;
+        drop(vel);
+
+        let dt = 1.0 / 60.0;
+        let mut prev_y = spawn_feet.y;
+        let mut apex_seen = false;
+        let mut max_drop = 0.0f32;
+        for _ in 0..180 {
+            world
+                .resource_mut::<Time::<Fixed>>()
+                .advance_by(Duration::from_secs_f32(dt));
+            step_frame(&mut world, dt);
+            let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+            let dy = pos.0.y - prev_y;
+            if !apex_seen && dy <= 0.0 {
+                apex_seen = true;
+            }
+            if apex_seen {
+                max_drop = max_drop.max(-dy);
+            }
+            prev_y = pos.0.y;
+        }
+        max_drop
+    }
+
+    /// Jump on the given surface and return the landing position + velocity.
+    /// `world` must already contain the surface's `MeshCollider`.
+    fn jump_and_land(world: &mut World, spawn_feet: Vec3) -> (Vec3, Vec3) {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        spawn_player(world, spawn_feet, Vec3::ZERO);
+        let mut vel = world.query::<&mut Velocity>().single_mut(world).unwrap();
+        vel.0.y = 6.5;
+        drop(vel);
+        let dt = 1.0 / 60.0;
+        for _ in 0..180 {
+            world
+                .resource_mut::<Time::<Fixed>>()
+                .advance_by(Duration::from_secs_f32(dt));
+            step_frame(world, dt);
+        }
+        let (pos, vel) = world
+            .query::<(&PhysicalTranslation, &Velocity)>()
+            .single(world)
+            .unwrap();
+        (pos.0, vel.0)
+    }
+
+    fn ramp_mesh() -> TriMesh {
+        // 30° slope rising along +Z, x ∈ [-1, 1].
+        let verts = vec![
+            Vector::new(-1.0, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(1.0, 0.577, 1.0),
+            Vector::new(-1.0, 0.577, 1.0),
+        ];
+        let idx = vec![[0, 2, 1], [0, 3, 2]];
+        TriMesh::new(verts, idx).unwrap()
+    }
+
+    /// A slope rising along +Z at `angle` degrees, surface y = tan(angle)·z,
+    /// x ∈ [-1, 1], z ∈ [0, len].
+    fn slope_mesh(angle: f32) -> TriMesh {
+        slope_mesh_len(angle, 1.0)
+    }
+
+    fn slope_mesh_len(angle: f32, len: f32) -> TriMesh {
+        let h = angle.to_radians().tan() * len;
+        let verts = vec![
+            Vector::new(-1.0, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(1.0, h, len),
+            Vector::new(-1.0, h, len),
+        ];
+        let idx = vec![[0, 2, 1], [0, 3, 2]];
+        TriMesh::new(verts, idx).unwrap()
+    }
+
+    #[test]
+    fn capsule_under_slope_is_pushed_back_out() {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        // A capsule that ends up UNDER a sloped surface (a landing sweep
+        // that missed the slope at a grazing angle) must be pushed back out
+        // onto the surface — gravity alone would keep pulling it down and
+        // the player would slowly sink through the slope.
+        let h = 30.0f32.to_radians().tan();
+        for under in [0.1f32, 0.25] {
+            let mut world = World::new();
+            world.insert_resource(Time::<Fixed>::from_hz(60.0));
+            world.spawn(MeshCollider { mesh: slope_mesh_len(30.0, 8.0) });
+            // Spawn the feet INSIDE the slope (below the surface at z=3).
+            spawn_player(&mut world, Vec3::new(0.0, h * 3.0 - under, 3.0), Vec3::ZERO);
+            let resolver = world.register_system(resolve_collisions);
+            let dt = 1.0 / 60.0;
+            for _ in 0..120 {
+                world
+                    .resource_mut::<Time::<Fixed>>()
+                    .advance_by(Duration::from_secs_f32(dt));
+                step_walk(&mut world, resolver, 0.0, 0.0, dt);
+            }
+            let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+            let surf = h * pos.z;
+            assert!(
+                pos.y - surf > -0.03,
+                "[under {under:.2}] player stayed sunk below the slope: y={:.3} surf={surf:.3}",
+                pos.y
+            );
+        }
+    }
+
+    #[test]
+    fn slope_walking_keeps_feet_on_surface() {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        // Walking UP a slope: the feet must stay ON the surface every frame.
+        // Regression: the walkable-branch "lift" resolved the capsule's
+        // front-hemisphere penetration of the rising face by lifting the
+        // FEET the full penetration — the steeper the slope, the higher the
+        // feet popped (the camera "snaps up" while walking, then settles
+        // down at rest).
+        for angle in [30.0f32, 40.0, 44.0] {
+            for (dz, label) in [(3.0f32, "walk"), (16.0, "sprint")] {
+                let h = angle.to_radians().tan();
+                let mut world = World::new();
+                world.insert_resource(Time::<Fixed>::from_hz(60.0));
+                world.spawn(MeshCollider { mesh: slope_mesh_len(angle, 6.0) });
+                spawn_player(&mut world, Vec3::new(0.0, h * 3.0, 3.0), Vec3::ZERO);
+                let resolver = world.register_system(resolve_collisions);
+                let dt = 1.0 / 60.0;
+                let mut max_gap = 0.0f32;
+                for _ in 0..90 {
+                    let mut vel = world.query::<&mut Velocity>().single_mut(&mut world).unwrap();
+                    vel.0.z = dz;
+                    drop(vel);
+                    let vel = *world.query::<&Velocity>().single(&world).unwrap();
+                    let mut pos = world
+                        .query::<&mut PhysicalTranslation>()
+                        .single_mut(&mut world)
+                        .unwrap();
+                    pos.0 += vel.0 * dt;
+                    drop(pos);
+                    world
+                        .resource_mut::<Time::<Fixed>>()
+                        .advance_by(Duration::from_secs_f32(dt));
+                    world.run_system(resolver).unwrap();
+                    let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+                    if pos.z >= 2.0 && pos.z <= 4.5 {
+                        let surf = h * pos.z;
+                        max_gap = max_gap.max((pos.y - surf).abs());
+                    }
+                }
+                // The feet must hug the surface (a resting tolerance, not the
+                // ~0.1+ pop the lift produced on a 30° slope — far worse on
+                // steeper ones).
+                assert!(
+                    max_gap < 0.06,
+                    "[{angle}° {label}] feet left the slope surface: max gap {max_gap:.3}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn real_slab_jump_landing_is_stable() {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        // The real map's rotated ramp slabs (meshes 14-17: tilted bars with
+        // two sloped walkable faces). Jumping on one from different approach
+        // angles must not slide like ice or slowly sink through the surface.
+        // The surface height is derived from the actual mesh (a down-ray),
+        // not a hand-computed plane.
+        let surf_y = |world: &mut World, x: f32, z: f32| -> Option<f32> {
+            let ray = Ray::new(
+                Vector::new(x, 5.0, z),
+                Vector::new(0.0, -1.0, 0.0),
+            );
+            let mut best = f32::MIN;
+            for mc in world.query::<&MeshCollider>().iter(world) {
+                if let Some(toi) = mc.mesh.cast_local_ray(&ray, 6.0, true) {
+                    best = best.max(5.0 - toi);
+                }
+            }
+            (best > -5.0).then_some(best)
+        };
+        for (dx, dz, label) in [
+            (0.0f32, 0.0f32, "straight up"),
+            (2.0, 2.0, "along-bar+up"),
+            (-2.0, 2.0, "along-bar-down"),
+            (2.0, -2.0, "cross+up"),
+            (-2.0, -2.0, "cross-down"),
+        ] {
+            let mut world = World::new();
+            world.insert_resource(Time::<Fixed>::from_hz(60.0));
+            spawn_real_testing_grounds(&mut world);
+            let (sx, sz) = (-9.0f32, 24.6f32);
+            let spawn_y = surf_y(&mut world, sx, sz).expect("spawn spot must be on a surface");
+            spawn_player(
+                &mut world,
+                Vec3::new(sx, spawn_y, sz),
+                Vec3::new(dx, 6.5, dz),
+            );
+            let resolver = world.register_system(resolve_collisions);
+            let dt = 1.0 / 60.0;
+            let mut min_gap = f32::MAX;
+            for _ in 0..180 {
+                world
+                    .resource_mut::<Time::<Fixed>>()
+                    .advance_by(Duration::from_secs_f32(dt));
+                step_walk(&mut world, resolver, 0.0, 0.0, dt);
+                let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+                if let Some(s) = surf_y(&mut world, pos.x, pos.z) {
+                    min_gap = min_gap.min(pos.y - s);
+                }
+            }
+            let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+            let vel = *world.query::<&Velocity>().single(&world).unwrap();
+            if let Some(s) = surf_y(&mut world, pos.x, pos.z) {
+                assert!(
+                    min_gap > -0.05,
+                    "[{label}] player sank through the slab: min gap {min_gap:.3}"
+                );
+                assert!(
+                    (pos.y - s).abs() < 0.08,
+                    "[{label}] player did not rest on the slab: y={:.3} surf={s:.3}",
+                    pos.y
+                );
+                assert!(
+                    vel.0.length() < 0.8,
+                    "[{label}] player slid on the slab with no input: v={:.3}",
+                    vel.0.length()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn real_cone_jump_landing_is_stable() {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        // The real map's tilted cone (at (3.28, 2.03, 41.4), base radius
+        // ~2.6, tilted ~41°): its sides are walkable slopes (n.y 0.76-0.95).
+        // Jumping on them from different approach angles must not slide like
+        // ice or slowly sink through the surface.
+        let surf_y = |world: &mut World, x: f32, z: f32| -> Option<f32> {
+            let ray = Ray::new(Vector::new(x, 5.0, z), Vector::new(0.0, -1.0, 0.0));
+            let mut best = f32::MIN;
+            for mc in world.query::<&MeshCollider>().iter(world) {
+                if let Some(toi) = mc.mesh.cast_local_ray(&ray, 6.0, true) {
+                    best = best.max(5.0 - toi);
+                }
+            }
+            (best > -5.0).then_some(best)
+        };
+        for (sx, sz, label) in [
+            (3.2f32, 40.3f32, "shallow side"),
+            (1.6f32, 40.9f32, "upper side"),
+            (2.6f32, 41.8f32, "side"),
+        ] {
+            for (dx, dz, jlabel) in [
+                (0.0f32, 0.0f32, "straight up"),
+                (2.0, 2.0, "diagonal 1"),
+                (-2.0, 2.0, "diagonal 2"),
+                (2.0, -2.0, "diagonal 3"),
+                (-2.0, -2.0, "diagonal 4"),
+            ] {
+                let mut world = World::new();
+                world.insert_resource(Time::<Fixed>::from_hz(60.0));
+                spawn_real_testing_grounds(&mut world);
+                let spawn_y =
+                    surf_y(&mut world, sx, sz).expect("spawn spot must be on a surface");
+                spawn_player(
+                    &mut world,
+                    Vec3::new(sx, spawn_y, sz),
+                    Vec3::new(dx, 6.5, dz),
+                );
+                let resolver = world.register_system(resolve_collisions);
+                let dt = 1.0 / 60.0;
+                let mut min_gap = f32::MAX;
+                for _ in 0..180 {
+                    world
+                        .resource_mut::<Time::<Fixed>>()
+                        .advance_by(Duration::from_secs_f32(dt));
+                    step_walk(&mut world, resolver, 0.0, 0.0, dt);
+                    let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+                    if let Some(s) = surf_y(&mut world, pos.x, pos.z) {
+                        min_gap = min_gap.min(pos.y - s);
+                    }
+                }
+                let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+                let vel = *world.query::<&Velocity>().single(&world).unwrap();
+                if let Some(s) = surf_y(&mut world, pos.x, pos.z) {
+                    assert!(
+                        min_gap > -0.05,
+                        "[{label} {jlabel}] player sank through the cone: min gap {min_gap:.3}"
+                    );
+                    assert!(
+                        (pos.y - s).abs() < 0.08,
+                        "[{label} {jlabel}] player did not rest on the cone: y={:.3} surf={s:.3}",
+                        pos.y
+                    );
+                    assert!(
+                        vel.0.length() < 0.8,
+                        "[{label} {jlabel}] player slid on the cone with no input: v={:.3}",
+                        vel.0.length()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn slope_jump_landing_does_not_slide_or_sink() {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        // Jumping on a slope and landing: from ANY approach direction the
+        // player must (a) not sink through the surface, and (b) not keep
+        // sliding downhill like ice after touching down with no input.
+        let angles = [30.0f32, 40.0, 44.0];
+        let jumps = [
+            (0.0f32, 0.0f32, "straight up"),
+            (2.0, 2.0, "uphill+right"),
+            (-2.0, 2.0, "uphill+left"),
+            (2.0, -2.0, "downhill+right"),
+            (-2.0, -2.0, "downhill+left"),
+        ];
+        for angle in angles {
+            for (dx, dz, label) in jumps {
+                let h = angle.to_radians().tan();
+                let mut world = World::new();
+                world.insert_resource(Time::<Fixed>::from_hz(60.0));
+                // Long slope (z ∈ [0, 8]) so the jump and any drift stay on it.
+                world.spawn(MeshCollider { mesh: slope_mesh_len(angle, 8.0) });
+                // Spawn on the slope at z=3, jump with a horizontal
+                // component.
+                spawn_player(
+                    &mut world,
+                    Vec3::new(0.0, h * 3.0, 3.0),
+                    Vec3::new(dx, 6.5, dz),
+                );
+                let resolver = world.register_system(resolve_collisions);
+                let dt = 1.0 / 60.0;
+                let mut min_gap = f32::MAX;
+                for _ in 0..180 {
+                    world
+                        .resource_mut::<Time::<Fixed>>()
+                        .advance_by(Duration::from_secs_f32(dt));
+                    step_walk(&mut world, resolver, 0.0, 0.0, dt);
+                    let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+                    if pos.z >= 2.0 && pos.z <= 4.5 && pos.x.abs() <= 1.0 {
+                        let surf = h * pos.z;
+                        min_gap = min_gap.min(pos.y - surf);
+                    }
+                }
+                let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+                let vel = *world.query::<&Velocity>().single(&world).unwrap();
+                let surf = h * pos.z;
+                if pos.z >= 2.0 && pos.z <= 4.5 && pos.x.abs() <= 1.0 {
+                    assert!(
+                        min_gap > -0.05,
+                        "[{angle}° {label}] player sank through the slope: min gap {min_gap:.3}"
+                    );
+                    assert!(
+                        (pos.y - surf).abs() < 0.08,
+                        "[{angle}° {label}] player did not rest on the slope: y={:.3} surf={surf:.3}",
+                        pos.y
+                    );
+                    assert!(
+                        vel.0.length() < 0.8,
+                        "[{angle}° {label}] player slid on the slope with no input: v={:.3}",
+                        vel.0.length()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn jump_descent_snaps_on_mesh_top_like_the_floor() {
+        use bevy::time::Time;
+        use std::time::Duration;
+
+        // Standing on a collision mesh (trimesh box top), jumping and falling
+        // back must behave like standing on the y=0 floor: a natural free-fall
+        // descent, then a touch-down. Regression: the resolver's surface snap
+        // teleported the feet to the surface the first frame they came within
+        // 0.3 m of it — a visible "snap to ground" that floors never show.
+        // The same must hold on a sloped mesh (ramp).
+        let floor_max = measure_jump_descent_max_drop(None, Vec3::new(0.0, 0.0, 0.0));
+        let box_max = measure_jump_descent_max_drop(Some(box_mesh()), Vec3::new(0.0, 1.0, 0.0));
+
+        assert!(
+            box_max <= floor_max + 0.05,
+            "box-top landing snapped the player down: worst drop {box_max:.3} vs floor {floor_max:.3}"
+        );
+
+        // Ramp: surface at z=0.3 is y=0.173.
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: ramp_mesh() });
+        spawn_player(&mut world, Vec3::new(0.0, 0.173, 0.3), Vec3::ZERO);
+        let mut vel = world.query::<&mut Velocity>().single_mut(&mut world).unwrap();
+        vel.0.y = 6.5;
+        drop(vel);
+        let dt = 1.0 / 60.0;
+        let mut prev_y = 0.173f32;
+        let mut apex_seen = false;
+        let mut ramp_max = 0.0f32;
+        for _ in 0..180 {
+            world
+                .resource_mut::<Time::<Fixed>>()
+                .advance_by(Duration::from_secs_f32(dt));
+            step_frame(&mut world, dt);
+            let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+            let dy = pos.0.y - prev_y;
+            if !apex_seen && dy <= 0.0 {
+                apex_seen = true;
+            }
+            if apex_seen {
+                ramp_max = ramp_max.max(-dy);
+            }
+            prev_y = pos.0.y;
+        }
+        assert!(
+            ramp_max <= floor_max + 0.05,
+            "ramp landing snapped the player down: worst drop {ramp_max:.3} vs floor {floor_max:.3}"
+        );
+
+        // The real baked testing-grounds colliders (ground-plane mesh + cone,
+        // torus, ramps): jumping on the map's ground must descend and land
+        // exactly like the floor — never snap to the ground mid-fall.
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        spawn_real_testing_grounds(&mut world);
+        spawn_player(&mut world, Vec3::new(0.0, 0.0, 0.0), Vec3::ZERO);
+        let mut vel = world.query::<&mut Velocity>().single_mut(&mut world).unwrap();
+        vel.0.y = 6.5;
+        drop(vel);
+        let dt = 1.0 / 60.0;
+        let mut prev_y = 0.0f32;
+        let mut apex_seen = false;
+        let mut map_max = 0.0f32;
+        for _ in 0..180 {
+            world
+                .resource_mut::<Time::<Fixed>>()
+                .advance_by(Duration::from_secs_f32(dt));
+            step_frame(&mut world, dt);
+            let pos = *world.query::<&PhysicalTranslation>().single(&world).unwrap();
+            let dy = pos.0.y - prev_y;
+            if !apex_seen && dy <= 0.0 {
+                apex_seen = true;
+            }
+            if apex_seen {
+                map_max = map_max.max(-dy);
+            }
+            prev_y = pos.0.y;
+        }
+        assert!(
+            map_max <= floor_max + 0.05,
+            "testing-grounds landing snapped the player down: worst drop {map_max:.3} vs floor {floor_max:.3}"
+        );
+        assert!(
+            prev_y.abs() < 0.05,
+            "player did not land on the map's ground: y={:.3}",
+            prev_y
+        );
+
+        // The player must land ON the box top (y=1.0) and the ramp (y=0.173),
+        // not clip through or hover above.
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: box_mesh() });
+        let (pos, vel) = jump_and_land(&mut world, Vec3::new(0.0, 1.0, 0.0));
+        assert!(
+            (pos.y - 1.0).abs() < 0.05,
+            "player did not land on the box top: y={:.3}",
+            pos.y
+        );
+        assert!(vel.y >= -0.01, "player is still falling after landing: vy={:.3}", vel.y);
+
+        let mut world = World::new();
+        world.insert_resource(Time::<Fixed>::from_hz(60.0));
+        world.spawn(MeshCollider { mesh: ramp_mesh() });
+        let (pos, vel) = jump_and_land(&mut world, Vec3::new(0.0, 0.173, 0.3));
+        assert!(
+            (pos.y - 0.173).abs() < 0.05,
+            "player did not land on the ramp: y={:.3}",
+            pos.y
+        );
+        assert!(vel.y >= -0.01, "player is still falling after ramp landing: vy={:.3}", vel.y);
     }
 }

@@ -1,0 +1,11 @@
+{
+  "id": "ammo_455w",
+  "name": ".455 Webley",
+  "caliber": ".455W",
+  "damage": 45.0,
+  "velocity": 190.0,
+  "penetration": 0.4,
+  "range": 80.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

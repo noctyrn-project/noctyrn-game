@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "ak-74m_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/ak-74m_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        5.054994583129883,
+        0.3310386538505554,
+        -2.2351741790771484E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  }
+}

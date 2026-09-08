@@ -46,6 +46,9 @@ pub struct DebugSettingsConfig {
     pub god_mode: bool,
     pub infinite_ammo: bool,
     pub show_wireframe: bool,
+    /// Show gray placeholder blocks at attachment sockets missing meshes.
+    /// Off by default; used to verify socket positions in-game.
+    pub show_sockets: bool,
 }
 
 impl Default for GameplaySettings {
@@ -90,6 +93,7 @@ impl Default for DebugSettingsConfig {
             god_mode: false,
             infinite_ammo: false,
             show_wireframe: false,
+            show_sockets: false,
         }
     }
 }

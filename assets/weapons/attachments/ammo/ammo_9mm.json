@@ -1,0 +1,11 @@
+{
+  "id": "ammo_9mm",
+  "name": "9mm Parabellum",
+  "caliber": "9x19mm",
+  "damage": 19.0,
+  "velocity": 380.0,
+  "penetration": 0.25,
+  "range": 100.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

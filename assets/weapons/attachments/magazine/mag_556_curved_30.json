@@ -1,0 +1,33 @@
+{
+  "id": "mag_556_curved_30",
+  "name": "30-Round PMAG Magazine",
+  "artist": "D_U",
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  },
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/mag_556_curved_30.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "provides_sockets": {},
+  "modifiers": {},
+  "special_effects": [],
+  "interfaces": [
+    "stanag556"
+  ]
+}

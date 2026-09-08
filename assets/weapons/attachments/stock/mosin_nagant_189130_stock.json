@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "mosin_nagant_189130_stock",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/stock/mosin_nagant_189130_stock.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Wooden Stock",
+  "provides_sockets": {},
+  "slot": "stock",
+  "socket_type": "stock_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "mosin"
+    ],
+    "classes": []
+  }
+}

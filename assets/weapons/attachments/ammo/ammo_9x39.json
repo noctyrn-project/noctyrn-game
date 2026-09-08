@@ -1,0 +1,11 @@
+{
+  "id": "ammo_9x39",
+  "name": "9x39mm SP-5",
+  "caliber": "9x39mm",
+  "damage": 38.0,
+  "velocity": 290.0,
+  "penetration": 0.6,
+  "range": 160.0,
+  "drop_factor": 1.2,
+  "special_effects": []
+}

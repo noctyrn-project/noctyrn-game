@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "stock_ak101_poly",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/stock/stock_ak101_poly.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Polymer Fixed Stock",
+  "provides_sockets": {},
+  "slot": "stock",
+  "socket_type": "stock_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  }
+}

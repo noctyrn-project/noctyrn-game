@@ -1,0 +1,268 @@
+{
+  "info": {
+    "name": "UAR-10",
+    "description": "Ukrainian AR-10 pattern marksman rifle.",
+    "manufacturer": "Zbroyar",
+    "year_introduced": 2015
+  },
+  "meta": {
+    "weapon_type": "DMR",
+    "category": "dmr",
+    "artist": "D_U",
+    "model_path": "weapons/models/receivers/uar-10.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "7.62x51mm",
+    "family": "uar"
+  },
+  "attributes": {
+    "fire_rate": 0.25,
+    "reload_speed": 2.8,
+    "accuracy": 0.93,
+    "mobility": 0.6,
+    "stability": 0.75,
+    "horizontal_recoil": 0.5,
+    "vertical_recoil": 1.6,
+    "ads_speed": 0.55,
+    "equip_speed": 0.35,
+    "fire_modes": [
+      "Semi"
+    ]
+  },
+  "attachments": {
+    "ammo": {
+      "name": "7.62x51mm",
+      "damage": 40.0,
+      "penetration": 0.65,
+      "velocity": 800.0
+    },
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ],
+        "mesh_path": "weapons/models/attachments/optic/uar-10_optic.glb#Scene0"
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.0,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/uar-10_barrel.glb#Scene0"
+      }
+    },
+    "muzzle": {
+      "name": "Flash Guard",
+      "range_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/uar-10_muzzle.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "20 Round Mag",
+      "capacity": 20,
+      "carry_capacity": 80,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/uar-10_magazine.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Precision Stock",
+      "mobility_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/uar-10_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        3.7150679,
+        -0.3641315,
+        0.07104394
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        -0.40609062,
+        0.18391049,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "optic": {
+      "position": [
+        -0.35989404,
+        0.57315624,
+        0.07104394
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (rail)",
+      "socket_type": "optic_rail"
+    },
+    "stock": {
+      "position": [
+        -4.434856,
+        -0.3641315,
+        0.07104394
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "underbarrel": {
+      "position": [
+        0.8625941,
+        -1.3014193,
+        0.07104394
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (NO split underbarrel part — verify rail)",
+      "socket_type": "underbarrel_rail"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar-10_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "uar-10_barrel"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar-10_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "magazine": [
+      "uar-10_magazine"
+    ],
+    "stock": [
+      "uar-10_stock",
+      "__none__"
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "welrod_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/welrod_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "8-Round Pistol Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "welrod"
+    ],
+    "classes": []
+  },
+  "capacity": 8,
+  "carry_capacity": 24
+}

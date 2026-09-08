@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "bcm_mk_12_a5_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/bcm_mk_12_a5_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Flash Hider",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": []
+}

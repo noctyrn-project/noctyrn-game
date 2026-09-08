@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "ak-202_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/ak-202_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Muzzle Device",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "tabuk_sniper_rifle_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/tabuk_sniper_rifle_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "20-Round Steel Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  },
+  "capacity": 20,
+  "carry_capacity": 60,
+  "interfaces": [
+    "ak762"
+  ]
+}

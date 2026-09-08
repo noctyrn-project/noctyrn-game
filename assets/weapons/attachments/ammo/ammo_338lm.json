@@ -1,0 +1,11 @@
+{
+  "id": "ammo_338lm",
+  "name": ".338 Lapua Magnum",
+  "caliber": ".338LM",
+  "damage": 85.0,
+  "velocity": 880.0,
+  "penetration": 0.85,
+  "range": 260.0,
+  "drop_factor": 0.9,
+  "special_effects": []
+}

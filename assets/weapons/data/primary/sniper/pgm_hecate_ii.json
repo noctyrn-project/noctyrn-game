@@ -9,11 +9,21 @@
     "weapon_type": "Sniper Rifle",
     "category": "sniper",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/sniper/pgm_hecate_ii.glb#Scene0",
+    "model_path": "weapons/models/receivers/pgm_hecate_ii.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.22, -0.8],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.18
+    "position_offset": [
+      0.3,
+      -0.22,
+      -0.8
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.18,
+    "caliber": ".50BMG",
+    "family": "hecate"
   },
   "attributes": {
     "fire_rate": 1.5,
@@ -25,12 +35,214 @@
     "vertical_recoil": 5.5,
     "ads_speed": 0.25,
     "equip_speed": 0.65,
-    "fire_modes": ["Semi"]
+    "fire_modes": [
+      "Semi"
+    ]
   },
   "attachments": {
-    "optic": { "name": "12x Scope", "type": "Scope", "zoom_level": 12.0, "zoom_speed": 0.3, "sway_modifier": 0.3, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.1, 0.3] } },
-    "barrel": { "name": "Match Barrel", "range_modifier": 0.3, "accuracy_modifier": 0.05, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [6.5, 0.0, 0.0] } },
-    "magazine": { "name": "7 Round Mag", "capacity": 7, "carry_capacity": 21, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": ".50 BMG", "damage": 130.0, "penetration": 1.0, "velocity": 825.0 }
+    "optic": {
+      "name": "12x Scope",
+      "type": "Scope",
+      "zoom_level": 12.0,
+      "zoom_speed": 0.3,
+      "sway_modifier": 0.3,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.1,
+          0.3
+        ],
+        "mesh_path": "weapons/models/attachments/optic/pgm_hecate_ii_optic.glb#Scene0"
+      }
+    },
+    "barrel": {
+      "name": "Match Barrel",
+      "range_modifier": 0.3,
+      "accuracy_modifier": 0.05,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          6.5,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/pgm_hecate_ii_barrel.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "7 Round Mag",
+      "capacity": 7,
+      "carry_capacity": 21,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/pgm_hecate_ii_magazine.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": ".50 BMG",
+      "damage": 130.0,
+      "penetration": 1.0,
+      "velocity": 825.0
+    },
+    "muzzle": {
+      "name": "Muzzle Brake",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/pgm_hecate_ii_muzzle.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Precision Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/pgm_hecate_ii_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        0.9968459,
+        -0.034024656,
+        0.2447823
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        -1.9180917739868164,
+        0.5514168739318848,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "optic": {
+      "position": [
+        -1.6708838,
+        0.92626095,
+        0.2447823
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (rail)",
+      "socket_type": "optic_rail"
+    },
+    "stock": {
+      "position": [
+        -4.3386135,
+        -0.034024656,
+        0.2447823
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "muzzle": {
+      "socket_type": "muzzle_thread",
+      "position": [
+        6.2337675,
+        0.6137049,
+        3.7252903E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "pgm_hecate_ii_barrel"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "magazine": [
+      "pgm_hecate_ii_magazine"
+    ],
+    "stock": [
+      "pgm_hecate_ii_stock",
+      "__none__"
+    ]
   }
 }

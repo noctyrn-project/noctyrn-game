@@ -1,0 +1,11 @@
+{
+  "id": "ammo_357mag",
+  "name": ".357 Magnum",
+  "caliber": ".357Mag",
+  "damage": 50.0,
+  "velocity": 440.0,
+  "penetration": 0.5,
+  "range": 120.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

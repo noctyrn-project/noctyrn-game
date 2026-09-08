@@ -1,0 +1,11 @@
+{
+  "id": "ammo_57x28",
+  "name": "5.7x28mm",
+  "caliber": "5.7x28mm",
+  "damage": 18.0,
+  "velocity": 715.0,
+  "penetration": 0.6,
+  "range": 120.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

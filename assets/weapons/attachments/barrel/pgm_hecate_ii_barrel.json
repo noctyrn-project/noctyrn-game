@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "pgm_hecate_ii_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/pgm_hecate_ii_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        6.233767509460449,
+        0.6137049198150635,
+        3.725290298461914E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "hecate"
+    ],
+    "classes": []
+  }
+}

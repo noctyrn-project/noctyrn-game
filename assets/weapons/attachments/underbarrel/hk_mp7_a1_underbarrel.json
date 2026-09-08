@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "hk_mp7_a1_underbarrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/underbarrel/hk_mp7_a1_underbarrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Vertical Foregrip",
+  "provides_sockets": {},
+  "slot": "underbarrel",
+  "socket_type": "underbarrel_rail",
+  "special_effects": []
+}

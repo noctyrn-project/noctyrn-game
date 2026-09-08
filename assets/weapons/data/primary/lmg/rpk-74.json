@@ -1,0 +1,263 @@
+{
+  "info": {
+    "name": "RPK-74",
+    "description": "5.45 squad automatic with 45-round magazine and bipod.",
+    "manufacturer": "Izhmash",
+    "year_introduced": 1974
+  },
+  "meta": {
+    "weapon_type": "LMG",
+    "category": "lmg",
+    "artist": "D_U",
+    "model_path": "weapons/models/receivers/rpk-74.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "5.45x39mm",
+    "family": "rpk",
+    "accepted_interfaces": [
+      "ak545"
+    ]
+  },
+  "attributes": {
+    "fire_rate": 0.085,
+    "reload_speed": 4.5,
+    "accuracy": 0.62,
+    "mobility": 0.42,
+    "stability": 0.55,
+    "horizontal_recoil": 0.85,
+    "vertical_recoil": 1.7,
+    "ads_speed": 0.35,
+    "equip_speed": 0.55,
+    "fire_modes": [
+      "Auto"
+    ]
+  },
+  "attachments": {
+    "ammo": {
+      "name": "5.45x39mm",
+      "damage": 24.0,
+      "penetration": 0.45,
+      "velocity": 880.0
+    },
+    "optic": null,
+    "barrel": {
+      "name": "Heavy Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.0,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/rpk_7.62_barrel.glb#Scene0"
+      }
+    },
+    "muzzle": {
+      "name": "Flash Guard",
+      "range_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/muzzle_ak_rpk.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "45 Round Mag",
+      "capacity": 45,
+      "carry_capacity": 135,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/rpk-74_magazine.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Clubfoot Stock",
+      "mobility_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/rpk_7.62_stock.glb#Scene0"
+      }
+    },
+    "underbarrel": {
+      "name": "Bipod",
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/underbarrel/rpk_7.62_underbarrel.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        3.6025991,
+        -0.25487933,
+        0.10335425
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        0.9093047,
+        0.173576,
+        0.000007674098
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "optic": {
+      "position": [
+        0.97147447,
+        0.7040284,
+        0.10335425
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (NO split optic part — verify rail)",
+      "socket_type": "optic_rail"
+    },
+    "stock": {
+      "position": [
+        -1.6596502,
+        -0.25487933,
+        0.10335425
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "underbarrel": {
+      "position": [
+        1.7608119,
+        -1.2137871,
+        0.10335425
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (verify against handguard)",
+      "socket_type": "underbarrel_rail"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "muzzle_ak_rpk",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "magazine": [
+      "ak-12_sk_magazine",
+      "ak-200_magazine",
+      "ak-74m_magazine",
+      "aks-74_magazine",
+      "mag_545_30",
+      "mag_545_bakelite_30",
+      "rpk-74_magazine"
+    ],
+    "stock": [
+      "__none__"
+    ]
+  }
+}

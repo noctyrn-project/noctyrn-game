@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "zbroyar_z-008_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/zbroyar_z-008_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Muzzle Device",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": []
+}

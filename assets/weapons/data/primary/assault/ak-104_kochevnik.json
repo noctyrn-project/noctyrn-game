@@ -1,0 +1,273 @@
+{
+  "info": {
+    "name": "AK-104 Kochevnik",
+    "description": "Bullpup conversion of the AK-104.",
+    "manufacturer": "Kalashnikov",
+    "year_introduced": 2021
+  },
+  "meta": {
+    "weapon_type": "Assault Rifle",
+    "category": "assault",
+    "artist": "D_U",
+    "model_path": "weapons/models/receivers/ak-104_kochevnik.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "7.62x39mm",
+    "family": "ak",
+    "accepted_interfaces": [
+      "ak762"
+    ]
+  },
+  "attributes": {
+    "fire_rate": 0.075,
+    "reload_speed": 2.5,
+    "accuracy": 0.82,
+    "mobility": 0.72,
+    "stability": 0.78,
+    "horizontal_recoil": 0.55,
+    "vertical_recoil": 1.7,
+    "ads_speed": 0.6,
+    "equip_speed": 0.32,
+    "fire_modes": [
+      "Auto",
+      "Semi"
+    ]
+  },
+  "attachments": {
+    "ammo": {
+      "name": "7.62x39mm",
+      "damage": 32.0,
+      "penetration": 0.55,
+      "velocity": 715.0
+    },
+    "optic": null,
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.0,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/ak-104_kochevnik_barrel.glb#Scene0"
+      }
+    },
+    "muzzle": {
+      "name": "Flash Guard",
+      "range_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/ak-104_kochevnik_muzzle.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "30 Round Mag",
+      "capacity": 30,
+      "carry_capacity": 90,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/ak-104_kochevnik_magazine.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        2.2220547,
+        0.3176576,
+        0.080043316
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        -0.7219932,
+        0.66232806,
+        -0.0008802116
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "optic": {
+      "position": [
+        -0.44791043,
+        1.1856885,
+        0.080043316
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (NO split optic part — verify rail)",
+      "socket_type": "optic_rail"
+    },
+    "underbarrel": {
+      "position": [
+        0.35307908,
+        -0.5503733,
+        0.080043316
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (NO split underbarrel part — verify rail)",
+      "socket_type": "underbarrel_rail"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "ak-12_sk_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "tabuk_sniper_rifle_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "aek-971_barrel",
+      "ak-104_barrel",
+      "ak-104_kochevnik_barrel",
+      "ak-108_barrel",
+      "ak-12_sk_barrel",
+      "ak-15_k_barrel",
+      "ak-19_barrel",
+      "ak-202_barrel",
+      "ak-74_barrel",
+      "ak-74m_barrel",
+      "akm_barrel",
+      "akms_barrel",
+      "aks-74_barrel",
+      "aks-74u_barrel",
+      "barrel_ak200",
+      "mpi-km-k_barrel",
+      "rpk_7.62_barrel",
+      "tabuk_sniper_rifle_barrel",
+      "zastava_m70_ab2_barrel",
+      "zastava_m70_barrel"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-104_kochevnik_muzzle",
+      "ak-104_muzzle",
+      "ak-108_muzzle",
+      "ak-12_muzzle",
+      "ak-200_muzzle",
+      "ak-202_muzzle",
+      "ak-203_muzzle",
+      "ak-47_muzzle",
+      "ak-74_muzzle",
+      "aks-74u_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "muzzle_ak74",
+      "muzzle_akm",
+      "muzzle_ak_rpk",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "tabuk_sniper_rifle_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "magazine": [
+      "ak-104_kochevnik_magazine",
+      "ak-12_sk_magazine",
+      "ak-19_magazine",
+      "ak-200_magazine",
+      "ak-74m_magazine",
+      "akms_magazine",
+      "aks-74_magazine",
+      "mag_545_30",
+      "mag_545_bakelite_30",
+      "mag_556_ak101_30",
+      "mag_762ak_30",
+      "mag_762ak_poly_30",
+      "mag_762ak_steel_30",
+      "rpk_7.62_magazine",
+      "saiga-12_ex._30_magazine",
+      "tabuk_sniper_rifle_magazine",
+      "zastava_m70_ab2_magazine",
+      "zastava_m70_magazine"
+    ]
+  }
+}

@@ -11,8 +11,16 @@
     "artist": "D_U",
     "model_path": "weapons/models/melee/blade/cjrb_chord.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.1, -0.6],
-    "rotation_offset": [-0.2, -1.57, 1.57],
+    "position_offset": [
+      0.3,
+      -0.1,
+      -0.6
+    ],
+    "rotation_offset": [
+      -0.2,
+      -1.57,
+      1.57
+    ],
     "scale": 0.15
   },
   "attributes": {
@@ -23,5 +31,6 @@
     "back_stab_multiplier": 2.5,
     "reach": 1.4,
     "mobility": 1.0
-  }
+  },
+  "pools": {}
 }

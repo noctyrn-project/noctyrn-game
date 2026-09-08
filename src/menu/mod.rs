@@ -345,10 +345,12 @@ impl Plugin for MenuPlugin {
         ));
         app.add_systems(Update, (
             loadout::loadout_interaction,
+            loadout::attachment_interaction,
             loadout::update_loadout_ui,
             loadout::update_loadout_tabs,
             loadout::handle_loadout_drag,
             loadout::update_loadout_preview_model,
+            loadout::scroll_loadout_list,
         ).run_if(in_state(GameState::LoadoutSelect)));
 
         app.add_systems(OnEnter(GameState::CrateOpening), (

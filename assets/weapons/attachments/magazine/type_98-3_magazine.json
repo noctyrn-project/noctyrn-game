@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "type_98-3_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/type_98-3_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "30-Round Polymer Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "t98"
+    ],
+    "classes": []
+  },
+  "capacity": 30,
+  "carry_capacity": 120
+}

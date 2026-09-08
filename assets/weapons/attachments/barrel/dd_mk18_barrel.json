@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "dd_mk18_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/dd_mk18_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        2.53082275390625,
+        0.2237718552350998,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  }
+}

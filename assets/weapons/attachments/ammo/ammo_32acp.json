@@ -1,0 +1,11 @@
+{
+  "id": "ammo_32acp",
+  "name": ".32 ACP",
+  "caliber": ".32ACP",
+  "damage": 14.0,
+  "velocity": 300.0,
+  "penetration": 0.2,
+  "range": 60.0,
+  "drop_factor": 1.1,
+  "special_effects": []
+}

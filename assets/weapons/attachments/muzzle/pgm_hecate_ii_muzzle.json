@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "pgm_hecate_ii_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/pgm_hecate_ii_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Muzzle Brake",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": []
+}

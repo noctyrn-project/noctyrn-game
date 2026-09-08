@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "ak-12_sk_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/ak-12_sk_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "30-Round Polymer Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  },
+  "capacity": 30,
+  "carry_capacity": 120,
+  "interfaces": [
+    "ak545"
+  ]
+}

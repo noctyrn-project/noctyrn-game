@@ -9,11 +9,21 @@
     "weapon_type": "Rifle",
     "category": "rifle",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/rifle/m1_garand.glb#Scene0",
+    "model_path": "weapons/models/receivers/m1_garand.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.2, -0.7],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": ".30-06",
+    "family": "garand"
   },
   "attributes": {
     "fire_rate": 0.2,
@@ -25,12 +35,103 @@
     "vertical_recoil": 2.5,
     "ads_speed": 0.5,
     "equip_speed": 0.4,
-    "fire_modes": ["Semi"]
+    "fire_modes": [
+      "Semi"
+    ]
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [4.5, 0.0, 0.0] } },
-    "magazine": { "name": "8 Round Clip", "capacity": 8, "carry_capacity": 48, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": ".30-06 Springfield", "damage": 45.0, "penetration": 0.7, "velocity": 860.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ]
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          4.5,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "magazine": {
+      "name": "8 Round Clip",
+      "capacity": 8,
+      "carry_capacity": 48,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/m1_garand_magazine.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": ".30-06 Springfield",
+      "damage": 45.0,
+      "penetration": 0.7,
+      "velocity": 860.0
+    }
+  },
+  "sockets": {
+    "magazine": {
+      "position": [
+        -1.2353191375732422,
+        0.6054714918136597,
+        0.0007491409778594971
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "magazine": [
+      "m1_garand_magazine"
+    ]
   }
 }

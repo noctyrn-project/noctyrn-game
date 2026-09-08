@@ -1,0 +1,31 @@
+{
+  "artist": "D_U",
+  "id": "muzzle_ak_rpk",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/muzzle_ak_rpk.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Slant Muzzle Brake",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak",
+      "rpk"
+    ],
+    "classes": []
+  }
+}

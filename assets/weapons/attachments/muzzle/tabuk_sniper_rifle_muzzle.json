@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "tabuk_sniper_rifle_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/tabuk_sniper_rifle_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Flash Hider",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  }
+}

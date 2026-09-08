@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "rpk_7.62_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/rpk_7.62_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Heavy Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        6.684793472290039,
+        0.29980653524398804,
+        -0.03965786099433899
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  }
+}

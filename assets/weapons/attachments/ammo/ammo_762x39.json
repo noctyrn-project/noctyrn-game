@@ -1,0 +1,11 @@
+{
+  "id": "ammo_762x39",
+  "name": "7.62x39mm",
+  "caliber": "7.62x39mm",
+  "damage": 32.0,
+  "velocity": 730.0,
+  "penetration": 0.55,
+  "range": 150.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

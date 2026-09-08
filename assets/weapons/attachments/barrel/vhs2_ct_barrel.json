@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "vhs2_ct_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/vhs2_ct_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        3.7387070655822754,
+        0.6504632234573364,
+        4.470348358154297E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "vhs"
+    ],
+    "classes": []
+  }
+}

@@ -9,8 +9,16 @@
     "weapon_type": "Primary",
     "category": "assault",
     "model_path": "weapons/models/primary/example_gun.glb#Scene0",
-    "position_offset": [0.3, -0.2, -0.7],
-    "rotation_offset": [0.00, 1.57, 0.0],
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.00,
+      1.57,
+      0.0
+    ],
     "scale": 0.2
   },
   "attributes": {
@@ -23,130 +31,198 @@
     "vertical_recoil": 0.5,
     "ads_speed": 0.6,
     "equip_speed": 1.0,
-    "fire_modes": ["Auto", "III Burst", "Semi"]
+    "fire_modes": [
+      "Auto",
+      "III Burst",
+      "Semi"
+    ]
   },
   "attachments": {
     "optic": {
-        "name": "Default Optic",
-        "type": "Iron Sight",
-        "zoom_level": 1.0,
-        "zoom_speed": 0.5,
-        "sway_modifier": 0.0,
-        "stability_modifier": 0.0,
-        "special_effects": [],
-        "meta": {
-            "aim_offset": [-0.3, 0.06, 0.2],
-            "mesh_path": "weapons/models/attachments/default_optic.glb#Scene0",
-            "position_offset": [0.0, 0.05, 0.2],
-            "rotation_offset": [0.0, 0.0, 0.0]
-        }
+      "name": "Default Optic",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ],
+        "mesh_path": "weapons/models/attachments/default_optic.glb#Scene0",
+        "position_offset": [
+          0.0,
+          0.05,
+          0.2
+        ],
+        "rotation_offset": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
     },
     "barrel": {
-        "name": "Default Barrel",
-        "range_modifier": 0.0,
-        "accuracy_modifier": 0.0,
-        "horizontal_recoil_modifier": 0.0,
-        "vertical_recoil_modifier": 0.0,
-        "special_effects": [],
-        "meta": {
-            "muzzle_flash_offset": [4.1, 0.0, 0.0],
-            "mesh_path": "weapons/models/attachments/default_barrel.glb#Scene0",
-            "position_offset": [0.0, 0.0, 2.0],
-            "rotation_offset": [0.0, 0.0, 0.0]
-        }
+      "name": "Default Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          4.1,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/default_barrel.glb#Scene0",
+        "position_offset": [
+          0.0,
+          0.0,
+          2.0
+        ],
+        "rotation_offset": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
     },
     "underbarrel": {
-        "name": "Default Underbarrel",
-        "stability_modifier": 0.0,
-        "mobility_modifier": 0.0,
-        "horizontal_recoil_modifier": 0.0,
-        "vertical_recoil_modifier": 0.0,
-        "ads_speed_modifier": 0.0,
-        "equip_speed_modifier": 0.0,
-        "special_effects": [],
-        "meta": {
-            "mesh_path": "weapons/models/attachments/default_underbarrel.glb#Scene0",
-            "position_offset": [0.0, -0.1, 1.0],
-            "rotation_offset": [0.0, 0.0, 0.0]
-        }
+      "name": "Default Underbarrel",
+      "stability_modifier": 0.0,
+      "mobility_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/default_underbarrel.glb#Scene0",
+        "position_offset": [
+          0.0,
+          -0.1,
+          1.0
+        ],
+        "rotation_offset": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
     },
-    "sidebarrel": {
-        "name": "Default Side Barrel",
-        "stability_modifier": 0.0,
-        "mobility_modifier": 0.0,
-        "special_effects": [],
-        "meta": {
-            "mesh_path": "weapons/models/attachments/default_sidebarrel.glb#Scene0",
-            "position_offset": [0.1, 0.0, 1.0],
-            "rotation_offset": [0.0, 0.0, 0.0]
-        }
+    "side": {
+      "name": "Default Side Rail",
+      "stability_modifier": 0.0,
+      "mobility_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/default_side.glb#Scene0",
+        "position_offset": [
+          0.1,
+          0.0,
+          1.0
+        ],
+        "rotation_offset": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
     },
     "magazine": {
-        "name": "Default Magazine",
-        "capacity": 30,
-        "carry_capacity": 120,
-        "mobility_modifier": 0.0,
-        "reload_speed_modifier": 0.0,
-        "horizontal_recoil_modifier": 0.0,
-        "vertical_recoil_modifier": 0.0,
-        "ads_speed_modifier": 0.0,
-        "equip_speed_modifier": 0.0,
-        "special_effects": [],
-        "meta": {
-            "mesh_path": "weapons/models/attachments/default_magazine.glb#Scene0",
-            "position_offset": [0.0, -0.2, -0.5],
-            "rotation_offset": [0.0, 0.0, 0.0]
-        }
+      "name": "Default Magazine",
+      "capacity": 30,
+      "carry_capacity": 120,
+      "mobility_modifier": 0.0,
+      "reload_speed_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/default_magazine.glb#Scene0",
+        "position_offset": [
+          0.0,
+          -0.2,
+          -0.5
+        ],
+        "rotation_offset": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
     },
     "ammo": {
-        "name": "Default Ammo",
-        "damage": {
-            "initial": 25.0,
-            "final": 15.0,
-            "falloff_start": 50.0,
-            "falloff_end": 100.0
-        },
-        "limb_modifiers": {
-            "torso_damage": 1.0,
-            "headshot_damage": 2.0,
-            "limb_damage": 0.75
-        },
-        "penetration": 1.0,
-        "range": 100.0,
-        "velocity": 900.0,
-        "accuracy_modifier": 0.0,
-        "drop_modifier": 0.0,
-        "damage_modifier": 0.0,
-        "range_modifier": 0.0,
-        "penetration_modifier": 0.0,
-        "horizontal_recoil_modifier": 0.0,
-        "vertical_recoil_modifier": 0.0,
-        "special_effects": []
+      "name": "Default Ammo",
+      "damage": {
+        "initial": 25.0,
+        "final": 15.0,
+        "falloff_start": 50.0,
+        "falloff_end": 100.0
+      },
+      "limb_modifiers": {
+        "torso_damage": 1.0,
+        "headshot_damage": 2.0,
+        "limb_damage": 0.75
+      },
+      "penetration": 1.0,
+      "range": 100.0,
+      "velocity": 900.0,
+      "accuracy_modifier": 0.0,
+      "drop_modifier": 0.0,
+      "damage_modifier": 0.0,
+      "range_modifier": 0.0,
+      "penetration_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": []
     },
     "stock": {
-        "name": "Default Stock",
-        "mobility_modifier": 0.0,
-        "stability_modifier": 0.0,
-        "horizontal_recoil_modifier": 0.0,
-        "vertical_recoil_modifier": 0.0,
-        "ads_speed_modifier": 0.0,
-        "equip_speed_modifier": 0.0,
-        "special_effects": [],
-        "meta": {
-            "mesh_path": "weapons/models/attachments/default_stock.glb#Scene0",
-            "position_offset": [-0.3, 0.0, -1.0],
-            "rotation_offset": [0.0, 0.0, 0.0]
-        }
+      "name": "Default Stock",
+      "mobility_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/default_stock.glb#Scene0",
+        "position_offset": [
+          -0.3,
+          0.0,
+          -1.0
+        ],
+        "rotation_offset": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
     }
   },
   "cosmetics": {
     "charm": {
-        "name": "Default Charm",
-        "mesh_path": "cosmetics/charms/default_charm.glb#Scene0",
-        "position_offset": [0.1, -0.1, 0.5],
-        "rotation_offset": [0.0, 0.0, 0.0],
-        "scale": 1.0,
-        "special_effects": []
+      "name": "Default Charm",
+      "mesh_path": "cosmetics/charms/default_charm.glb#Scene0",
+      "position_offset": [
+        0.1,
+        -0.1,
+        0.5
+      ],
+      "rotation_offset": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": 1.0,
+      "special_effects": []
     }
   }
 }

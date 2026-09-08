@@ -1,0 +1,37 @@
+{
+  "artist": "D_U",
+  "id": "adar_2-15_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/adar_2-15_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": 0.03
+  },
+  "name": "10-Round STANAG Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  },
+  "capacity": 10,
+  "carry_capacity": 60,
+  "interfaces": [
+    "stanag556"
+  ]
+}

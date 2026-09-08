@@ -1,0 +1,33 @@
+{
+  "id": "mag_545_30",
+  "name": "30-Round Polymer Magazine",
+  "artist": "D_U",
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  },
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/mag_545_30.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "provides_sockets": {},
+  "modifiers": {},
+  "special_effects": [],
+  "interfaces": [
+    "ak545"
+  ]
+}

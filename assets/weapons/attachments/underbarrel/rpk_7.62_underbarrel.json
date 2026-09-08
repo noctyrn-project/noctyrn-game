@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "rpk_7.62_underbarrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/underbarrel/rpk_7.62_underbarrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Bipod",
+  "provides_sockets": {},
+  "slot": "underbarrel",
+  "socket_type": "underbarrel_rail",
+  "special_effects": []
+}

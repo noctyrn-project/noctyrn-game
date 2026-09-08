@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "ingram_mac_10_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/ingram_mac_10_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Thread Protector",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": []
+}

@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "vp9_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/vp9_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Suppressor",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "vp9"
+    ],
+    "classes": []
+  }
+}

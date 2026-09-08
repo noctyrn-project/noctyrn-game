@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "uar-10_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/uar-10_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        5.0745744705200195,
+        0.26836714148521423,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "uar"
+    ],
+    "classes": []
+  }
+}

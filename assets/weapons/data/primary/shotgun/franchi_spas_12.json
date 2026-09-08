@@ -9,11 +9,21 @@
     "weapon_type": "Shotgun",
     "category": "shotgun",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/shotgun/franchi_spas_12.glb#Scene0",
+    "model_path": "weapons/models/receivers/franchi_spas_12.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.2, -0.7],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "12ga",
+    "family": "spas"
   },
   "attributes": {
     "fire_rate": 0.4,
@@ -25,15 +35,165 @@
     "vertical_recoil": 4.0,
     "ads_speed": 0.5,
     "equip_speed": 0.4,
-    "fire_modes": ["Semi"],
+    "fire_modes": [
+      "Semi"
+    ],
     "pellet_count": 8,
     "spread_cone": 4.5,
     "shell_reload_time": 0.5
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [3.5, 0.0, 0.0] } },
-    "magazine": { "name": "8 Shell Tube", "capacity": 8, "carry_capacity": 32, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": "12 Gauge", "damage": 85.0, "penetration": 0.3, "velocity": 420.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ]
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.5,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "magazine": {
+      "name": "8 Shell Tube",
+      "capacity": 8,
+      "carry_capacity": 32,
+      "reload_speed_modifier": 0.0
+    },
+    "ammo": {
+      "name": "12 Gauge",
+      "damage": 85.0,
+      "penetration": 0.3,
+      "velocity": 420.0
+    },
+    "muzzle": {
+      "name": "Choke",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/franchi_spas_12_muzzle.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Folding Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/franchi_spas_12_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "muzzle": {
+      "position": [
+        0.490838,
+        0.046337575,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "muzzle-part rear-face center (no separate barrel part)",
+      "socket_type": "muzzle_thread"
+    },
+    "stock": {
+      "position": [
+        -0.45677146,
+        -0.029498592,
+        0.0051943082
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "stock": [
+      "franchi_spas_12_stock",
+      "__none__"
+    ]
   }
 }

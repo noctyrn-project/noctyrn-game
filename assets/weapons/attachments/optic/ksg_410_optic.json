@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "ksg_410_optic",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/optic/ksg_410_optic.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Carry Handle",
+  "provides_sockets": {},
+  "slot": "optic",
+  "socket_type": "optic_rail",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ksg"
+    ],
+    "classes": []
+  }
+}

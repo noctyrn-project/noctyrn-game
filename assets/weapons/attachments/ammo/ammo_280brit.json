@@ -1,0 +1,11 @@
+{
+  "id": "ammo_280brit",
+  "name": ".280 British",
+  "caliber": ".280 British",
+  "damage": 30.0,
+  "velocity": 770.0,
+  "penetration": 0.55,
+  "range": 150.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

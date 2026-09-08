@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "stock_ak200_poly",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/stock/stock_ak200_poly.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "AK-200 Polymer Stock",
+  "provides_sockets": {},
+  "slot": "stock",
+  "socket_type": "stock_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  }
+}

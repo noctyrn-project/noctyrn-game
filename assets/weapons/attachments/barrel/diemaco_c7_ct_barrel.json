@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "diemaco_c7_ct_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/diemaco_c7_ct_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        4.994622230529785,
+        0.22721341252326965,
+        2.8312206268310547E-7
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  }
+}

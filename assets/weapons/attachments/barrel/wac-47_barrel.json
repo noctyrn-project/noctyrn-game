@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "wac-47_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/wac-47_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        4.155795097351074,
+        0.2457260638475418,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar47"
+    ],
+    "classes": []
+  }
+}

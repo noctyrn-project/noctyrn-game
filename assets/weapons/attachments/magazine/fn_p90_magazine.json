@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "fn_p90_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/fn_p90_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": -0.15,
+    "reload_speed": 0.6
+  },
+  "name": "50-Round Top Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "p90"
+    ],
+    "classes": []
+  },
+  "capacity": 50,
+  "carry_capacity": 150
+}

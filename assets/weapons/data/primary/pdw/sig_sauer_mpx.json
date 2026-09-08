@@ -9,11 +9,21 @@
     "weapon_type": "PDW",
     "category": "pdw",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/pdw/sig_sauer_mpx.glb#Scene0",
+    "model_path": "weapons/models/receivers/sig_sauer_mpx.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.18, -0.6],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.18,
+      -0.6
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "9x19mm",
+    "family": "mpx"
   },
   "attributes": {
     "fire_rate": 0.06,
@@ -25,12 +35,218 @@
     "vertical_recoil": 0.8,
     "ads_speed": 0.75,
     "equip_speed": 0.25,
-    "fire_modes": ["Auto", "Semi"]
+    "fire_modes": [
+      "Auto",
+      "Semi"
+    ]
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.15] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [3.0, 0.0, 0.0] } },
-    "magazine": { "name": "30 Round Mag", "capacity": 30, "carry_capacity": 120, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": "9mm", "damage": 20.0, "penetration": 0.3, "velocity": 400.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.15
+        ],
+        "mesh_path": "weapons/models/attachments/optic/sig_sauer_mpx_optic.glb#Scene0"
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "magazine": {
+      "name": "30 Round Mag",
+      "capacity": 30,
+      "carry_capacity": 120,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/mag_9mm_30.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": "9mm",
+      "damage": 20.0,
+      "penetration": 0.3,
+      "velocity": 400.0
+    },
+    "muzzle": {
+      "name": "Muzzle Brake",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/sig_sauer_mpx_muzzle.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Collapsible Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/sig_sauer_mpx_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "magazine": {
+      "position": [
+        0.3513886332511902,
+        0.16588997840881348,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "muzzle": {
+      "position": [
+        2.2142663,
+        0.21867049,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "muzzle-part rear-face center (no separate barrel part)",
+      "socket_type": "muzzle_thread"
+    },
+    "optic": {
+      "position": [
+        0.3156079,
+        0.59354824,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (rail)",
+      "socket_type": "optic_rail"
+    },
+    "stock": {
+      "position": [
+        -1.6250246,
+        -0.27109233,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "underbarrel": {
+      "socket_type": "underbarrel_rail",
+      "position": [
+        0.8977976,
+        -1.1357329,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (NO split underbarrel part — verify rail)"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "magazine": [
+      "mag_9mm_30"
+    ],
+    "stock": [
+      "sig_sauer_mpx_stock",
+      "__none__"
+    ]
   }
 }

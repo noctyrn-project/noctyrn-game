@@ -1,0 +1,34 @@
+{
+  "artist": "D_U",
+  "id": "saiga-12_ex._30_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/saiga-12_ex._30_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": 0.03
+  },
+  "name": "10-Round Box Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  },
+  "capacity": 10,
+  "carry_capacity": 40
+}

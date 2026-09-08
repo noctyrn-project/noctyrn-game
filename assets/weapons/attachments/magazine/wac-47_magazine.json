@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "wac-47_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/wac-47_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "30-Round Curved Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar47"
+    ],
+    "classes": []
+  },
+  "capacity": 30,
+  "carry_capacity": 90
+}

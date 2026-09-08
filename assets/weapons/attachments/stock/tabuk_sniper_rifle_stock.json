@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "tabuk_sniper_rifle_stock",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/stock/tabuk_sniper_rifle_stock.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Dragunov-Style Stock",
+  "provides_sockets": {},
+  "slot": "stock",
+  "socket_type": "stock_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  }
+}

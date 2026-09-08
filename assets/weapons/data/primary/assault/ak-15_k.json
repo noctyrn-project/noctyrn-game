@@ -1,0 +1,199 @@
+{
+  "info": {
+    "name": "AK-15",
+    "description": "Modernized Kalashnikov rifle chambered in 7.62x39mm.",
+    "manufacturer": "Kalashnikov Concern",
+    "year_introduced": 2016
+  },
+  "meta": {
+    "weapon_type": "Assault Rifle",
+    "category": "assault",
+    "artist": "D_U",
+    "model_path": "weapons/models/receivers/ak-15_k.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "7.62x39mm",
+    "family": "ak",
+    "accepted_interfaces": [
+      "ak762"
+    ]
+  },
+  "attributes": {
+    "fire_rate": 0.1,
+    "reload_speed": 2.5,
+    "accuracy": 0.75,
+    "mobility": 0.6,
+    "stability": 0.6,
+    "horizontal_recoil": 1.2,
+    "vertical_recoil": 2.5,
+    "ads_speed": 0.5,
+    "equip_speed": 0.35,
+    "fire_modes": [
+      "Auto",
+      "Semi"
+    ]
+  },
+  "attachments": {
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          4.0,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/ak-15_k_barrel.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "30-Round Polymer Magazine",
+      "capacity": 30,
+      "carry_capacity": 90,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/mag_762ak_30.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Fixed Stock",
+      "mobility_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/ak-15_k_stock.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": "7.62x39mm",
+      "damage": 32.0,
+      "penetration": 0.55,
+      "velocity": 715.0
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "socket_type": "barrel_mount",
+      "position": [
+        3.0652,
+        -0.2457,
+        0.0875
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "magazine": {
+      "socket_type": "mag_well",
+      "position": [
+        0.8468621969223022,
+        0.1768999993801117,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "stock": {
+      "socket_type": "stock_mount",
+      "position": [
+        -1.3716,
+        -0.2457,
+        0.0875
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "pools": {
+    "barrel": [
+      "aek-971_barrel",
+      "ak-104_barrel",
+      "ak-104_kochevnik_barrel",
+      "ak-108_barrel",
+      "ak-12_sk_barrel",
+      "ak-15_k_barrel",
+      "ak-19_barrel",
+      "ak-202_barrel",
+      "ak-74_barrel",
+      "ak-74m_barrel",
+      "akm_barrel",
+      "akms_barrel",
+      "aks-74_barrel",
+      "aks-74u_barrel",
+      "barrel_ak200",
+      "mpi-km-k_barrel",
+      "rpk_7.62_barrel",
+      "tabuk_sniper_rifle_barrel",
+      "zastava_m70_ab2_barrel",
+      "zastava_m70_barrel"
+    ],
+    "magazine": [
+      "ak-104_kochevnik_magazine",
+      "ak-12_sk_magazine",
+      "ak-19_magazine",
+      "ak-200_magazine",
+      "ak-74m_magazine",
+      "akms_magazine",
+      "aks-74_magazine",
+      "mag_545_30",
+      "mag_545_bakelite_30",
+      "mag_556_ak101_30",
+      "mag_762ak_30",
+      "mag_762ak_poly_30",
+      "mag_762ak_steel_30",
+      "rpk_7.62_magazine",
+      "saiga-12_ex._30_magazine",
+      "tabuk_sniper_rifle_magazine",
+      "zastava_m70_ab2_magazine",
+      "zastava_m70_magazine"
+    ],
+    "stock": [
+      "aek-971_stock",
+      "ak-104_stock",
+      "ak-12_sk_stock",
+      "ak-12_stock",
+      "ak-15_k_stock",
+      "ak-19_stock",
+      "ak-74_stock",
+      "akms_stock",
+      "akm_stock",
+      "aks-74_stock",
+      "aks-74u_stock",
+      "mpi-km-k_stock",
+      "rpk_7.62_stock",
+      "saiga-12_ex._30_stock",
+      "stock_ak101_poly",
+      "stock_ak200_poly",
+      "tabuk_sniper_rifle_stock",
+      "zastava_m70_ab2_stock",
+      "zastava_m70_stock",
+      "__none__"
+    ]
+  }
+}

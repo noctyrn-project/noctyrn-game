@@ -1,0 +1,268 @@
+{
+  "info": {
+    "name": "C14 Timberwolf",
+    "description": "Bolt-action .338 Lapua marksman rifle.",
+    "manufacturer": "PGW Defence",
+    "year_introduced": 2005
+  },
+  "meta": {
+    "weapon_type": "Sniper Rifle",
+    "category": "sniper",
+    "artist": "D_U",
+    "model_path": "weapons/models/receivers/c14_timberwolf.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": ".338LM",
+    "family": "c14"
+  },
+  "attributes": {
+    "fire_rate": 1.0,
+    "reload_speed": 3.5,
+    "accuracy": 0.97,
+    "mobility": 0.4,
+    "stability": 0.7,
+    "horizontal_recoil": 0.3,
+    "vertical_recoil": 3.5,
+    "ads_speed": 0.4,
+    "equip_speed": 0.45,
+    "fire_modes": [
+      "Bolt"
+    ]
+  },
+  "attachments": {
+    "ammo": {
+      "name": ".338 Lapua Magnum",
+      "damage": 85.0,
+      "penetration": 0.85,
+      "velocity": 880.0
+    },
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ],
+        "mesh_path": "weapons/models/attachments/optic/c14_timberwolf_optic.glb#Scene0"
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.0,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/c14_timberwolf_barrel.glb#Scene0"
+      }
+    },
+    "muzzle": {
+      "name": "Muzzle Brake",
+      "range_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/c14_timberwolf_muzzle.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "5 Round Mag",
+      "capacity": 5,
+      "carry_capacity": 25,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/c14_timberwolf_magazine.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Precision Stock",
+      "mobility_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/c14_timberwolf_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        2.881314,
+        0.042779297,
+        0.1005509
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        -1.647939,
+        0.5751457,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "optic": {
+      "position": [
+        -0.4512192,
+        0.9985136,
+        0.1005509
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (rail)",
+      "socket_type": "optic_rail"
+    },
+    "stock": {
+      "position": [
+        -3.7837524,
+        0.042779297,
+        0.1005509
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "underbarrel": {
+      "position": [
+        0.5485406,
+        -0.912955,
+        0.1005509
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (NO split underbarrel part — verify rail)",
+      "socket_type": "underbarrel_rail"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "c14_timberwolf_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "c14_timberwolf_barrel"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "c14_timberwolf_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "magazine": [
+      "c14_timberwolf_magazine"
+    ],
+    "stock": [
+      "c14_timberwolf_stock",
+      "__none__"
+    ]
+  }
+}

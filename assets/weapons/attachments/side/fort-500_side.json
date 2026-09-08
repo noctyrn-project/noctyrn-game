@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "fort-500_side",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/side/fort-500_side.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Rail Accessory",
+  "provides_sockets": {},
+  "slot": "side",
+  "socket_type": "side_rail",
+  "special_effects": []
+}

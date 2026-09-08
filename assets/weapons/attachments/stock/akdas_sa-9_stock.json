@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "akdas_sa-9_stock",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/stock/akdas_sa-9_stock.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Collapsible Stock",
+  "provides_sockets": {},
+  "slot": "stock",
+  "socket_type": "stock_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "sa9"
+    ],
+    "classes": []
+  }
+}

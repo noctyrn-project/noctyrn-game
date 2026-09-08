@@ -9,11 +9,21 @@
     "weapon_type": "Assault Rifle",
     "category": "assault",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/assault/fn_scar_h_std.glb#Scene0",
+    "model_path": "weapons/models/receivers/fn_scar_h_std.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.2, -0.7],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "7.62x51mm",
+    "family": "scar"
   },
   "attributes": {
     "fire_rate": 0.09,
@@ -25,12 +35,238 @@
     "vertical_recoil": 2.2,
     "ads_speed": 0.5,
     "equip_speed": 0.4,
-    "fire_modes": ["Auto", "Semi"]
+    "fire_modes": [
+      "Auto",
+      "Semi"
+    ]
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [4.5, 0.0, 0.0] } },
-    "magazine": { "name": "20 Round Mag", "capacity": 20, "carry_capacity": 80, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": "7.62 NATO", "damage": 35.0, "penetration": 0.7, "velocity": 850.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ],
+        "mesh_path": "weapons/models/attachments/optic/fn_scar_h_std_optic.glb#Scene0"
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          4.5,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/fn_scar_h_std_barrel.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "20 Round Mag",
+      "capacity": 20,
+      "carry_capacity": 80,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/fn_scar_h_std_magazine.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": "7.62 NATO",
+      "damage": 35.0,
+      "penetration": 0.7,
+      "velocity": 850.0
+    },
+    "muzzle": {
+      "name": "Flash Hider",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/fn_scar_h_std_muzzle.glb#Scene0"
+      }
+    },
+    "stock": {
+      "name": "Folding Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/fn_scar_h_std_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        2.1368728,
+        -0.3062877,
+        0.11210663
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        -0.3378736972808838,
+        0.14579343795776367,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "optic": {
+      "position": [
+        -0.14788353,
+        0.71562374,
+        0.11210663
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (rail)",
+      "socket_type": "optic_rail"
+    },
+    "stock": {
+      "position": [
+        -2.4326398,
+        -0.3062877,
+        0.11210663
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "muzzle": {
+      "socket_type": "muzzle_thread",
+      "position": [
+        4.341013,
+        0.35348204,
+        2.3841858E-7
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "underbarrel": {
+      "socket_type": "underbarrel_rail",
+      "position": [
+        0.53754306,
+        -1.3281991,
+        0.11210663
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (NO split underbarrel part — verify rail)"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "fn_scar_h_std_barrel",
+      "fn_scar_l_std_barrel"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "m60_machine_gun_muzzle",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "magazine": [
+      "fn_scar_h_std_magazine",
+      "mag_556_stanag_30"
+    ],
+    "stock": [
+      "fn_scar_h_std_stock",
+      "fn_scar_l_std_stock",
+      "__none__"
+    ]
   }
 }

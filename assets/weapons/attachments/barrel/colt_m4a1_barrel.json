@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "colt_m4a1_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/colt_m4a1_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        3.7145040035247803,
+        0.3384888768196106,
+        2.9802322387695312E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  }
+}

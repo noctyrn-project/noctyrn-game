@@ -1,0 +1,11 @@
+{
+  "id": "ammo_46x30",
+  "name": "4.6x30mm",
+  "caliber": "4.6x30mm",
+  "damage": 20.0,
+  "velocity": 725.0,
+  "penetration": 0.55,
+  "range": 120.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

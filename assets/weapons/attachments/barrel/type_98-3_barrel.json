@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "type_98-3_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/type_98-3_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        3.3746578693389893,
+        0.29927384853363037,
+        -2.2351741790771484E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "t98"
+    ],
+    "classes": []
+  }
+}

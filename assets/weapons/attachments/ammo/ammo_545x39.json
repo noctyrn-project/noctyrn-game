@@ -1,0 +1,11 @@
+{
+  "id": "ammo_545x39",
+  "name": "5.45x39mm",
+  "caliber": "5.45x39mm",
+  "damage": 27.0,
+  "velocity": 880.0,
+  "penetration": 0.5,
+  "range": 160.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "pgm_hecate_ii_optic",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/optic/pgm_hecate_ii_optic.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Schmidt and Bender 5-25x56",
+  "provides_sockets": {},
+  "slot": "optic",
+  "socket_type": "optic_rail",
+  "special_effects": []
+}

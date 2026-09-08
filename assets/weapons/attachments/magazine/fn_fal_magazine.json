@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "fn_fal_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/fn_fal_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "20-Round Box Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "fal"
+    ],
+    "classes": []
+  },
+  "capacity": 20,
+  "carry_capacity": 80
+}

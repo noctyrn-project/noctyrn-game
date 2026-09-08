@@ -1,0 +1,36 @@
+{
+  "artist": "D_U",
+  "id": "mag_556_steel_30",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/mag_556_steel_30.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "30-Round Steel Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15",
+      "l85"
+    ],
+    "classes": []
+  },
+  "capacity": 30,
+  "carry_capacity": 120,
+  "interfaces": [
+    "stanag556"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "artist": "D_U",
+  "id": "g17_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/g17_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": 0.03
+  },
+  "name": "17-Round Pistol Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "glock"
+    ],
+    "classes": []
+  },
+  "capacity": 17,
+  "carry_capacity": 51
+}

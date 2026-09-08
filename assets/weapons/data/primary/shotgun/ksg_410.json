@@ -1,0 +1,231 @@
+{
+  "info": {
+    "name": "KSG-410",
+    "description": "Bullpup dual-tube .410 shotgun.",
+    "manufacturer": "KelTec",
+    "year_introduced": 2021
+  },
+  "meta": {
+    "weapon_type": "Shotgun",
+    "category": "shotgun",
+    "artist": "D_U",
+    "model_path": "weapons/models/receivers/ksg_410.glb#Scene0",
+    "icon_path": "",
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": ".410 Bore",
+    "family": "ksg"
+  },
+  "attributes": {
+    "fire_rate": 0.9,
+    "reload_speed": 3.2,
+    "accuracy": 0.6,
+    "mobility": 0.6,
+    "stability": 0.6,
+    "horizontal_recoil": 1.5,
+    "vertical_recoil": 3.6,
+    "ads_speed": 0.5,
+    "equip_speed": 0.35,
+    "fire_modes": [
+      "Pump"
+    ],
+    "pellet_count": 6,
+    "spread_cone": 4.5
+  },
+  "attachments": {
+    "ammo": {
+      "name": ".410 Bore",
+      "damage": 55.0,
+      "penetration": 0.3,
+      "velocity": 380.0
+    },
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ],
+        "mesh_path": "weapons/models/attachments/optic/ksg_410_optic.glb#Scene0"
+      }
+    },
+    "muzzle": {
+      "name": "Choke",
+      "range_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/muzzle/ksg_410_muzzle.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "14 Shell Tube",
+      "capacity": 14,
+      "carry_capacity": 42,
+      "reload_speed_modifier": 0.0
+    },
+    "stock": {
+      "name": "Bullpup Stock",
+      "mobility_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "ads_speed_modifier": 0.0,
+      "equip_speed_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/ksg_410_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "muzzle": {
+      "position": [
+        3.2581778,
+        0.41186023,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "muzzle-part rear-face center (no separate barrel part)",
+      "socket_type": "muzzle_thread"
+    },
+    "optic": {
+      "position": [
+        0.18922257,
+        0.6051648,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (rail)",
+      "socket_type": "optic_rail"
+    },
+    "stock": {
+      "position": [
+        -2.930695,
+        -0.26760563,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "underbarrel": {
+      "position": [
+        1.1251979,
+        -1.1403761,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (NO split underbarrel part — verify rail)",
+      "socket_type": "underbarrel_rail"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "ksg_410_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "muzzle": [
+      "adar_2-15_muzzle",
+      "aek-971_muzzle",
+      "ak-12_muzzle",
+      "ak-47_muzzle",
+      "bcm_mk_12_a5_muzzle",
+      "car-15_muzzle",
+      "colt_m4a1_muzzle",
+      "colt_m5_scw_muzzle",
+      "colt_xm177_car-15_muzzle",
+      "dd_mk18_muzzle",
+      "diemaco_c7_ct_muzzle",
+      "fn_m16a4_muzzle",
+      "fn_p90_muzzle",
+      "fn_scar_h_std_muzzle",
+      "fn_scar_l_std_muzzle",
+      "franchi_spas_12_muzzle",
+      "g17_muzzle",
+      "g95_a1_muzzle",
+      "hk416_muzzle",
+      "hk_mp7_a1_muzzle",
+      "imi_uzi_muzzle",
+      "ingram_mac_10_muzzle",
+      "ksg_410_muzzle",
+      "m60_machine_gun_muzzle",
+      "pgm_hecate_ii_muzzle",
+      "rpd-44_muzzle",
+      "rpk_7.62_muzzle",
+      "saiga-12_ex._30_muzzle",
+      "sako_m23_5.56_muzzle",
+      "sig_sauer_mpx_muzzle",
+      "sig_sg-553_r_muzzle",
+      "uar15_s1_muzzle",
+      "zbroyar_z-008_muzzle",
+      "__none__"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "stock": [
+      "ksg_410_stock",
+      "__none__"
+    ]
+  }
+}

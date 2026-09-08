@@ -1,0 +1,11 @@
+{
+  "id": "ammo_50bmg",
+  "name": ".50 BMG",
+  "caliber": ".50BMG",
+  "damage": 125.0,
+  "velocity": 860.0,
+  "penetration": 1.0,
+  "range": 280.0,
+  "drop_factor": 0.9,
+  "special_effects": []
+}

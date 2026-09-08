@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "hk_ump_45_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/hk_ump_45_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "25-Round SMG Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ump"
+    ],
+    "classes": []
+  },
+  "capacity": 25,
+  "carry_capacity": 100
+}

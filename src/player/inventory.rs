@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout};
+use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout, PlayerAttachments, AttachmentRegistry, overrides_for_slot};
 use crate::player::input::Keybinds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -40,6 +40,19 @@ impl Default for Inventory {
 #[derive(Component)]
 pub struct WeaponModel;
 
+/// Bundled weapon-spawn resources (keeps systems under bevy's 16-param cap).
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct WeaponSpawnCtx<'w> {
+    pub asset_server: Res<'w, AssetServer>,
+    pub weapon_registry: Res<'w, WeaponRegistry>,
+    pub loadout: Res<'w, PlayerLoadout>,
+    pub game_settings: Res<'w, crate::settings::GameSettings>,
+    pub player_attachments: Res<'w, PlayerAttachments>,
+    pub attachment_registry: Res<'w, AttachmentRegistry>,
+    pub meshes: ResMut<'w, Assets<Mesh>>,
+    pub materials: ResMut<'w, Assets<StandardMaterial>>,
+}
+
 pub fn handle_weapon_switching(
     mut commands: Commands,
     time: Res<Time>,
@@ -48,13 +61,9 @@ pub fn handle_weapon_switching(
     mut query: Query<&mut Inventory>,
     mut weapon_query: Query<(Entity, &mut crate::weapons::WeaponRecoil), With<WeaponModel>>,
     camera_query: Query<Entity, With<Camera>>,
-    asset_server: Res<AssetServer>,
-    weapon_registry: Res<WeaponRegistry>,
-    loadout: Res<PlayerLoadout>,
+    mut spawn_ctx: WeaponSpawnCtx,
     tcp: Option<Res<crate::net::tcp::TcpClient>>,
     rt: Option<Res<crate::net::TokioRuntime>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for mut inventory in query.iter_mut() {
         // Input handling
@@ -129,7 +138,7 @@ pub fn handle_weapon_switching(
                     inventory.switch_state = SwitchState::Unequipping;
 
                     // Set timer based on current weapon unequip speed (using equip_speed for now)
-                    let speed = weapon_registry.configs.get(&inventory.active_slot)
+                    let speed = spawn_ctx.weapon_registry.configs.get(&inventory.active_slot)
                         .map(|c| c.attributes.equip_speed)
                         .unwrap_or(0.5);
                     inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));
@@ -140,7 +149,7 @@ pub fn handle_weapon_switching(
                     if let (Some(tcp_res), Some(rt_res)) = (tcp.as_ref(), rt.as_ref()) {
                         let tc = (*tcp_res).clone();
                         let rt_handle = rt_res.0.clone();
-                        let wid = loadout.get_id_for_slot(t).to_string();
+                        let wid = spawn_ctx.loadout.get_id_for_slot(t).to_string();
                         rt_handle.spawn(async move {
                             let _ = tc.send(&noctyrn_shared::protocol::ClientMessage::SwitchWeapon { weapon_id: wid }).await;
                         });
@@ -168,7 +177,7 @@ pub fn handle_weapon_switching(
                 if let Some(target) = inventory.target_slot {
                     if target != inventory.active_slot {
                         inventory.switch_state = SwitchState::Unequipping;
-                        let speed = weapon_registry.configs.get(&inventory.active_slot)
+                        let speed = spawn_ctx.weapon_registry.configs.get(&inventory.active_slot)
                             .map(|c| c.attributes.equip_speed)
                             .unwrap_or(0.5);
                         inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));
@@ -208,15 +217,24 @@ pub fn handle_weapon_switching(
                     
                     // Spawn new (with skin from loadout)
                     if let Some(camera_entity) = camera_query.iter().next() {
-                        let skin = loadout.get_skin(inventory.active_slot);
+                        let skin = spawn_ctx.loadout.get_skin(inventory.active_slot);
+                        let overrides = overrides_for_slot(
+                            inventory.active_slot,
+                            &spawn_ctx.loadout,
+                            &spawn_ctx.weapon_registry,
+                            &spawn_ctx.player_attachments,
+                            &spawn_ctx.attachment_registry,
+                        );
                         let weapon_entity = spawn_weapon_visual_skinned(
                             &mut commands,
                             inventory.active_slot,
                             skin,
-                            &asset_server,
-                            &weapon_registry,
-                            &mut meshes,
-                            &mut materials,
+                            &spawn_ctx.asset_server,
+                            &spawn_ctx.weapon_registry,
+                            &mut spawn_ctx.meshes,
+                            &mut spawn_ctx.materials,
+                            &overrides,
+                            spawn_ctx.game_settings.debug.show_sockets,
                         );
                         
                         // Initialize recoil with "Equipping" state to avoid flicker
@@ -231,7 +249,7 @@ pub fn handle_weapon_switching(
                     inventory.switch_state = SwitchState::Equipping;
                     
                     // Set timer based on NEW weapon equip speed
-                    let speed = weapon_registry.configs.get(&inventory.active_slot)
+                    let speed = spawn_ctx.weapon_registry.configs.get(&inventory.active_slot)
                         .map(|c| c.attributes.equip_speed)
                         .unwrap_or(0.5);
                     inventory.switch_timer.set_duration(std::time::Duration::from_secs_f32(speed));

@@ -9,11 +9,21 @@
     "weapon_type": "SMG",
     "category": "smg",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/smg/hk_ump_45.glb#Scene0",
+    "model_path": "weapons/models/receivers/hk_ump_45.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.18, -0.6],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.18,
+      -0.6
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": ".45ACP",
+    "family": "ump"
   },
   "attributes": {
     "fire_rate": 0.09,
@@ -25,12 +35,167 @@
     "vertical_recoil": 1.4,
     "ads_speed": 0.7,
     "equip_speed": 0.28,
-    "fire_modes": ["Auto", "Semi", "III Burst"]
+    "fire_modes": [
+      "Auto",
+      "Semi",
+      "III Burst"
+    ]
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.15] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [2.8, 0.0, 0.0] } },
-    "magazine": { "name": "25 Round Mag", "capacity": 25, "carry_capacity": 100, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": ".45 ACP", "damage": 28.0, "penetration": 0.3, "velocity": 285.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.15
+        ]
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          2.8,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/hk_ump_45_barrel.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "25 Round Mag",
+      "capacity": 25,
+      "carry_capacity": 100,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/hk_ump_45_magazine.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": ".45 ACP",
+      "damage": 28.0,
+      "penetration": 0.3,
+      "velocity": 285.0
+    },
+    "stock": {
+      "name": "Collapsible Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/hk_ump_45_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        2.5195653,
+        -0.39593953,
+        -0.01832299
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        0.8696378469467163,
+        -0.11258840560913086,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "stock": {
+      "position": [
+        -1.7196462,
+        -0.39593953,
+        -0.01832299
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "underbarrel": {
+      "socket_type": "underbarrel_rail",
+      "position": [
+        1.0358412,
+        -1.5139806,
+        -0.01832299
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver bottom, forward third (NO split underbarrel part — verify rail)"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "hk_ump_45_barrel"
+    ],
+    "underbarrel": [
+      "hk_mp7_a1_underbarrel",
+      "m60_machine_gun_underbarrel",
+      "rpk_7.62_underbarrel",
+      "__none__"
+    ],
+    "magazine": [
+      "hk_ump_45_magazine"
+    ],
+    "stock": [
+      "hk_ump_45_stock",
+      "__none__"
+    ]
   }
 }

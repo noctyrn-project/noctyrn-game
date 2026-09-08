@@ -1,0 +1,11 @@
+{
+  "id": "ammo_762x54r",
+  "name": "7.62x54mmR",
+  "caliber": "7.62x54mmR",
+  "damage": 55.0,
+  "velocity": 800.0,
+  "penetration": 0.8,
+  "range": 220.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

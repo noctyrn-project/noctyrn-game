@@ -1,0 +1,35 @@
+{
+  "id": "mag_556_stanag_20",
+  "name": "20-Round STANAG Magazine",
+  "artist": "D_U",
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  },
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/mag_556_stanag_20.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "provides_sockets": {},
+  "modifiers": {
+    "mobility": 0.03
+  },
+  "special_effects": [],
+  "interfaces": [
+    "stanag556"
+  ]
+}

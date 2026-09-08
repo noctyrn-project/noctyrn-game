@@ -1,0 +1,11 @@
+{
+  "id": "ammo_762x25",
+  "name": "7.62x25mm Tokarev",
+  "caliber": "7.62x25mm",
+  "damage": 18.0,
+  "velocity": 490.0,
+  "penetration": 0.35,
+  "range": 100.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

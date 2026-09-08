@@ -1,0 +1,11 @@
+{
+  "id": "ammo_12ga",
+  "name": "12 Gauge Buckshot",
+  "caliber": "12ga",
+  "damage": 85.0,
+  "velocity": 410.0,
+  "penetration": 0.35,
+  "range": 60.0,
+  "drop_factor": 1.5,
+  "special_effects": []
+}

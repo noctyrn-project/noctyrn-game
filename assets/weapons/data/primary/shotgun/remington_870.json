@@ -9,11 +9,21 @@
     "weapon_type": "Shotgun",
     "category": "shotgun",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/shotgun/remington_870.glb#Scene0",
+    "model_path": "weapons/models/receivers/remington_870.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.2, -0.7],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "12ga",
+    "family": "rem870"
   },
   "attributes": {
     "fire_rate": 0.9,
@@ -25,15 +35,128 @@
     "vertical_recoil": 3.2,
     "ads_speed": 0.55,
     "equip_speed": 0.35,
-    "fire_modes": ["Semi"],
+    "fire_modes": [
+      "Semi"
+    ],
     "pellet_count": 8,
     "spread_cone": 4.0,
     "shell_reload_time": 0.5
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [3.5, 0.0, 0.0] } },
-    "magazine": { "name": "7 Shell Tube", "capacity": 7, "carry_capacity": 28, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": "12 Gauge", "damage": 90.0, "penetration": 0.35, "velocity": 410.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ]
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.5,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/remington_870_barrel.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "7 Shell Tube",
+      "capacity": 7,
+      "carry_capacity": 28,
+      "reload_speed_modifier": 0.0
+    },
+    "ammo": {
+      "name": "12 Gauge",
+      "damage": 90.0,
+      "penetration": 0.35,
+      "velocity": 410.0
+    },
+    "stock": {
+      "name": "Wooden Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/remington_870_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        2.1650212,
+        -0.10952002,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "stock": {
+      "position": [
+        -2.8393216,
+        -0.10952002,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "remington_870_barrel"
+    ],
+    "stock": [
+      "remington_870_stock",
+      "__none__"
+    ]
   }
 }

@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "fn_scar_h_std_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/fn_scar_h_std_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Flash Hider",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": []
+}

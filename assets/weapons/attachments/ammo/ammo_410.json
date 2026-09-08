@@ -1,0 +1,11 @@
+{
+  "id": "ammo_410",
+  "name": ".410 Bore",
+  "caliber": ".410 Bore",
+  "damage": 55.0,
+  "velocity": 380.0,
+  "penetration": 0.3,
+  "range": 40.0,
+  "drop_factor": 1.2,
+  "special_effects": []
+}

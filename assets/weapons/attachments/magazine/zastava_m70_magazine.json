@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "zastava_m70_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/zastava_m70_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "30-Round Steel Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ak"
+    ],
+    "classes": []
+  },
+  "capacity": 30,
+  "carry_capacity": 90,
+  "interfaces": [
+    "ak762"
+  ]
+}

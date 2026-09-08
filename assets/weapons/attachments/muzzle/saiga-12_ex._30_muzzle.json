@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "saiga-12_ex._30_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/saiga-12_ex._30_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Choke",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": []
+}

@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "tompson_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/tompson_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "30-Round Stick Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "thompson"
+    ],
+    "classes": []
+  },
+  "capacity": 30,
+  "carry_capacity": 120
+}

@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "fn_scar_l_std_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/fn_scar_l_std_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        3.8001930713653564,
+        0.35348203778266907,
+        2.384185791015625E-7
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "scar"
+    ],
+    "classes": []
+  }
+}

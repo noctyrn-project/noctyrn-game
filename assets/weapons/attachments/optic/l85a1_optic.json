@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "l85a1_optic",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/optic/l85a1_optic.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Iron Sights",
+  "provides_sockets": {},
+  "slot": "optic",
+  "socket_type": "optic_rail",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "l85"
+    ],
+    "classes": []
+  }
+}

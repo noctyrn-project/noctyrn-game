@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "pdr-c_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/pdr-c_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Muzzle Brake",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "pdr"
+    ],
+    "classes": []
+  }
+}

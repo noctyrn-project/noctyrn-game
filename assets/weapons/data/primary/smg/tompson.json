@@ -9,11 +9,21 @@
     "weapon_type": "SMG",
     "category": "smg",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/smg/tompson.glb#Scene0",
+    "model_path": "weapons/models/receivers/tompson.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.2, -0.65],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.65
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": ".45ACP",
+    "family": "thompson"
   },
   "attributes": {
     "fire_rate": 0.07,
@@ -25,12 +35,128 @@
     "vertical_recoil": 1.5,
     "ads_speed": 0.6,
     "equip_speed": 0.3,
-    "fire_modes": ["Auto", "Semi"]
+    "fire_modes": [
+      "Auto",
+      "Semi"
+    ]
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.15] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [3.0, 0.0, 0.0] } },
-    "magazine": { "name": "30 Round Mag", "capacity": 30, "carry_capacity": 120, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": ".45 ACP", "damage": 28.0, "penetration": 0.3, "velocity": 280.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.15
+        ]
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          3.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "magazine": {
+      "name": "30 Round Mag",
+      "capacity": 30,
+      "carry_capacity": 120,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/tompson_magazine.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": ".45 ACP",
+      "damage": 28.0,
+      "penetration": 0.3,
+      "velocity": 280.0
+    },
+    "stock": {
+      "name": "Fixed Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/tompson_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "magazine": {
+      "position": [
+        -0.044625215232372284,
+        -0.07410246133804321,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "stock": {
+      "position": [
+        -3.3215394,
+        -0.6606547,
+        0.116072886
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "magazine": [
+      "tompson_magazine"
+    ],
+    "stock": [
+      "tompson_stock",
+      "__none__"
+    ]
   }
 }

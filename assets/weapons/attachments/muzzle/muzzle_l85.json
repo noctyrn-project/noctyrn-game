@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "muzzle_l85",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/muzzle_l85.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "L85 Flash Hider",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "l85"
+    ],
+    "classes": []
+  }
+}

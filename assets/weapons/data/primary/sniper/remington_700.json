@@ -9,11 +9,21 @@
     "weapon_type": "Sniper Rifle",
     "category": "sniper",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/sniper/remington_700.glb#Scene0",
+    "model_path": "weapons/models/receivers/remington_700.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.2, -0.75],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.75
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "7.62x51mm",
+    "family": "rem700"
   },
   "attributes": {
     "fire_rate": 1.0,
@@ -25,12 +35,117 @@
     "vertical_recoil": 3.5,
     "ads_speed": 0.4,
     "equip_speed": 0.45,
-    "fire_modes": ["Semi"]
+    "fire_modes": [
+      "Semi"
+    ]
   },
   "attachments": {
-    "optic": { "name": "8x Scope", "type": "Scope", "zoom_level": 8.0, "zoom_speed": 0.35, "sway_modifier": 0.2, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.09, 0.25] } },
-    "barrel": { "name": "Match Barrel", "range_modifier": 0.2, "accuracy_modifier": 0.05, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [5.0, 0.0, 0.0] } },
-    "magazine": { "name": "5 Round Internal", "capacity": 5, "carry_capacity": 30, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": ".308 Winchester", "damage": 75.0, "penetration": 0.8, "velocity": 850.0 }
+    "optic": {
+      "name": "8x Scope",
+      "type": "Scope",
+      "zoom_level": 8.0,
+      "zoom_speed": 0.35,
+      "sway_modifier": 0.2,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.09,
+          0.25
+        ]
+      }
+    },
+    "barrel": {
+      "name": "Match Barrel",
+      "range_modifier": 0.2,
+      "accuracy_modifier": 0.05,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          5.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "magazine": {
+      "name": "5 Round Internal",
+      "capacity": 5,
+      "carry_capacity": 30,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/remington_700_magazine.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": ".308 Winchester",
+      "damage": 75.0,
+      "penetration": 0.8,
+      "velocity": 850.0
+    }
+  },
+  "sockets": {
+    "magazine": {
+      "position": [
+        0.11349952220916748,
+        -0.6226246356964111,
+        -1.30385160446167E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "optic": {
+      "socket_type": "optic_rail",
+      "position": [
+        0.6274022,
+        0.92692995,
+        0.017067462
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (NO split optic part — verify rail)"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "magazine": [
+      "remington_700_magazine"
+    ]
   }
 }

@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "rpd-44_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/rpd-44_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": -0.15,
+    "reload_speed": 0.6
+  },
+  "name": "100-Round Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "rpd"
+    ],
+    "classes": []
+  },
+  "capacity": 100,
+  "carry_capacity": 200
+}

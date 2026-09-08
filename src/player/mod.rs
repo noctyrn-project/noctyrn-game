@@ -5,7 +5,7 @@ use bevy::settings::SaveSettings;
 use bevy::app::AppExit;
 use bevy::ecs::relationship::Relationship;
 use bevy::camera::visibility::RenderLayers;
-use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout};
+use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout, PlayerAttachments, AttachmentRegistry, overrides_for_slot};
 use crate::gameplay::{Health, PlayerBody};
 use crate::ui_config::UiConfig;
 use crate::gameplay::DeathEvent;
@@ -263,6 +263,8 @@ fn spawn_player(
     asset_server: Res<AssetServer>,
     weapon_registry: Res<WeaponRegistry>,
     loadout: Res<PlayerLoadout>,
+    player_attachments: Res<PlayerAttachments>,
+    attachment_registry: Res<AttachmentRegistry>,
     game_settings: Res<GameSettings>,
     selected_map: Res<crate::world::SelectedMapId>,
 ) {
@@ -301,6 +303,13 @@ fn spawn_player(
 
     // Spawn initial weapon with loadout skin
     let skin = loadout.get_skin(WeaponSlot::Primary);
+    let overrides = overrides_for_slot(
+        WeaponSlot::Primary,
+        &loadout,
+        &weapon_registry,
+        &player_attachments,
+        &attachment_registry,
+    );
     let weapon_entity = spawn_weapon_visual_skinned(
         &mut commands,
         WeaponSlot::Primary,
@@ -309,6 +318,8 @@ fn spawn_player(
         &weapon_registry,
         &mut meshes,
         &mut materials,
+        &overrides,
+        game_settings.debug.show_sockets,
     );
 
     // Initialize with equipping animation offset so the weapon rises into view

@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "hk_mp7_a1_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/hk_mp7_a1_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": -0.15,
+    "reload_speed": 0.6
+  },
+  "name": "40-Round SMG Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "mp7"
+    ],
+    "classes": []
+  },
+  "capacity": 40,
+  "carry_capacity": 120
+}

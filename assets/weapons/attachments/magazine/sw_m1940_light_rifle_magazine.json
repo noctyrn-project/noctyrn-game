@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "sw_m1940_light_rifle_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/sw_m1940_light_rifle_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "20-Round SMG Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "sw1940"
+    ],
+    "classes": []
+  },
+  "capacity": 20,
+  "carry_capacity": 80
+}

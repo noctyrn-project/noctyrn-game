@@ -1,0 +1,34 @@
+{
+  "artist": "D_U",
+  "id": "m1_garand_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/m1_garand_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": 0.03
+  },
+  "name": "8-Round En Bloc Clip",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "garand"
+    ],
+    "classes": []
+  },
+  "capacity": 8,
+  "carry_capacity": 48
+}

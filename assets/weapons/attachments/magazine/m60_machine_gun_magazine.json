@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "m60_machine_gun_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/m60_machine_gun_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {
+    "mobility": -0.15,
+    "reload_speed": 0.6
+  },
+  "name": "100-Round Belt Box",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "m60"
+    ],
+    "classes": []
+  },
+  "capacity": 100,
+  "carry_capacity": 200
+}

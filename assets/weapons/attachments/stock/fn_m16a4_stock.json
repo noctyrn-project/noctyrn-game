@@ -1,0 +1,30 @@
+{
+  "artist": "D_U",
+  "id": "fn_m16a4_stock",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/stock/fn_m16a4_stock.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Fixed Stock",
+  "provides_sockets": {},
+  "slot": "stock",
+  "socket_type": "stock_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "fn_m16a4_optic",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/optic/fn_m16a4_optic.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Iron Sights",
+  "provides_sockets": {},
+  "slot": "optic",
+  "socket_type": "optic_rail",
+  "special_effects": []
+}

@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "akdas_sa-9_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/akdas_sa-9_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "30-Round SMG Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "sa9"
+    ],
+    "classes": []
+  },
+  "capacity": 30,
+  "carry_capacity": 120,
+  "interfaces": [
+    "mp5_9mm"
+  ]
+}

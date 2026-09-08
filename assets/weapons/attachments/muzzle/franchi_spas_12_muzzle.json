@@ -1,0 +1,23 @@
+{
+  "artist": "D_U",
+  "id": "franchi_spas_12_muzzle",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/muzzle/franchi_spas_12_muzzle.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Choke",
+  "provides_sockets": {},
+  "slot": "muzzle",
+  "socket_type": "muzzle_thread",
+  "special_effects": []
+}

@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "gepard_smg_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/gepard_smg_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "40-Round Extended Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "gepard"
+    ],
+    "classes": []
+  },
+  "capacity": 40,
+  "carry_capacity": 160
+}

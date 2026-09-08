@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "rpk-74_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/rpk-74_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "45-Round Bakelite Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "rpk"
+    ],
+    "classes": []
+  },
+  "capacity": 45,
+  "carry_capacity": 135,
+  "interfaces": [
+    "ak545"
+  ]
+}

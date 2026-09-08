@@ -1,0 +1,35 @@
+{
+  "artist": "D_U",
+  "id": "dd_mk18_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/dd_mk18_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "32-Round Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "ar15"
+    ],
+    "classes": []
+  },
+  "capacity": 32,
+  "carry_capacity": 96,
+  "interfaces": [
+    "stanag556"
+  ]
+}

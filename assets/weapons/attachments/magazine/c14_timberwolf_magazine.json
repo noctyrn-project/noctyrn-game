@@ -1,0 +1,32 @@
+{
+  "artist": "D_U",
+  "id": "c14_timberwolf_magazine",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/magazine/c14_timberwolf_magazine.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "5-Round Magazine",
+  "provides_sockets": {},
+  "slot": "magazine",
+  "socket_type": "mag_well",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "c14"
+    ],
+    "classes": []
+  },
+  "capacity": 5,
+  "carry_capacity": 25
+}

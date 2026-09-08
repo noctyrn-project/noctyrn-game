@@ -1,0 +1,44 @@
+{
+  "artist": "D_U",
+  "id": "gepard_smg_barrel",
+  "meta": {
+    "mesh_path": "weapons/models/attachments/barrel/gepard_smg_barrel.glb#Scene0",
+    "offset": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "modifiers": {},
+  "name": "Standard Barrel",
+  "provides_sockets": {
+    "muzzle": {
+      "heuristic": "barrel forward-face center (muzzle threads)",
+      "position": [
+        3.1389386653900146,
+        0.33839136362075806,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "slot": "barrel",
+  "socket_type": "barrel_mount",
+  "special_effects": [],
+  "fit": {
+    "guns": [],
+    "families": [
+      "gepard"
+    ],
+    "classes": []
+  }
+}

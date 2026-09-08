@@ -1,0 +1,11 @@
+{
+  "id": "ammo_762x51",
+  "name": "7.62 NATO",
+  "caliber": "7.62x51mm",
+  "damage": 35.0,
+  "velocity": 855.0,
+  "penetration": 0.7,
+  "range": 180.0,
+  "drop_factor": 1.0,
+  "special_effects": []
+}

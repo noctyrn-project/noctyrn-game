@@ -9,11 +9,21 @@
     "weapon_type": "Rifle",
     "category": "rifle",
     "artist": "D_U",
-    "model_path": "weapons/models/primary/rifle/mosin_nagant_189130.glb#Scene0",
+    "model_path": "weapons/models/receivers/mosin_nagant_189130.glb#Scene0",
     "icon_path": "",
-    "position_offset": [0.3, -0.2, -0.7],
-    "rotation_offset": [0.0, 1.57, 0.0],
-    "scale": 0.2
+    "position_offset": [
+      0.3,
+      -0.2,
+      -0.7
+    ],
+    "rotation_offset": [
+      0.0,
+      1.57,
+      0.0
+    ],
+    "scale": 0.2,
+    "caliber": "7.62x54mmR",
+    "family": "mosin"
   },
   "attributes": {
     "fire_rate": 0.8,
@@ -25,12 +35,159 @@
     "vertical_recoil": 3.0,
     "ads_speed": 0.45,
     "equip_speed": 0.45,
-    "fire_modes": ["Semi"]
+    "fire_modes": [
+      "Semi"
+    ]
   },
   "attachments": {
-    "optic": { "name": "Iron Sights", "type": "Iron Sight", "zoom_level": 1.0, "zoom_speed": 0.5, "sway_modifier": 0.0, "stability_modifier": 0.0, "special_effects": [], "meta": { "aim_offset": [-0.3, 0.06, 0.2] } },
-    "barrel": { "name": "Standard Barrel", "range_modifier": 0.0, "accuracy_modifier": 0.0, "horizontal_recoil_modifier": 0.0, "vertical_recoil_modifier": 0.0, "special_effects": [], "meta": { "muzzle_flash_offset": [5.0, 0.0, 0.0] } },
-    "magazine": { "name": "5 Round Internal", "capacity": 5, "carry_capacity": 40, "reload_speed_modifier": 0.0 },
-    "ammo": { "name": "7.62x54mmR", "damage": 55.0, "penetration": 0.8, "velocity": 800.0 }
+    "optic": {
+      "name": "Iron Sights",
+      "type": "Iron Sight",
+      "zoom_level": 1.0,
+      "zoom_speed": 0.5,
+      "sway_modifier": 0.0,
+      "stability_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "aim_offset": [
+          -0.3,
+          0.06,
+          0.2
+        ]
+      }
+    },
+    "barrel": {
+      "name": "Standard Barrel",
+      "range_modifier": 0.0,
+      "accuracy_modifier": 0.0,
+      "horizontal_recoil_modifier": 0.0,
+      "vertical_recoil_modifier": 0.0,
+      "special_effects": [],
+      "meta": {
+        "muzzle_flash_offset": [
+          5.0,
+          0.0,
+          0.0
+        ],
+        "mesh_path": "weapons/models/attachments/barrel/mosin_nagant_189130_barrel.glb#Scene0"
+      }
+    },
+    "magazine": {
+      "name": "5 Round Internal",
+      "capacity": 5,
+      "carry_capacity": 40,
+      "reload_speed_modifier": 0.0,
+      "meta": {
+        "mesh_path": "weapons/models/attachments/magazine/mosin_nagant_189130_magazine.glb#Scene0"
+      }
+    },
+    "ammo": {
+      "name": "7.62x54mmR",
+      "damage": 55.0,
+      "penetration": 0.8,
+      "velocity": 800.0
+    },
+    "stock": {
+      "name": "Wooden Stock",
+      "meta": {
+        "mesh_path": "weapons/models/attachments/stock/mosin_nagant_189130_stock.glb#Scene0"
+      }
+    }
+  },
+  "sockets": {
+    "barrel": {
+      "position": [
+        5.0661225,
+        0.120577395,
+        0.22680774
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver forward-face center (barrel interface)",
+      "socket_type": "barrel_mount"
+    },
+    "magazine": {
+      "position": [
+        0.8974756002426147,
+        -0.18002086877822876,
+        -3.725290298461914E-8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "magazine top-face center (magwell)",
+      "socket_type": "mag_well"
+    },
+    "stock": {
+      "position": [
+        -2.996236,
+        0.120577395,
+        0.22680774
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver rear-face center",
+      "socket_type": "stock_mount"
+    },
+    "optic": {
+      "socket_type": "optic_rail",
+      "position": [
+        1.0349432,
+        0.679553,
+        0.22680774
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "heuristic": "receiver top-face center (NO split optic part — verify rail)"
+    }
+  },
+  "pools": {
+    "optic": [
+      "adar_2-15_optic",
+      "ak-12_optic",
+      "barrett_m82_optic",
+      "bcm_mk_12_a5_optic",
+      "colt_m4a1_optic",
+      "colt_m5_scw_optic",
+      "dd_mk18_optic",
+      "diemaco_c7_ct_optic",
+      "fn_m16a4_optic",
+      "fn_scar_h_std_optic",
+      "fn_scar_l_std_optic",
+      "g95_a1_optic",
+      "hk416_optic",
+      "hk_mp7_a1_optic",
+      "pgm_hecate_ii_optic",
+      "rpk_7.62_optic",
+      "sako_m23_5.56_optic",
+      "sig_sauer_mpx_optic",
+      "sig_sg-553_r_optic",
+      "uar15_s1_optic",
+      "vortex_xm157",
+      "vss_vintorez_optic",
+      "zbroyar_z-008_optic",
+      "__none__"
+    ],
+    "barrel": [
+      "mosin_nagant_189130_barrel"
+    ],
+    "magazine": [
+      "mosin_nagant_189130_magazine"
+    ],
+    "stock": [
+      "mosin_nagant_189130_stock",
+      "__none__"
+    ]
   }
 }

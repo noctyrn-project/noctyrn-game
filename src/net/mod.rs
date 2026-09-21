@@ -721,6 +721,7 @@ fn send_loadout(
     tcp: Option<Res<tcp::TcpClient>>,
     rt: Option<Res<TokioRuntime>>,
     loadout: Option<Res<crate::weapons::PlayerLoadout>>,
+    attachments: Option<Res<crate::weapons::PlayerAttachments>>,
     registry: Option<Res<crate::weapons::WeaponRegistry>>,
 ) {
     if let (Some(tcp), Some(rt), Some(registry)) = (tcp, rt, registry) {
@@ -733,6 +734,12 @@ fn send_loadout(
             .and_then(|ids| ids.first()).cloned().unwrap_or_default();
         let equipment = registry.by_slot.get(&crate::weapons::WeaponSlot::Equipment)
             .and_then(|ids| ids.first()).cloned().unwrap_or_default();
+        // The server resolves authoritative stats from these part ids, so it
+        // never has to trust client-side stat math.
+        let parts = attachments
+            .as_ref()
+            .map(|a| a.selected.clone())
+            .unwrap_or_default();
 
         rt_h.spawn(async move {
             let msg = noctyrn_shared::protocol::ClientMessage::SetLoadout {
@@ -740,6 +747,7 @@ fn send_loadout(
                 secondary,
                 melee,
                 equipment,
+                attachments: parts,
             };
             let _ = tc.send(&msg).await;
         });

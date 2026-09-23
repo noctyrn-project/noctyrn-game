@@ -1,0 +1,15 @@
+{
+  "id": "solid_gold",
+  "name": "Gold",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.800000,
+      0.133333,
+      1.0
+    ],
+    "metallic": 0.90,
+    "roughness": 0.20
+  }
+}

@@ -151,7 +151,7 @@ pub fn setup_main_menu_scene(
         commands.spawn((
             PointLight {
                 color: Color::srgb(0.95, 0.92, 1.0),
-                intensity: 150_000.0,
+                intensity: 70_000.0,
                 range: 25.0,
                 shadow_maps_enabled: true,
                 ..default()
@@ -164,7 +164,7 @@ pub fn setup_main_menu_scene(
         commands.spawn((
             PointLight {
                 color: Color::srgb(0.4, 0.5, 0.85),
-                intensity: 60_000.0,
+                intensity: 26_000.0,
                 range: 20.0,
                 shadow_maps_enabled: false,
                 ..default()

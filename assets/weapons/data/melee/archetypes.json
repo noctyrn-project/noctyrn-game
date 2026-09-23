@@ -1,0 +1,50 @@
+{
+  "1h_blade": {
+    "name": "One-Handed Blade",
+    "attack_speed": 0.25,
+    "equip_speed": 0.1,
+    "stab_damage": 55.0,
+    "slash_damage": 30.0,
+    "back_stab_multiplier": 2.5,
+    "reach": 1.8,
+    "mobility": 1.0,
+    "slash_cone": 0.2,
+    "stab_cone": 0.8
+  },
+  "2h_blade": {
+    "name": "Two-Handed Blade",
+    "attack_speed": 0.6,
+    "equip_speed": 0.3,
+    "stab_damage": 45.0,
+    "slash_damage": 80.0,
+    "back_stab_multiplier": 1.5,
+    "reach": 2.5,
+    "mobility": 0.7,
+    "slash_cone": 0.15,
+    "stab_cone": 0.75
+  },
+  "1h_blunt": {
+    "name": "One-Handed Blunt",
+    "attack_speed": 0.35,
+    "equip_speed": 0.15,
+    "stab_damage": 40.0,
+    "slash_damage": 45.0,
+    "back_stab_multiplier": 1.75,
+    "reach": 1.7,
+    "mobility": 0.95,
+    "slash_cone": 0.1,
+    "stab_cone": 0.7
+  },
+  "2h_blunt": {
+    "name": "Two-Handed Blunt",
+    "attack_speed": 0.75,
+    "equip_speed": 0.35,
+    "stab_damage": 35.0,
+    "slash_damage": 95.0,
+    "back_stab_multiplier": 1.25,
+    "reach": 2.6,
+    "mobility": 0.6,
+    "slash_cone": 0.05,
+    "stab_cone": 0.6
+  }
+}

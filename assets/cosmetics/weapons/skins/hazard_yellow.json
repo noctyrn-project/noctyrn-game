@@ -1,0 +1,18 @@
+{
+  "id": "hazard_yellow",
+  "name": "Hazard",
+  "rarity": "rare",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.933333,
+      0.066667,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.40,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_hazard.png"
+    }
+  }
+}

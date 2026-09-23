@@ -1,0 +1,52 @@
+{
+  "id": "galaxy_ember",
+  "name": "Ember Drift",
+  "rarity": "mythic",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.066667,
+      0.066667,
+      1.0
+    ],
+    "metallic": 0.10,
+    "roughness": 0.35,
+    "emissive": {
+      "color": [
+        0.800000,
+        0.333333,
+        0.133333,
+        1.0
+      ],
+      "strength": 0.6,
+      "pulse_hz": 0.3
+    },
+    "galaxy": {
+      "palette": [
+        [
+          0.133333,
+          0.066667,
+          0.066667
+        ],
+        [
+          0.533333,
+          0.133333,
+          0.066667
+        ],
+        [
+          1.000000,
+          0.600000,
+          0.200000
+        ]
+      ],
+      "density": 3.0,
+      "speed": 0.05,
+      "stars": 1.1,
+      "layers": 3,
+      "parallax": 1.1,
+      "star_density": 24.0,
+      "twinkle": 1.0,
+      "core": 0.25
+    }
+  }
+}

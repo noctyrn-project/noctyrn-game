@@ -1,0 +1,15 @@
+{
+  "id": "solid_red",
+  "name": "Red",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.733333,
+      0.066667,
+      0.066667,
+      1.0
+    ],
+    "metallic": 0.60,
+    "roughness": 0.35
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "solid_yellow",
+  "name": "Yellow",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.933333,
+      0.066667,
+      1.0
+    ],
+    "metallic": 0.60,
+    "roughness": 0.35
+  }
+}

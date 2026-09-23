@@ -1,36 +1,28 @@
 {
-  "info": {
-    "name": "MSBS Grot Bayonet",
-    "description": "A sharp blade.",
-    "manufacturer": "Fabryka Broni Łucznik",
-    "year_introduced": 2025
-  },
-  "meta": {
-    "weapon_type": "1 Handed Sharp",
-    "category": "blade",
-    "artist": "D_U",
-    "model_path": "weapons/models/melee/blade/msbs_grot_bayonet.glb#Scene0",
-    "icon_path": "weapons/icons/msbs_grot_bayonet.png",
-    "position_offset": [
-      0.3,
-      -0.1,
-      -0.6
-    ],
-    "rotation_offset": [
-      -0.2,
-      -1.57,
-      1.57
-    ],
-    "scale": 0.15
-  },
-  "attributes": {
-    "attack_speed": 0.3,
-    "equip_speed": 0.1,
-    "stab_damage": 50.0,
-    "slash_damage": 30.0,
-    "back_stab_multiplier": 2.0,
-    "reach": 2.0,
-    "mobility": 1.0
-  },
-  "pools": {}
+   "info" : {
+      "description" : "A sharp blade.",
+      "manufacturer" : "Fabryka Broni Łucznik",
+      "name" : "MSBS Grot Bayonet",
+      "year_introduced" : 2025
+   },
+   "meta" : {
+      "archetype" : "1h_blade",
+      "artist" : "D_U",
+      "category" : "blade",
+      "icon_path" : "weapons/icons/msbs_grot_bayonet.png",
+      "model_path" : "weapons/models/melee/blade/msbs_grot_bayonet.glb#Scene0",
+      "position_offset" : [
+         0.3,
+         -0.1,
+         -0.6
+      ],
+      "rotation_offset" : [
+         -0.2,
+         -1.57,
+         1.57
+      ],
+      "scale" : 0.15,
+      "weapon_type" : "1 Handed Sharp"
+   },
+   "pools" : {}
 }

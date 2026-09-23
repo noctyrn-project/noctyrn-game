@@ -1,0 +1,52 @@
+{
+  "id": "supernova",
+  "name": "Supernova",
+  "rarity": "mythic",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.066667,
+      0.133333,
+      1.0
+    ],
+    "metallic": 0.10,
+    "roughness": 0.35,
+    "emissive": {
+      "color": [
+        1.000000,
+        0.400000,
+        0.133333,
+        1.0
+      ],
+      "strength": 0.9,
+      "pulse_hz": 0.9
+    },
+    "galaxy": {
+      "palette": [
+        [
+          0.133333,
+          0.066667,
+          0.133333
+        ],
+        [
+          0.666667,
+          0.200000,
+          0.133333
+        ],
+        [
+          1.000000,
+          0.733333,
+          0.266667
+        ]
+      ],
+      "density": 3.2,
+      "speed": 0.09,
+      "stars": 1.8,
+      "layers": 3,
+      "parallax": 0.9,
+      "star_density": 28.0,
+      "twinkle": 1.6,
+      "core": 0.8
+    }
+  }
+}

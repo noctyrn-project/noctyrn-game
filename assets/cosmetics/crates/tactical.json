@@ -1,0 +1,17 @@
+{
+  "id": "tactical",
+  "name": "Tactical Crate",
+  "description": "Better odds for uncommon and rare skins.",
+  "cost": 100,
+  "accent": [0.3, 0.7, 0.9],
+  "rarity_weights": {
+    "common": 325,
+    "uncommon": 350,
+    "rare": 200,
+    "epic": 100,
+    "legendary": 20,
+    "mythic": 5
+  },
+  "melee_chance": 0.0,
+  "skin_pool": []
+}

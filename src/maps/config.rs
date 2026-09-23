@@ -30,7 +30,7 @@ pub struct LightConfig {
 }
 
 fn default_light_intensity() -> f32 {
-    15_000_000.0
+    9_000_000.0
 }
 
 fn default_shadows() -> bool {

@@ -1,0 +1,18 @@
+{
+  "id": "carbon_fiber",
+  "name": "Carbon",
+  "rarity": "rare",
+  "finish": {
+    "base_color": [
+      0.133333,
+      0.133333,
+      0.133333,
+      1.0
+    ],
+    "metallic": 0.50,
+    "roughness": 0.12,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_carbon.png"
+    }
+  }
+}

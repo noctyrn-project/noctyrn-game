@@ -1,0 +1,52 @@
+{
+  "id": "galaxy_deep_field",
+  "name": "Deep Field",
+  "rarity": "mythic",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.066667,
+      0.200000,
+      1.0
+    ],
+    "metallic": 0.10,
+    "roughness": 0.35,
+    "emissive": {
+      "color": [
+        0.200000,
+        0.400000,
+        0.800000,
+        1.0
+      ],
+      "strength": 0.7,
+      "pulse_hz": 0.15
+    },
+    "galaxy": {
+      "palette": [
+        [
+          0.066667,
+          0.066667,
+          0.200000
+        ],
+        [
+          0.133333,
+          0.333333,
+          0.600000
+        ],
+        [
+          0.400000,
+          0.733333,
+          0.933333
+        ]
+      ],
+      "density": 2.6,
+      "speed": 0.035,
+      "stars": 2.2,
+      "layers": 4,
+      "parallax": 1.6,
+      "star_density": 34.0,
+      "twinkle": 0.8,
+      "core": 0.2
+    }
+  }
+}

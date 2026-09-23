@@ -1,0 +1,15 @@
+{
+  "id": "chrome_forge",
+  "name": "Chrome",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.800000,
+      0.866667,
+      0.933333,
+      1.0
+    ],
+    "metallic": 0.95,
+    "roughness": 0.08
+  }
+}

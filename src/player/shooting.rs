@@ -1021,10 +1021,20 @@ pub fn fire_weapon(
 
         match inventory.active_slot {
             WeaponSlot::Melee => {
-                // Melee Swing Logic
-                let attack_speed = weapon_registry.configs.get(&WeaponSlot::Melee)
-                    .map(|c| c.attributes.attack_speed)
-                    .unwrap_or(0.5);
+                // Melee Swing Logic. All stats come from the equipped melee's
+                // archetype (folded into `configs` at load time).
+                let (attack_speed, stab_damage, slash_damage, reach, back_stab_multiplier, slash_cone, stab_cone) =
+                    weapon_registry.configs.get(&WeaponSlot::Melee)
+                        .map(|c| (
+                            c.attributes.attack_speed,
+                            c.attributes.stab_damage,
+                            c.attributes.slash_damage,
+                            c.attributes.reach,
+                            c.attributes.back_stab_multiplier,
+                            c.attributes.slash_cone,
+                            c.attributes.stab_cone,
+                        ))
+                        .unwrap_or((0.5, 50.0, 30.0, 2.5, 2.0, 0.2, 0.8));
 
                 if let Some((weapon_entity, _, _, _)) = weapon_query.iter().next() {
                     // Toggle direction
@@ -1037,20 +1047,26 @@ pub fn fire_weapon(
                     });
                 }
                 // Damage Logic
-                let melee_range = 2.5;
-                let final_damage = if is_slash { 30.0 } else { damage }; // Slash = 30, Stab = 50 (from JSON)
-                
+                let base_damage = if is_slash { slash_damage } else { stab_damage };
+
                 for (_target_entity, target_transform, mut health, _, is_enemy, mut regen) in health_query.iter_mut() {
                     if is_enemy.is_none() { continue; } // Only hit enemies
-                    
+
                     let to_target = target_transform.translation() - transform.translation; // Use camera pos, not spawn_pos
                     let distance = to_target.length();
-                    
-                    if distance < melee_range {
+
+                    if distance < reach {
                         let dir_to_target = to_target.normalize();
                         // Check if in front (cone)
-                        let cone = if is_slash { 0.2 } else { 0.8 }; // Slash is wider (0.2 dot product is wide angle), Stab is narrow
+                        let cone = if is_slash { slash_cone } else { stab_cone };
                         if forward.dot(dir_to_target) > cone {
+                            // Backstab: the target is facing away from us.
+                            let backstab = target_transform.forward().dot(dir_to_target) > 0.35;
+                            let final_damage = if backstab {
+                                base_damage * back_stab_multiplier
+                            } else {
+                                base_damage
+                            };
                             health.current -= final_damage;
                             if let Some(r) = regen.as_mut() {
                                 r.timer.reset();
@@ -1058,7 +1074,12 @@ pub fn fire_weapon(
                             }
                             spawn_hit_marker(&mut commands);
                             spawn_damage_number(&mut commands, final_damage, target_transform.translation());
-                            println!("Hit enemy! Health: {} (Type: {})", health.current, if is_slash { "Slash" } else { "Stab" });
+                            println!(
+                                "Hit enemy! Health: {} (Type: {}{})",
+                                health.current,
+                                if is_slash { "Slash" } else { "Stab" },
+                                if backstab { ", BACKSTAB" } else { "" }
+                            );
                         }
                     }
                 }

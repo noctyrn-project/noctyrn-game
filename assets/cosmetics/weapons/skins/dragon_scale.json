@@ -1,0 +1,28 @@
+{
+  "id": "dragon_scale",
+  "name": "Dragon Scale",
+  "rarity": "epic",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.666667,
+      0.333333,
+      1.0
+    ],
+    "metallic": 0.70,
+    "roughness": 0.25,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_scales.png"
+    },
+    "emissive": {
+      "color": [
+        0.066667,
+        0.666667,
+        0.333333,
+        1.0
+      ],
+      "strength": 0.5,
+      "pulse_hz": 0.5
+    }
+  }
+}

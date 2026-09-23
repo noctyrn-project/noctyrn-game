@@ -1,0 +1,15 @@
+{
+  "id": "arctic_white",
+  "name": "Arctic",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.866667,
+      1.000000,
+      1.000000,
+      1.0
+    ],
+    "metallic": 0.60,
+    "roughness": 0.25
+  }
+}

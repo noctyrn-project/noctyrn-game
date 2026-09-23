@@ -1,0 +1,18 @@
+{
+  "id": "scales_viper",
+  "name": "Viper",
+  "rarity": "rare",
+  "finish": {
+    "base_color": [
+      0.133333,
+      0.800000,
+      0.266667,
+      1.0
+    ],
+    "metallic": 0.50,
+    "roughness": 0.30,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_scales.png"
+    }
+  }
+}

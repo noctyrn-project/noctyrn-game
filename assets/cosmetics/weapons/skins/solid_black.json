@@ -1,0 +1,15 @@
+{
+  "id": "solid_black",
+  "name": "Black",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.066667,
+      0.066667,
+      1.0
+    ],
+    "metallic": 0.70,
+    "roughness": 0.30
+  }
+}

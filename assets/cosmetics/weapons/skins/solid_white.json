@@ -1,0 +1,15 @@
+{
+  "id": "solid_white",
+  "name": "White",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      1.000000,
+      1.000000,
+      1.000000,
+      1.0
+    ],
+    "metallic": 0.50,
+    "roughness": 0.40
+  }
+}

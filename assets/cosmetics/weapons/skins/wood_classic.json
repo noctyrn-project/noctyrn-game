@@ -1,0 +1,18 @@
+{
+  "id": "wood_classic",
+  "name": "Walnut",
+  "rarity": "rare",
+  "finish": {
+    "base_color": [
+      0.533333,
+      0.266667,
+      0.133333,
+      1.0
+    ],
+    "metallic": 0.20,
+    "roughness": 0.70,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_wood.png"
+    }
+  }
+}

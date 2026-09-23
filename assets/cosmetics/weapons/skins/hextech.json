@@ -1,0 +1,28 @@
+{
+  "id": "hextech",
+  "name": "Hextech",
+  "rarity": "epic",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.933333,
+      1.000000,
+      1.0
+    ],
+    "metallic": 0.70,
+    "roughness": 0.30,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_scales.png"
+    },
+    "emissive": {
+      "color": [
+        0.066667,
+        0.800000,
+        0.933333,
+        1.0
+      ],
+      "strength": 0.8,
+      "pulse_hz": 0.4
+    }
+  }
+}

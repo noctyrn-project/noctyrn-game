@@ -1,0 +1,24 @@
+{
+  "id": "gradient_sunset",
+  "name": "Sunset",
+  "rarity": "uncommon",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.666667,
+      0.266667,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.40,
+    "gradient": {
+      "color": [
+        0.800000,
+        0.066667,
+        0.400000,
+        1.0
+      ],
+      "axis": "x"
+    }
+  }
+}

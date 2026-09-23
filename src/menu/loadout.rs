@@ -3,10 +3,10 @@ use crate::theme::*;
 use crate::player::GameState;
 use crate::weapons::{
     WeaponRegistry, WeaponSlot, PlayerLoadout, WeaponConfig,
-    sync_loadout_to_configs, WeaponSkin, WeaponSkinTag,
-    SkinInventory, PlayerAttachments, AttachmentRegistry, AmmoRegistry,
+    sync_loadout_to_configs, WeaponSkinTag, SkinInstance, SkinId, SkinRegistry, Inventory,
+    PlayerAttachments, AttachmentRegistry, AmmoRegistry,
     compatible_attachments, compatible_ammo, effective_attachment_name, default_slot_name,
-    spawn_weapon_attachments, resolve_attachment_meshes, AttachmentRes, slot_key_to_label,
+    spawn_weapon_attachments, resolve_attachment_meshes, AttachmentRes, SkinRes, slot_key_to_label,
 };
 use crate::menu::MenuCamera;
 
@@ -37,7 +37,7 @@ pub struct LoadoutUiState {
     pub active_slot: WeaponSlot,
     pub active_category: Option<String>,
     pub selected_weapon_id: Option<String>,
-    pub selected_skin: WeaponSkin,
+    pub selected_skin: SkinInstance,
     pub preview_needs_update: bool,
     pub browse: AttachmentBrowse,
     /// Inspector shows the extended ballistics readout.
@@ -58,7 +58,7 @@ impl Default for LoadoutUiState {
             active_slot: WeaponSlot::Primary,
             active_category: None,
             selected_weapon_id: None,
-            selected_skin: WeaponSkin::Default,
+            selected_skin: SkinInstance::default(),
             preview_needs_update: false,
             browse: AttachmentBrowse::Closed,
             show_advanced: false,
@@ -160,7 +160,7 @@ pub struct CurrentLoadoutDisplay;
 
 #[derive(Component)]
 pub struct SkinButton {
-    pub skin: WeaponSkin,
+    pub skin: SkinId,
 }
 
 #[derive(Component)]
@@ -422,7 +422,7 @@ pub fn despawn_loadout_menu(mut commands: Commands, query: Query<Entity, With<Lo
     }
 }
 
-fn category_display_name(category: &str) -> &str {
+pub(crate) fn category_display_name(category: &str) -> &str {
     match category {
         "assault" => "Assault Rifles",
         "carbine" => "Carbines",
@@ -453,7 +453,7 @@ fn loadout_panel_keys(
     weapon_id: Option<&str>,
     browse: &AttachmentBrowse,
     attachments_rev: u64,
-    skin: WeaponSkin,
+    skin: SkinInstance,
     show_advanced: bool,
 ) -> (String, String) {
     let list_key = format!("{slot:?}|{category:?}|{weapon_id:?}|{}|{attachments_rev}", browse.key());
@@ -506,7 +506,7 @@ fn browse_slot_current_name(
     }
 }
 
-fn category_sort_order(category: &str) -> u32 {    match category {
+pub(crate) fn category_sort_order(category: &str) -> u32 {    match category {
         "assault" => 0,
         "carbine" => 1,
         "smg" => 2,
@@ -606,6 +606,8 @@ pub fn scroll_loadout_list(
 pub fn update_loadout_ui(
     mut commands: Commands,
     registry: Res<WeaponRegistry>,
+    skin_registry: Res<SkinRegistry>,
+    inventory: Res<Inventory>,
     loadout: Res<PlayerLoadout>,
     player_attachments: Res<PlayerAttachments>,
     attachment_registry: Res<AttachmentRegistry>,
@@ -638,7 +640,7 @@ pub fn update_loadout_ui(
         ui_state.selected_weapon_id.as_deref(),
         &ui_state.browse,
         ui_state.attachments_rev,
-        ui_state.selected_skin,
+        ui_state.selected_skin.clone(),
         ui_state.show_advanced,
     );
     let rebuild_list = list_key != ui_state.last_list_key;
@@ -659,6 +661,14 @@ pub fn update_loadout_ui(
     if let Some(weapon_ids) = registry.by_slot.get(&slot) {
         let mut cat_map: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
         for id in weapon_ids {
+            // Melee meshes are collectibles: only archetype defaults are
+            // always available, the rest unlock from crates.
+            if slot == WeaponSlot::Melee
+                && !crate::weapons::melee::is_default_melee(id)
+                && !inventory.has_melee(id)
+            {
+                continue;
+            }
             if let Some(config) = registry.weapons.get(id) {
                 let cat = if config.meta.category.is_empty() {
                     match config.meta.weapon_type.as_str() {
@@ -737,7 +747,7 @@ pub fn update_loadout_ui(
                                 vec![
                                     (
                                         format!(
-                                            "DMG {:.0} · VEL {:.0} · PEN {:.0}%",
+                                            "DMG {:.0} | VEL {:.0} | PEN {:.0}%",
                                             a.damage,
                                             a.velocity,
                                             a.penetration * 100.0
@@ -746,7 +756,7 @@ pub fn update_loadout_ui(
                                     ),
                                     (
                                         format!(
-                                            "RNG {:.0}m · DROP x{:.1}",
+                                            "RNG {:.0}m | DROP x{:.1}",
                                             a.range, a.drop_factor
                                         ),
                                         None,
@@ -767,7 +777,7 @@ pub fn update_loadout_ui(
                             let artist = if a.artist == "Unknown" {
                                 String::new()
                             } else {
-                                format!(" · by {}", a.artist)
+                                format!(" - by {}", a.artist)
                             };
                             let mut effects: Vec<(String, Option<bool>)> = a
                                 .modifiers
@@ -1117,10 +1127,10 @@ pub fn update_loadout_ui(
                                 height: Val::Px(18.0),
                                 ..default()
                             },
-                            BackgroundColor(ui_state.selected_skin.swatch_color()),
+                            BackgroundColor(skin_registry.swatch_color(&ui_state.selected_skin.skin)),
                         ));
                         btn.spawn((
-                            Text::new(format!("COLOR: {}", ui_state.selected_skin.display_name().to_uppercase())),
+                            Text::new(format!("COLOR: {}", skin_registry.display_name(&ui_state.selected_skin.skin).to_uppercase())),
                             TextFont { font_size: FontSize::Px(12.0), ..default() },
                             TextColor(TEXT),
                         ));
@@ -1353,6 +1363,7 @@ pub fn loadout_interaction(
     mut loadout: ResMut<PlayerLoadout>,
     mut registry: ResMut<WeaponRegistry>,
     att: AttachmentRes,
+    skins: SkinRes,
     slot_query: Query<(&Interaction, &SlotTabButton), (Changed<Interaction>, With<Button>)>,
     weapon_query: Query<(&Interaction, &WeaponSelectButton), (Changed<Interaction>, With<Button>)>,
     skin_query: Query<(&Interaction, &SkinButton), (Changed<Interaction>, With<Button>)>,
@@ -1478,8 +1489,16 @@ pub fn loadout_interaction(
     for (interaction, skin_btn) in skin_query.iter() {
         if *interaction == Interaction::Pressed {
             if mouse_input.just_pressed(MouseButton::Left) {
-                ui_state.selected_skin = skin_btn.skin;
-                loadout.set_skin(ui_state.active_slot, skin_btn.skin);
+                // Equip the best (lowest-wear) owned copy of the picked skin.
+                let weapon_id = ui_state.selected_weapon_id.clone().unwrap_or_default();
+                let instance = skins
+                    .inventory
+                    .copies_of(&weapon_id, &skin_btn.skin)
+                    .into_iter()
+                    .min_by(|a, b| a.wear.total_cmp(&b.wear))
+                    .unwrap_or_else(|| SkinInstance::factory(skin_btn.skin.clone()));
+                ui_state.selected_skin = instance.clone();
+                loadout.set_skin(ui_state.active_slot, instance);
                 loadout.save();
                 ui_state.preview_needs_update = true;
                 for entity in existing_color_panel.iter() {
@@ -1499,16 +1518,21 @@ pub fn loadout_interaction(
                     }
                     if !has_panel {
                         if let Some(root_entity) = loadout_ui_query.iter().next() {
-                            let selected_skin = ui_state.selected_skin;
+                            let selected_skin = ui_state.selected_skin.clone();
                             let weapon_id = ui_state.selected_weapon_id.clone().unwrap_or_default();
-                            let owned_skins = SkinInventory::load().owned_skins_for(&weapon_id);
+                            let mut owned_skins = vec![SkinId::default_id()];
+                            for skin in skins.inventory.skins_for(&weapon_id) {
+                                if !owned_skins.contains(&skin) {
+                                    owned_skins.push(skin);
+                                }
+                            }
                             commands.entity(root_entity).with_children(|root| {
-                                let att_names = if let Some(wid) = &ui_state.selected_weapon_id {
-                                    registry.weapons.get(wid).map(|c| attachment_slot_names(&c.attachments)).unwrap_or_default()
-                                } else {
-                                    Vec::new()
-                                };
-                                spawn_color_picker_panel(root, selected_skin, &owned_skins, &att_names);
+                                spawn_color_picker_panel(
+                                    root,
+                                    &selected_skin,
+                                    &owned_skins,
+                                    &skins.registry,
+                                );
                             });
                         }
                     }
@@ -1617,7 +1641,7 @@ fn attachment_slot_names(att: &crate::weapons::WeaponAttachments) -> Vec<(String
     result
 }
 
-fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: WeaponSkin, owned_skins: &[WeaponSkin], _attachment_info: &[(String, String)]) {
+fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: &SkinInstance, owned_skins: &[SkinId], skin_registry: &SkinRegistry) {
     parent.spawn((
         Node {
             position_type: PositionType::Absolute,
@@ -1687,7 +1711,7 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
             SkinPanel,
         )).with_children(|row| {
             for skin in owned_skins {
-                let is_active = *skin == selected_skin;
+                let is_active = *skin == selected_skin.skin;
                 row.spawn((
                     Button,
                     Node {
@@ -1699,9 +1723,9 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
                         border_radius: RADIUS_SM,
                         ..default()
                     },
-                    BackgroundColor((*skin).swatch_color()),
+                    BackgroundColor(skin_registry.swatch_color(skin)),
                     BorderColor::from(if is_active { ACCENT } else { BORDER }),
-                    SkinButton { skin: *skin },
+                    SkinButton { skin: skin.clone() },
                 )).with_children(|btn| {
                     if is_active {
                         btn.spawn((
@@ -1728,9 +1752,26 @@ fn spawn_color_picker_panel(parent: &mut ChildSpawnerCommands, selected_skin: We
         ));
 
         panel.spawn((
-            Text::new(format!("Selected: {}", selected_skin.display_name())),
+            Text::new(format!(
+                "Selected: {} ({})",
+                skin_registry.display_name(&selected_skin.skin),
+                selected_skin.wear_name()
+            )),
             TextFont { font_size: FontSize::Px(11.0), ..default() },
             TextColor(TEXT_FAINT),
+        ));
+
+        let def = skin_registry.def_or_default(&selected_skin.skin);
+        panel.spawn((
+            Text::new(format!(
+                "{} | wear {:.2} | pattern #{}{}",
+                def.rarity.display_name(),
+                selected_skin.wear,
+                selected_skin.seed % 1000,
+                if def.finish.is_animated() { " | animated" } else { "" }
+            )),
+            TextFont { font_size: FontSize::Px(10.0), ..default() },
+            TextColor(def.rarity.color()),
         ));
     });
 }
@@ -1819,6 +1860,7 @@ pub fn update_loadout_preview_model(
     mut commands: Commands,
     mut ui_state: ResMut<LoadoutUiState>,
     registry: Res<WeaponRegistry>,
+    skin_registry: Res<SkinRegistry>,
     player_attachments: Res<PlayerAttachments>,
     attachment_registry: Res<AttachmentRegistry>,
     game_settings: Res<crate::settings::GameSettings>,
@@ -1826,6 +1868,8 @@ pub fn update_loadout_preview_model(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut weapon_materials: ResMut<Assets<crate::weapons::WeaponMaterial>>,
+    mut skin_cache: ResMut<crate::weapons::SkinMaterialCache>,
     drag_state: Res<LoadoutDragState>,
     cam_pose: Res<crate::menu::main_menu::CameraPose>,
 ) {
@@ -1853,14 +1897,14 @@ pub fn update_loadout_preview_model(
                 * Quat::from_rotation_z(drag_state.rotation_z);
 
             if model_exists {
-                let skin = ui_state.selected_skin;
+                let skin = ui_state.selected_skin.clone();
                 let preview_entity = commands.spawn((
                     WorldAssetRoot(asset_server.load(&config.meta.model_path)),
                     Transform::from_translation(preview_pos)
                         .with_rotation(rotation)
                         .with_scale(Vec3::splat(scale)),
                     LoadoutPreviewModel,
-                    WeaponSkinTag { skin, applied: false },
+                    WeaponSkinTag::new(skin),
                 )).id();
                 // Assemble the equipped attachments on the preview too.
                 let overrides = resolve_attachment_meshes(
@@ -1881,31 +1925,30 @@ pub fn update_loadout_preview_model(
                 );
             } else {
                 let slot = crate::weapons::slot_from_weapon_type(&config.meta.weapon_type);
-                let skin = ui_state.selected_skin;
-                let mat = if skin != WeaponSkin::Default {
-                    materials.add(skin.to_material())
-                } else {
-                    materials.add(StandardMaterial {
-                        base_color: Color::srgb(0.3, 0.3, 0.35),
-                        metallic: 0.7,
-                        perceptual_roughness: 0.3,
-                        ..default()
-                    })
-                };
+                let skin = ui_state.selected_skin.clone();
+                let mat = crate::weapons::skin_material(
+                    &skin,
+                    slot,
+                    &skin_registry,
+                    &asset_server,
+                    &mut skin_cache,
+                    &mut weapon_materials,
+                    &mut materials,
+                );
                 let mesh = match slot {
                     WeaponSlot::Primary => meshes.add(Cuboid::new(0.08 * 3.0, 0.12 * 3.0, 0.6 * 3.0)),
                     WeaponSlot::Secondary => meshes.add(Cuboid::new(0.06 * 3.0, 0.12 * 3.0, 0.3 * 3.0)),
                     WeaponSlot::Melee => meshes.add(Cuboid::new(0.04 * 3.0, 0.04 * 3.0, 0.4 * 3.0)),
                     WeaponSlot::Equipment => meshes.add(Cuboid::new(0.15 * 3.0, 0.15 * 3.0, 0.15 * 3.0)),
                 };
-                commands.spawn((
+                let entity = commands.spawn((
                     Mesh3d(mesh),
-                    MeshMaterial3d(mat),
                     Transform::from_translation(preview_pos)
                         .with_rotation(rotation)
                         .with_scale(Vec3::ONE),
                     LoadoutPreviewModel,
-                ));
+                )).id();
+                mat.apply(&mut commands, entity);
             }
         }
     }
@@ -1914,8 +1957,7 @@ pub fn update_loadout_preview_model(
 #[cfg(test)]
 mod loadout_ui_tests {
     use super::*;
-    use crate::weapons::WeaponSkin;
-
+    
     #[test]
     fn panel_keys_split_list_and_inspector() {
         let base = || {
@@ -1925,7 +1967,7 @@ mod loadout_ui_tests {
                 Some("hk416"),
                 &AttachmentBrowse::Closed,
                 0,
-                WeaponSkin::Default,
+                SkinInstance::default(),
                 false,
             )
         };
@@ -1937,7 +1979,7 @@ mod loadout_ui_tests {
             Some("hk416"),
             &AttachmentBrowse::Slots,
             0,
-            WeaponSkin::Default,
+            SkinInstance::default(),
             false,
         );
         assert_ne!(list0, list1);
@@ -1948,7 +1990,7 @@ mod loadout_ui_tests {
             Some("hk416"),
             &AttachmentBrowse::Options("optic".to_string()),
             0,
-            WeaponSkin::Default,
+            SkinInstance::default(),
             false,
         );
         assert_ne!(list1, list1b);
@@ -1960,7 +2002,7 @@ mod loadout_ui_tests {
             Some("hk416"),
             &AttachmentBrowse::Closed,
             0,
-            WeaponSkin::SolidRed,
+            SkinInstance::factory(SkinId::new("solid_red")),
             false,
         );
         assert_eq!(list0, list2);
@@ -1972,7 +2014,7 @@ mod loadout_ui_tests {
             Some("hk416"),
             &AttachmentBrowse::Closed,
             1,
-            WeaponSkin::Default,
+            SkinInstance::default(),
             false,
         );
         assert_ne!(list0, list3);

@@ -1,0 +1,15 @@
+{
+  "id": "solid_aqua",
+  "name": "Aqua",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.066667,
+      1.000000,
+      0.933333,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.30
+  }
+}

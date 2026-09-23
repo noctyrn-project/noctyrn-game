@@ -1,0 +1,18 @@
+{
+  "id": "tiger_stripe",
+  "name": "Tiger Stripe",
+  "rarity": "rare",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.666667,
+      0.133333,
+      1.0
+    ],
+    "metallic": 0.35,
+    "roughness": 0.45,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_tiger.png"
+    }
+  }
+}

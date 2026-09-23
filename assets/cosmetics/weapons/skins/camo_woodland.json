@@ -1,0 +1,18 @@
+{
+  "id": "camo_woodland",
+  "name": "Woodland",
+  "rarity": "uncommon",
+  "finish": {
+    "base_color": [
+      0.200000,
+      0.533333,
+      0.266667,
+      1.0
+    ],
+    "metallic": 0.15,
+    "roughness": 0.75,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_camo.png"
+    }
+  }
+}

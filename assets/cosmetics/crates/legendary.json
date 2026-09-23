@@ -1,0 +1,14 @@
+{
+  "id": "legendary",
+  "name": "Legendary Crate",
+  "description": "Guaranteed epic or better. The best odds.",
+  "cost": 500,
+  "accent": [0.9, 0.7, 0.2],
+  "rarity_weights": {
+    "epic": 850,
+    "legendary": 130,
+    "mythic": 20
+  },
+  "melee_chance": 0.0,
+  "skin_pool": []
+}

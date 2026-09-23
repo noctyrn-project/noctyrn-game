@@ -1,0 +1,15 @@
+{
+  "id": "solid_lavender",
+  "name": "Lavender",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.800000,
+      0.666667,
+      1.000000,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.40
+  }
+}

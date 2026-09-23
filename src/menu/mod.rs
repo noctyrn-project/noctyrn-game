@@ -224,7 +224,20 @@ pub fn ensure_menu_camera(
     existing: Query<Entity, With<MenuCamera>>,
 ) {
     if existing.is_empty() {
-        commands.spawn((Camera2d, MenuCamera));
+        // The persistent 3D menu camera (lobby background) is order 0 and
+        // clears with its own colour. The UI camera must render *after* it
+        // and must not clear, otherwise the 3D camera's clear wipes the UI
+        // (Bevy only sorts cameras by (order, target), so equal orders are
+        // ambiguous — the UI could vanish entirely).
+        commands.spawn((
+            Camera2d,
+            MenuCamera,
+            Camera {
+                order: 1,
+                clear_color: ClearColorConfig::None,
+                ..default()
+            },
+        ));
     }
 }
 
@@ -241,9 +254,13 @@ impl Plugin for MenuPlugin {
         app.init_resource::<loadout::LoadoutUiState>();
         app.init_resource::<loadout::LoadoutDragState>();
         app.init_resource::<crate_menu::CrateState>();
-        app.init_resource::<crate_menu::CrateWeaponPickerState>();
+        app.init_resource::<crate_menu::CrateAssets>();
+        app.init_resource::<crate_menu::RevealDragState>();
+        app.add_systems(Startup, crate_menu::load_crate_assets);
         app.init_resource::<SelectedGameMode>();
         app.init_resource::<cosmetics::SellConfirmState>();
+        app.init_resource::<cosmetics::CosmeticsUiState>();
+        app.add_systems(Startup, cosmetics::setup_cosmetics_preview);
         app.init_resource::<login::LoginUiState>();
         app.init_resource::<profile::ProfileOverlayState>();
         app.init_resource::<friends::FriendsUiState>();
@@ -362,8 +379,12 @@ impl Plugin for MenuPlugin {
         ));
         app.add_systems(Update, (
             crate_menu::crate_interaction,
+            crate_menu::crate_result_interaction,
+            crate_menu::rebuild_crate_ui,
             crate_menu::update_crate_animation,
-            crate_menu::crate_weapon_picker_interaction,
+            crate_menu::align_reveal_model,
+            crate_menu::handle_reveal_drag,
+            crate_menu::slide_crate_out,
             crate_menu::crate_skip_interaction,
         ).run_if(in_state(GameState::CrateOpening)));
 
@@ -390,7 +411,11 @@ impl Plugin for MenuPlugin {
             cosmetics::cosmetics_interaction,
             cosmetics::cosmetics_hover,
             cosmetics::sell_confirm_interaction,
-        ).run_if(in_state(GameState::Cosmetics)));
+            cosmetics::update_cosmetics_preview,
+            cosmetics::fit_cosmetics_preview,
+            cosmetics::spin_cosmetics_preview,
+            cosmetics::rebuild_cosmetics_ui,
+        ).chain().run_if(in_state(GameState::Cosmetics)));
 
         app.add_systems(OnEnter(GameState::Playing), (
             main_menu::cleanup_menu_3d,

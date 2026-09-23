@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, PlayerLoadout, PlayerAttachments, AttachmentRegistry, overrides_for_slot};
+use crate::weapons::{WeaponSlot, spawn_weapon_visual_skinned, WeaponRegistry, SkinRegistry, PlayerLoadout, PlayerAttachments, AttachmentRegistry, overrides_for_slot};
 use crate::player::input::Keybinds;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -45,6 +45,9 @@ pub struct WeaponModel;
 pub struct WeaponSpawnCtx<'w> {
     pub asset_server: Res<'w, AssetServer>,
     pub weapon_registry: Res<'w, WeaponRegistry>,
+    pub skin_registry: Res<'w, SkinRegistry>,
+    pub skin_cache: ResMut<'w, crate::weapons::SkinMaterialCache>,
+    pub weapon_materials: ResMut<'w, Assets<crate::weapons::WeaponMaterial>>,
     pub loadout: Res<'w, PlayerLoadout>,
     pub game_settings: Res<'w, crate::settings::GameSettings>,
     pub player_attachments: Res<'w, PlayerAttachments>,
@@ -60,7 +63,9 @@ pub fn handle_weapon_switching(
     keybinds: Res<Keybinds>,
     mut query: Query<&mut Inventory>,
     mut weapon_query: Query<(Entity, &mut crate::weapons::WeaponRecoil), With<WeaponModel>>,
-    camera_query: Query<Entity, With<Camera>>,
+    // The main player camera, never "whichever camera happens to be first":
+    // parenting the gun to the UI/weapon camera made it vanish on some swaps.
+    camera_query: Query<Entity, With<crate::player::MainCamera>>,
     mut spawn_ctx: WeaponSpawnCtx,
     tcp: Option<Res<crate::net::tcp::TcpClient>>,
     rt: Option<Res<crate::net::TokioRuntime>>,
@@ -231,7 +236,10 @@ pub fn handle_weapon_switching(
                             skin,
                             &spawn_ctx.asset_server,
                             &spawn_ctx.weapon_registry,
+                            &spawn_ctx.skin_registry,
+                            &mut spawn_ctx.skin_cache,
                             &mut spawn_ctx.meshes,
+                            &mut spawn_ctx.weapon_materials,
                             &mut spawn_ctx.materials,
                             &overrides,
                             spawn_ctx.game_settings.debug.show_sockets,

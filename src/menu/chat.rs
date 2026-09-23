@@ -6,6 +6,7 @@ use crate::net::tcp::TcpClient;
 use crate::player::GameState;
 use crate::menu::ActiveInput;
 use crate::theme::*;
+use crate::weapons::PlayerCredits;
 
 #[derive(Resource, Default)]
 pub struct ChatOpen(pub bool);
@@ -95,6 +96,7 @@ pub fn chat_input(
     game_state: Option<Res<State<GameState>>>,
     mut active_input: ResMut<ActiveInput>,
     mut clipboard: ResMut<Clipboard>,
+    mut credits: ResMut<PlayerCredits>,
 ) {
     if *active_input != ActiveInput::None && *active_input != ActiveInput::Chat {
         return;
@@ -124,12 +126,19 @@ pub fn chat_input(
             chat_open.0 = false;
             active_input.set_if_neq(ActiveInput::None);
         } else if trimmed.starts_with('/') {
-            handle_command(&trimmed, &tcp, &rt);
+            let feedback = handle_command(&trimmed, &tcp, &rt, &mut credits);
             history.messages.push(MessageEntry {
                 from: ">".to_string(),
                 content: trimmed,
                 created_at: now,
             });
+            if let Some(feedback) = feedback {
+                history.messages.push(MessageEntry {
+                    from: ">".to_string(),
+                    content: feedback,
+                    created_at: now,
+                });
+            }
             history.generation += 1;
             chat_input.input.clear();
             if !in_main_menu {
@@ -380,10 +389,10 @@ pub fn chat_receive_handler(
     }
 }
 
-fn handle_command(cmd: &str, tcp: &TcpClient, rt: &TokioRuntime) {
+fn handle_command(cmd: &str, tcp: &TcpClient, rt: &TokioRuntime, credits: &mut PlayerCredits) -> Option<String> {
     let parts: Vec<&str> = cmd.trim_start_matches('/').split_whitespace().collect();
     if parts.is_empty() {
-        return;
+        return None;
     }
     let r = rt.0.clone();
     let t = tcp.clone();
@@ -395,6 +404,15 @@ fn handle_command(cmd: &str, tcp: &TcpClient, rt: &TokioRuntime) {
             info!("/add <username> - Send friend request");
             info!("/remove <username> - Remove friend");
             info!("/que <gamemode> - Queue for match (ffa, tdm, kc, ctf, koth, hp, cp)");
+            info!("/credits [value] - Show or set credits");
+            Some("Commands: /help /invite /kick /add /remove /que /credits".to_string())
+        }
+        "credits" => {
+            let (feedback, changed) = credits_command(parts.get(1).copied(), &mut credits.balance);
+            if changed {
+                credits.save();
+            }
+            Some(feedback)
         }
         "invite" => {
             if let Some(username) = parts.get(1) {
@@ -403,6 +421,7 @@ fn handle_command(cmd: &str, tcp: &TcpClient, rt: &TokioRuntime) {
                 };
                 r.spawn(async move { let _ = t.send(&msg).await; });
             }
+            None
         }
         "kick" => {
             if let Some(_username) = parts.get(1) {
@@ -411,16 +430,19 @@ fn handle_command(cmd: &str, tcp: &TcpClient, rt: &TokioRuntime) {
                 };
                 r.spawn(async move { let _ = t.send(&msg).await; });
             }
+            None
         }
         "add" => {
             if let Some(username) = parts.get(1) {
                 info!("Friend request to {username} via /add");
             }
+            None
         }
         "remove" => {
             if let Some(username) = parts.get(1) {
                 info!("Remove friend {username} via /remove");
             }
+            None
         }
         "que" | "queue" => {
             let mode = match parts.get(1).map(|s| s.to_lowercase()).as_deref() {
@@ -431,11 +453,56 @@ fn handle_command(cmd: &str, tcp: &TcpClient, rt: &TokioRuntime) {
                 Some("koth") => noctyrn_shared::GameMode::KingOfTheHill,
                 Some("hp") => noctyrn_shared::GameMode::Hardpoint,
                 Some("cp") => noctyrn_shared::GameMode::CapturePoint,
-                _ => return,
+                _ => return Some("Usage: /que <ffa|tdm|kc|ctf|koth|hp|cp>".to_string()),
             };
+            let label = format!("Queueing for {mode:?}");
             let msg = noctyrn_shared::protocol::ClientMessage::QueueForMatch { game_mode: mode };
             r.spawn(async move { let _ = t.send(&msg).await; });
+            Some(label)
         }
-        _ => {}
+        _ => Some(format!("Unknown command: /{} (try /help)", parts[0])),
+    }
+}
+
+/// `/credits` handling, split from the network/ECS plumbing so it can be
+/// tested without touching the savestate. Returns the chat feedback line
+/// and whether the balance changed (and should be saved).
+fn credits_command(arg: Option<&str>, balance: &mut u64) -> (String, bool) {
+    match arg {
+        // Bare `/credits` prints the balance.
+        None => (format!("Credits: [C]{balance}"), false),
+        // `/credits <value>` sets it. TODO: gate behind the `admin` Cargo
+        // feature once admin accounts land.
+        Some(value) => match value.parse::<u64>() {
+            Ok(amount) => {
+                *balance = amount;
+                (format!("Credits set to [C]{amount}"), true)
+            }
+            Err(_) => (format!("Usage: /credits [value] (got '{value}')"), false),
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::credits_command;
+
+    #[test]
+    fn credits_command_prints_sets_and_rejects_junk() {
+        let mut balance = 500;
+
+        let (line, changed) = credits_command(None, &mut balance);
+        assert_eq!(line, "Credits: [C]500");
+        assert!(!changed);
+
+        let (line, changed) = credits_command(Some("100000"), &mut balance);
+        assert_eq!(line, "Credits set to [C]100000");
+        assert!(changed);
+        assert_eq!(balance, 100000);
+
+        let (line, changed) = credits_command(Some("1.5"), &mut balance);
+        assert!(line.starts_with("Usage: /credits"), "{line}");
+        assert!(!changed);
+        assert_eq!(balance, 100000);
     }
 }

@@ -1,0 +1,15 @@
+{
+  "id": "solid_blue",
+  "name": "Blue",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.133333,
+      0.733333,
+      1.0
+    ],
+    "metallic": 0.60,
+    "roughness": 0.35
+  }
+}

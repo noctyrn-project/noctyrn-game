@@ -1,0 +1,18 @@
+{
+  "id": "digital_forest",
+  "name": "Digital Forest",
+  "rarity": "uncommon",
+  "finish": {
+    "base_color": [
+      0.133333,
+      0.533333,
+      0.333333,
+      1.0
+    ],
+    "metallic": 0.15,
+    "roughness": 0.70,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_digital.png"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "splinter_urban",
+  "name": "Urban Splinter",
+  "rarity": "rare",
+  "finish": {
+    "base_color": [
+      0.533333,
+      0.600000,
+      0.666667,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.50,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_splinter.png"
+    }
+  }
+}

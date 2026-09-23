@@ -1,0 +1,15 @@
+{
+  "id": "elite",
+  "name": "Elite Crate",
+  "description": "Guaranteed rare or better. Higher epic chances.",
+  "cost": 250,
+  "accent": [0.7, 0.3, 0.9],
+  "rarity_weights": {
+    "rare": 500,
+    "epic": 450,
+    "legendary": 40,
+    "mythic": 10
+  },
+  "melee_chance": 0.0,
+  "skin_pool": []
+}

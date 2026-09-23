@@ -1,0 +1,15 @@
+{
+  "id": "solid_teal",
+  "name": "Teal",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.600000,
+      0.533333,
+      1.0
+    ],
+    "metallic": 0.50,
+    "roughness": 0.40
+  }
+}

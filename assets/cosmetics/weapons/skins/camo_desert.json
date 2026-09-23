@@ -1,0 +1,18 @@
+{
+  "id": "camo_desert",
+  "name": "Desert",
+  "rarity": "rare",
+  "finish": {
+    "base_color": [
+      0.800000,
+      0.666667,
+      0.400000,
+      1.0
+    ],
+    "metallic": 0.15,
+    "roughness": 0.75,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_camo.png"
+    }
+  }
+}

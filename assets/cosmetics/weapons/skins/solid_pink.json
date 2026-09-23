@@ -1,0 +1,15 @@
+{
+  "id": "solid_pink",
+  "name": "Pink",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.533333,
+      0.800000,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.40
+  }
+}

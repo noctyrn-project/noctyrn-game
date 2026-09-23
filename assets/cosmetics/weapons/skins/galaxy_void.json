@@ -1,0 +1,52 @@
+{
+  "id": "galaxy_void",
+  "name": "Event Horizon",
+  "rarity": "mythic",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.066667,
+      0.066667,
+      1.0
+    ],
+    "metallic": 0.10,
+    "roughness": 0.35,
+    "emissive": {
+      "color": [
+        0.600000,
+        0.666667,
+        0.800000,
+        1.0
+      ],
+      "strength": 0.5,
+      "pulse_hz": 0.1
+    },
+    "galaxy": {
+      "palette": [
+        [
+          0.066667,
+          0.066667,
+          0.066667
+        ],
+        [
+          0.200000,
+          0.266667,
+          0.333333
+        ],
+        [
+          0.733333,
+          0.800000,
+          0.933333
+        ]
+      ],
+      "density": 2.2,
+      "speed": 0.025,
+      "stars": 2.6,
+      "layers": 4,
+      "parallax": 2.0,
+      "star_density": 40.0,
+      "twinkle": 1.4,
+      "core": 0.1
+    }
+  }
+}

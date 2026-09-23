@@ -2,258 +2,24 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SkinRarity {
-    Common,
-    Uncommon,
-    Rare,
-    Epic,
-    Legendary,
-    Mythic,
-}
+pub mod crates;
+pub mod material;
+pub mod melee;
+pub mod skins;
 
-impl SkinRarity {
-    /// Drop chance weight (out of 1000)
-    pub fn drop_weight(&self) -> u32 {
-        match self {
-            SkinRarity::Common => 500,     // 50%
-            SkinRarity::Uncommon => 250,   // 25%
-            SkinRarity::Rare => 150,       // 15%
-            SkinRarity::Epic => 50,        // 5%
-            SkinRarity::Legendary => 9,    // 0.9%
-            SkinRarity::Mythic => 1,       // 0.1%
-        }
-    }
+pub use crates::{CrateDef, CrateRegistry, CrateReward};
+#[allow(unused_imports)]
+pub use material::{WeaponMaterial, WeaponSkinExt};
+#[allow(unused_imports)]
+pub use melee::{MeleeArchetypes, DEFAULT_MELEE};
 
-    pub fn display_name(&self) -> &str {
-        match self {
-            SkinRarity::Common => "Common",
-            SkinRarity::Uncommon => "Uncommon",
-            SkinRarity::Rare => "Rare",
-            SkinRarity::Epic => "Epic",
-            SkinRarity::Legendary => "Legendary",
-            SkinRarity::Mythic => "Mythic",
-        }
-    }
+#[allow(unused_imports)]
+pub use skins::{
+    color_hex, color_hex_compact, color_from_hex, is_valid_skin_color, Emissive, Finish, Galaxy,
+    Inventory, ItemKind, Pattern, Rarity, SkinDef, SkinId, SkinInstance, SkinRegistry,
+    PATTERN_SHEET_PX, PATTERN_STAMP,
+};
 
-    pub fn color(&self) -> Color {
-        match self {
-            SkinRarity::Common => Color::srgb(0.6, 0.6, 0.6),
-            SkinRarity::Uncommon => Color::srgb(0.3, 0.7, 0.3),
-            SkinRarity::Rare => Color::srgb(0.2, 0.4, 0.9),
-            SkinRarity::Epic => Color::srgb(0.6, 0.2, 0.8),
-            SkinRarity::Legendary => Color::srgb(0.9, 0.7, 0.1),
-            SkinRarity::Mythic => Color::srgb(0.9, 0.15, 0.15),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-pub enum WeaponSkin {
-    #[default]
-    Default,
-    // Common
-    SolidRed,
-    SolidBlue,
-    SolidGreen,
-    SolidBlack,
-    SolidWhite,
-    // Uncommon
-    CamoWoodland,
-    CamoDesert,
-    CarbonFiber,
-    // Rare
-    TigerStripe,
-    SolidGold,
-    ArcticWhite,
-    // Epic
-    NeonPink,
-    DragonScale,
-    // Legendary
-    ChromeForge,
-    VoidWalker,
-    // Mythic
-    Supernova,
-}
-
-impl WeaponSkin {
-    pub fn all() -> &'static [WeaponSkin] {
-        &[
-            WeaponSkin::Default,
-            WeaponSkin::SolidRed,
-            WeaponSkin::SolidBlue,
-            WeaponSkin::SolidGreen,
-            WeaponSkin::SolidBlack,
-            WeaponSkin::SolidWhite,
-            WeaponSkin::CamoWoodland,
-            WeaponSkin::CamoDesert,
-            WeaponSkin::CarbonFiber,
-            WeaponSkin::TigerStripe,
-            WeaponSkin::SolidGold,
-            WeaponSkin::ArcticWhite,
-            WeaponSkin::NeonPink,
-            WeaponSkin::DragonScale,
-            WeaponSkin::ChromeForge,
-            WeaponSkin::VoidWalker,
-            WeaponSkin::Supernova,
-        ]
-    }
-
-    /// All skins except Default that can drop from crates
-    pub fn droppable() -> &'static [WeaponSkin] {
-        &[
-            WeaponSkin::SolidRed,
-            WeaponSkin::SolidBlue,
-            WeaponSkin::SolidGreen,
-            WeaponSkin::SolidBlack,
-            WeaponSkin::SolidWhite,
-            WeaponSkin::CamoWoodland,
-            WeaponSkin::CamoDesert,
-            WeaponSkin::CarbonFiber,
-            WeaponSkin::TigerStripe,
-            WeaponSkin::SolidGold,
-            WeaponSkin::ArcticWhite,
-            WeaponSkin::NeonPink,
-            WeaponSkin::DragonScale,
-            WeaponSkin::ChromeForge,
-            WeaponSkin::VoidWalker,
-            WeaponSkin::Supernova,
-        ]
-    }
-
-    pub fn rarity(&self) -> SkinRarity {
-        match self {
-            WeaponSkin::Default => SkinRarity::Common,
-            WeaponSkin::SolidRed | WeaponSkin::SolidBlue | WeaponSkin::SolidGreen
-                | WeaponSkin::SolidBlack | WeaponSkin::SolidWhite => SkinRarity::Common,
-            WeaponSkin::CamoWoodland | WeaponSkin::CamoDesert
-                | WeaponSkin::CarbonFiber => SkinRarity::Uncommon,
-            WeaponSkin::TigerStripe | WeaponSkin::SolidGold
-                | WeaponSkin::ArcticWhite => SkinRarity::Rare,
-            WeaponSkin::NeonPink | WeaponSkin::DragonScale => SkinRarity::Epic,
-            WeaponSkin::ChromeForge | WeaponSkin::VoidWalker => SkinRarity::Legendary,
-            WeaponSkin::Supernova => SkinRarity::Mythic,
-        }
-    }
-
-    pub fn display_name(&self) -> &str {
-        match self {
-            WeaponSkin::Default => "Default",
-            WeaponSkin::SolidRed => "Red",
-            WeaponSkin::SolidBlue => "Blue",
-            WeaponSkin::SolidGreen => "Green",
-            WeaponSkin::SolidGold => "Gold",
-            WeaponSkin::SolidBlack => "Black",
-            WeaponSkin::SolidWhite => "White",
-            WeaponSkin::CamoWoodland => "Woodland",
-            WeaponSkin::CamoDesert => "Desert",
-            WeaponSkin::CarbonFiber => "Carbon",
-            WeaponSkin::TigerStripe => "Tiger",
-            WeaponSkin::ArcticWhite => "Arctic",
-            WeaponSkin::NeonPink => "Neon Pink",
-            WeaponSkin::DragonScale => "Dragon Scale",
-            WeaponSkin::ChromeForge => "Chrome Forge",
-            WeaponSkin::VoidWalker => "Void Walker",
-            WeaponSkin::Supernova => "Supernova",
-        }
-    }
-
-    pub fn swatch_color(&self) -> Color {
-        match self {
-            WeaponSkin::Default => Color::srgb(0.3, 0.3, 0.35),
-            WeaponSkin::SolidRed => Color::srgb(0.7, 0.1, 0.1),
-            WeaponSkin::SolidBlue => Color::srgb(0.1, 0.2, 0.7),
-            WeaponSkin::SolidGreen => Color::srgb(0.1, 0.5, 0.15),
-            WeaponSkin::SolidGold => Color::srgb(0.85, 0.7, 0.2),
-            WeaponSkin::SolidBlack => Color::srgb(0.05, 0.05, 0.05),
-            WeaponSkin::SolidWhite => Color::srgb(0.9, 0.9, 0.9),
-            WeaponSkin::CamoWoodland => Color::srgb(0.2, 0.35, 0.15),
-            WeaponSkin::CamoDesert => Color::srgb(0.6, 0.5, 0.3),
-            WeaponSkin::CarbonFiber => Color::srgb(0.15, 0.15, 0.18),
-            WeaponSkin::TigerStripe => Color::srgb(0.7, 0.45, 0.1),
-            WeaponSkin::ArcticWhite => Color::srgb(0.85, 0.9, 0.95),
-            WeaponSkin::NeonPink => Color::srgb(0.9, 0.1, 0.6),
-            WeaponSkin::DragonScale => Color::srgb(0.15, 0.6, 0.3),
-            WeaponSkin::ChromeForge => Color::srgb(0.75, 0.78, 0.82),
-            WeaponSkin::VoidWalker => Color::srgb(0.1, 0.05, 0.2),
-            WeaponSkin::Supernova => Color::srgb(0.95, 0.4, 0.1),
-        }
-    }
-
-    pub fn to_material(&self) -> StandardMaterial {
-        match self {
-            WeaponSkin::Default => StandardMaterial {
-                base_color: Color::srgb(0.25, 0.25, 0.3),
-                metallic: 0.7,
-                perceptual_roughness: 0.3,
-                ..default()
-            },
-            WeaponSkin::SolidGold => StandardMaterial {
-                base_color: Color::srgb(0.85, 0.7, 0.2),
-                metallic: 0.9,
-                perceptual_roughness: 0.15,
-                ..default()
-            },
-            WeaponSkin::CarbonFiber => StandardMaterial {
-                base_color: Color::srgb(0.12, 0.12, 0.15),
-                metallic: 0.5,
-                perceptual_roughness: 0.1,
-                ..default()
-            },
-            WeaponSkin::SolidBlack => StandardMaterial {
-                base_color: Color::srgb(0.05, 0.05, 0.05),
-                metallic: 0.6,
-                perceptual_roughness: 0.2,
-                ..default()
-            },
-            WeaponSkin::ArcticWhite => StandardMaterial {
-                base_color: Color::srgb(0.92, 0.95, 0.98),
-                metallic: 0.4,
-                perceptual_roughness: 0.15,
-                ..default()
-            },
-            WeaponSkin::NeonPink => StandardMaterial {
-                base_color: Color::srgb(0.9, 0.1, 0.6),
-                metallic: 0.3,
-                perceptual_roughness: 0.2,
-                emissive: bevy::color::LinearRgba::new(0.4, 0.02, 0.25, 1.0),
-                ..default()
-            },
-            WeaponSkin::DragonScale => StandardMaterial {
-                base_color: Color::srgb(0.1, 0.5, 0.25),
-                metallic: 0.7,
-                perceptual_roughness: 0.25,
-                ..default()
-            },
-            WeaponSkin::ChromeForge => StandardMaterial {
-                base_color: Color::srgb(0.8, 0.82, 0.85),
-                metallic: 0.95,
-                perceptual_roughness: 0.05,
-                ..default()
-            },
-            WeaponSkin::VoidWalker => StandardMaterial {
-                base_color: Color::srgb(0.05, 0.02, 0.12),
-                metallic: 0.8,
-                perceptual_roughness: 0.1,
-                emissive: bevy::color::LinearRgba::new(0.08, 0.0, 0.2, 1.0),
-                ..default()
-            },
-            WeaponSkin::Supernova => StandardMaterial {
-                base_color: Color::srgb(0.95, 0.35, 0.05),
-                metallic: 0.6,
-                perceptual_roughness: 0.1,
-                emissive: bevy::color::LinearRgba::new(0.5, 0.15, 0.02, 1.0),
-                ..default()
-            },
-            _ => StandardMaterial {
-                base_color: self.swatch_color(),
-                metallic: 0.3,
-                perceptual_roughness: 0.5,
-                ..default()
-            },
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum WeaponSlot {
@@ -297,8 +63,23 @@ pub struct WeaponRecoil {
 /// Tag to mark a weapon entity so we can apply its skin material to all mesh descendants.
 #[derive(Component)]
 pub struct WeaponSkinTag {
-    pub skin: WeaponSkin,
+    pub skin: SkinInstance,
     pub applied: bool,
+    /// How many mesh descendants were skinned last pass. glTF scenes stream
+    /// their children in over several frames, so a changed count means new
+    /// meshes appeared and the material pass has to run again — otherwise
+    /// only the first-loaded parts get the skin.
+    pub meshes_seen: usize,
+}
+
+impl WeaponSkinTag {
+    pub fn new(skin: SkinInstance) -> Self {
+        Self {
+            skin,
+            applied: false,
+            meshes_seen: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -328,6 +109,9 @@ pub struct WeaponMeta {
     /// Gun family for attachment fit rules (ar15, ak, glock, ...).
     #[serde(default)]
     pub family: String,
+    /// Melee stat archetype id (`1h_blade`, `2h_blunt`, ...). Empty for guns.
+    #[serde(default)]
+    pub archetype: String,
     /// Mount standards this gun accepts (stanag556, ak762, ...). Shared
     /// with a part's `interfaces`: any overlap fits, alongside the fit rule.
     #[serde(default)]
@@ -394,6 +178,22 @@ pub struct WeaponAttributes {
     /// Time per shell for shell-by-shell reload (0 = magazine reload)
     #[serde(default)]
     pub shell_reload_time: f32,
+
+    // ── Melee-specific (driven by the weapon's archetype) ──
+    /// Wider (lower) dot-product cone for swings.
+    #[serde(default = "default_slash_cone")]
+    pub slash_cone: f32,
+    /// Narrower (higher) cone for thrusts.
+    #[serde(default = "default_stab_cone")]
+    pub stab_cone: f32,
+}
+
+fn default_slash_cone() -> f32 {
+    0.2
+}
+
+fn default_stab_cone() -> f32 {
+    0.8
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -558,6 +358,9 @@ pub struct WeaponAttachments {
 pub struct WeaponConfig {
     pub info: WeaponInfo,
     pub meta: WeaponMeta,
+    /// Guns carry full stats; melee configs omit them and inherit from
+    /// their archetype at load time.
+    #[serde(default)]
     pub attributes: WeaponAttributes,
     #[serde(default)]
     pub attachments: WeaponAttachments,
@@ -601,7 +404,7 @@ pub struct PlayerLoadout {
     pub secondary: WeaponId,
     pub melee: WeaponId,
     pub equipment: WeaponId,
-    pub skins: HashMap<WeaponSlot, WeaponSkin>,
+    pub skins: HashMap<WeaponSlot, SkinInstance>,
 }
 
 impl Default for PlayerLoadout {
@@ -609,7 +412,7 @@ impl Default for PlayerLoadout {
         Self {
             primary: "colt_m4a1".to_string(),
             secondary: "g17".to_string(),
-            melee: "msbs_grot_bayonet".to_string(),
+            melee: "km2000".to_string(),
             equipment: "rgd-5".to_string(),
             skins: HashMap::new(),
         }
@@ -635,11 +438,11 @@ impl PlayerLoadout {
         }
     }
 
-    pub fn get_skin(&self, slot: WeaponSlot) -> WeaponSkin {
-        self.skins.get(&slot).copied().unwrap_or_default()
+    pub fn get_skin(&self, slot: WeaponSlot) -> SkinInstance {
+        self.skins.get(&slot).cloned().unwrap_or_default()
     }
 
-    pub fn set_skin(&mut self, slot: WeaponSlot, skin: WeaponSkin) {
+    pub fn set_skin(&mut self, slot: WeaponSlot, skin: SkinInstance) {
         self.skins.insert(slot, skin);
     }
 
@@ -650,14 +453,6 @@ impl PlayerLoadout {
     pub fn load() -> Self {
         crate::storage::load_section("savestate.json", "loadout")
     }
-}
-
-/// Persistent inventory of skins owned per weapon, with duplicate counts.
-/// Stored as JSON at `settings/savestate.json`.
-/// Keys: weapon_id -> skin_name -> count
-#[derive(Resource, Clone, Debug, Serialize, Deserialize)]
-pub struct SkinInventory {
-    pub owned: HashMap<String, HashMap<WeaponSkin, u32>>,
 }
 
 /// Persistent credits currency. Earned by selling duplicate skins.
@@ -683,15 +478,8 @@ impl PlayerCredits {
     }
 
     /// Credit value for selling a skin of a given rarity
-    pub fn sell_value(rarity: SkinRarity) -> u64 {
-        match rarity {
-            SkinRarity::Common => 10,
-            SkinRarity::Uncommon => 25,
-            SkinRarity::Rare => 50,
-            SkinRarity::Epic => 100,
-            SkinRarity::Legendary => 250,
-            SkinRarity::Mythic => 1000,
-        }
+    pub fn sell_value(rarity: Rarity) -> u64 {
+        rarity.sell_value()
     }
 
     /// Cost to open each crate tier
@@ -706,129 +494,6 @@ impl PlayerCredits {
     }
 }
 
-impl Default for SkinInventory {
-    fn default() -> Self {
-        Self {
-            owned: HashMap::new(),
-        }
-    }
-}
-
-impl SkinInventory {
-    pub fn add_skin(&mut self, weapon_id: &str, skin: WeaponSkin) {
-        let entry = self.owned
-            .entry(weapon_id.to_string())
-            .or_default()
-            .entry(skin)
-            .or_insert(0);
-        *entry += 1;
-    }
-
-    pub fn has_skin(&self, weapon_id: &str, skin: &WeaponSkin) -> bool {
-        self.owned
-            .get(weapon_id)
-            .and_then(|skins| skins.get(skin))
-            .map(|c| *c > 0)
-            .unwrap_or(false)
-    }
-
-    pub fn owned_skins_for(&self, weapon_id: &str) -> Vec<WeaponSkin> {
-        let mut result = vec![WeaponSkin::Default]; // Default always available
-        if let Some(skins) = self.owned.get(weapon_id) {
-            for (skin, count) in skins {
-                if *count > 0 && *skin != WeaponSkin::Default {
-                    result.push(*skin);
-                }
-            }
-        }
-        // Sort by rarity
-        result.sort_by_key(|s| match s.rarity() {
-            SkinRarity::Common => 0,
-            SkinRarity::Uncommon => 1,
-            SkinRarity::Rare => 2,
-            SkinRarity::Epic => 3,
-            SkinRarity::Legendary => 4,
-            SkinRarity::Mythic => 5,
-        });
-        result
-    }
-
-    pub fn duplicate_count(&self, weapon_id: &str, skin: &WeaponSkin) -> u32 {
-        self.owned
-            .get(weapon_id)
-            .and_then(|skins| skins.get(skin))
-            .copied()
-            .unwrap_or(0)
-    }
-
-    /// Sell one duplicate of a skin, returning true if successful.
-    /// Only sells if count > 1 (keeps at least one copy).
-    pub fn sell_duplicate(&mut self, weapon_id: &str, skin: &WeaponSkin) -> bool {
-        if let Some(skins) = self.owned.get_mut(weapon_id) {
-            if let Some(count) = skins.get_mut(skin) {
-                if *count > 1 {
-                    *count -= 1;
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    /// Sell a single copy of a skin, removing it entirely if count reaches 0.
-    /// Returns true if successful.
-    pub fn sell_skin(&mut self, weapon_id: &str, skin: &WeaponSkin) -> bool {
-        if let Some(skins) = self.owned.get_mut(weapon_id) {
-            if let Some(count) = skins.get_mut(skin) {
-                if *count > 0 {
-                    *count -= 1;
-                    if *count == 0 {
-                        skins.remove(skin);
-                    }
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    /// Sell ALL duplicates (keeps 1 copy of each skin), returns total credits earned
-    pub fn sell_all_duplicates(&mut self) -> Vec<(String, WeaponSkin, u32, u64)> {
-        let mut sold = Vec::new();
-        for (weapon_id, skins) in self.owned.iter_mut() {
-            for (skin, count) in skins.iter_mut() {
-                if *count > 1 {
-                    let extras = *count - 1;
-                    let value = PlayerCredits::sell_value(skin.rarity()) * extras as u64;
-                    sold.push((weapon_id.clone(), *skin, extras, value));
-                    *count = 1;
-                }
-            }
-        }
-        sold
-    }
-
-    /// Total number of duplicate skins across all weapons
-    pub fn total_duplicates(&self) -> u32 {
-        let mut total = 0u32;
-        for skins in self.owned.values() {
-            for count in skins.values() {
-                if *count > 1 {
-                    total += count - 1;
-                }
-            }
-        }
-        total
-    }
-
-    pub fn save(&self) {
-        crate::storage::save_section("savestate.json", "inventory", self);
-    }
-
-    pub fn load() -> Self {
-        crate::storage::load_section("savestate.json", "inventory")
-    }
-}
 
 #[derive(Resource, Default)]
 pub struct WeaponRegistry {
@@ -1259,15 +924,219 @@ impl Plugin for WeaponsPlugin {
         app.init_resource::<AttachmentRegistry>();
         app.init_resource::<AmmoRegistry>();
         app.insert_resource(PlayerLoadout::load());
-        app.insert_resource(SkinInventory::load());
+        app.insert_resource(Inventory::load());
         app.insert_resource(PlayerCredits::load());
         app.insert_resource(PlayerAttachments::load());
+        app.insert_resource(SkinMaterialCache::default());
+        app.insert_resource(MeleeArchetypes::load());
+        app.add_plugins(MaterialPlugin::<WeaponMaterial>::default());
         app.add_systems(
             PreStartup,
-            (load_attachment_registry, load_ammo_registry, load_all_weapon_configs).chain(),
+            (
+                load_skin_registry,
+                load_crate_registry,
+                load_attachment_registry,
+                load_ammo_registry,
+                load_all_weapon_configs,
+            )
+                .chain(),
         );
-        app.add_systems(Update, apply_weapon_skins);
+        app.add_systems(Update, (apply_weapon_skins, animate_weapon_skins, warmup_weapon_material));
     }
+}
+
+/// One-shot warmup: render a subpixel quad with a `WeaponMaterial` for a few
+/// frames so the skin shader pipeline is compiled at load instead of
+/// hitching the first time a skinned weapon is equipped.
+fn warmup_weapon_material(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<WeaponMaterial>>,
+    mut frames_alive: Local<u32>,
+    mut warmup: Local<Option<Entity>>,
+    mut done: Local<bool>,
+    cameras: Query<Entity, With<Camera>>,
+) {
+    if *done {
+        return;
+    }
+    if crate::weapons::material::skin_material_mode()
+        != crate::weapons::material::SkinMaterialMode::Advanced
+        || !crate::weapons::material::skin_warmup_enabled()
+    {
+        *done = true;
+        return;
+    }
+
+    // Spawn once a camera exists, then despawn after a few rendered frames.
+    if warmup.is_none() {
+        let Some(camera) = cameras.iter().next() else {
+            return;
+        };
+        let material = materials.add(WeaponMaterial {
+            base: default_slot_material(WeaponSlot::Primary),
+            extension: Default::default(),
+        });
+        let mesh = meshes.add(Rectangle::new(0.0002, 0.0002));
+        let entity = commands
+            .spawn((
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                Transform::from_xyz(0.0, 0.0, -0.1),
+                SkinWarmupQuad,
+            ))
+            .id();
+        commands.entity(camera).add_child(entity);
+        *warmup = Some(entity);
+        info!("Warmed up weapon skin material pipeline");
+        return;
+    }
+
+    *frames_alive += 1;
+    if *frames_alive >= 4 {
+        if let Some(entity) = warmup.take() {
+            commands.entity(entity).try_despawn();
+        }
+        *done = true;
+    }
+}
+
+#[derive(Component)]
+struct SkinWarmupQuad;
+
+/// Cache of skin materials by (skin, wear, seed) so respawning a weapon does
+/// not leak a new material each time. Materials with animated finishes are
+/// tracked so `animate_weapon_skins` can advance their clock uniform.
+#[derive(Resource, Default)]
+pub struct SkinMaterialCache {
+    map: HashMap<(SkinId, u32, u32), Handle<WeaponMaterial>>,
+    animated: Vec<Handle<WeaponMaterial>>,
+    plain: HashMap<SkinId, Handle<StandardMaterial>>,
+}
+
+impl SkinMaterialCache {
+    pub fn get_or_create(
+        &mut self,
+        instance: &SkinInstance,
+        registry: &SkinRegistry,
+        asset_server: &AssetServer,
+        materials: &mut Assets<WeaponMaterial>,
+    ) -> Handle<WeaponMaterial> {
+        let key = (
+            instance.skin.clone(),
+            (instance.wear.clamp(0.0, 1.0) * 1000.0).round() as u32,
+            instance.seed,
+        );
+        if let Some(handle) = self.map.get(&key) {
+            return handle.clone();
+        }
+        let handle = materials.add(registry.material_for(instance, asset_server));
+        if registry.is_animated(instance) {
+            self.animated.push(handle.clone());
+        }
+        self.map.insert(key, handle.clone());
+        handle
+    }
+
+    /// Plain fallback material for a skin: base colour, texture, normal map
+    /// and steady emissive only (no wear/galaxy/pattern/animation).
+    pub fn plain_for(
+        &mut self,
+        instance: &SkinInstance,
+        registry: &SkinRegistry,
+        asset_server: &AssetServer,
+        materials: &mut Assets<StandardMaterial>,
+    ) -> Handle<StandardMaterial> {
+        if let Some(handle) = self.plain.get(&instance.skin) {
+            return handle.clone();
+        }
+        let def = registry.def_or_default(&instance.skin);
+        let handle = materials.add(def.to_material(asset_server));
+        self.plain.insert(instance.skin.clone(), handle.clone());
+        handle
+    }
+}
+
+/// Handle to a weapon-part material, whichever path built it.
+pub enum SkinMatHandle {
+    Advanced(Handle<WeaponMaterial>),
+    Plain(Handle<StandardMaterial>),
+}
+
+impl SkinMatHandle {
+    /// Set this material on an entity, removing the other material kind so
+    /// the renderer never sees two `MeshMaterial3d` components at once.
+    pub fn apply(&self, commands: &mut Commands, entity: Entity) {
+        match self {
+            SkinMatHandle::Advanced(handle) => {
+                commands
+                    .entity(entity)
+                    .remove::<MeshMaterial3d<StandardMaterial>>()
+                    .insert(MeshMaterial3d(handle.clone()));
+            }
+            SkinMatHandle::Plain(handle) => {
+                commands
+                    .entity(entity)
+                    .remove::<MeshMaterial3d<WeaponMaterial>>()
+                    .insert(MeshMaterial3d(handle.clone()));
+            }
+        }
+    }
+}
+
+/// Advance the clock uniform on animated skin materials.
+fn animate_weapon_skins(
+    time: Res<Time>,
+    mut cache: ResMut<SkinMaterialCache>,
+    mut materials: ResMut<Assets<WeaponMaterial>>,
+) {
+    if cache.animated.is_empty() {
+        return;
+    }
+    let now = time.elapsed_secs();
+    cache.animated.retain(|handle| {
+        if let Some(mut material) = materials.get_mut(handle) {
+            material.extension.params.y = now;
+            true
+        } else {
+            false
+        }
+    });
+}
+
+/// Load data-driven skins from `assets/cosmetics/weapons/skins/`.
+fn load_skin_registry(mut commands: Commands, mut inventory: ResMut<Inventory>) {
+    let registry = SkinRegistry::load();
+    // A renamed or removed finish must not linger as a phantom inventory
+    // card (renders default, sells for its stale rarity).
+    let pruned = inventory.prune_unknown(&registry);
+    if pruned > 0 {
+        info!("Pruned {pruned} inventory items with unknown skins");
+        inventory.save();
+    }
+    let mode = crate::weapons::material::skin_material_mode();
+    let features = crate::weapons::material::skin_features();
+    info!(
+        "Loaded {} skins ({} universal, {} weapon-bound); material={:?} features(wear={} galaxy={} pattern={} gradient={} anim={}) warmup={}",
+        registry.skins.len(),
+        registry.universal.len(),
+        registry.by_weapon.values().map(|v| v.len()).sum::<usize>(),
+        mode,
+        features.wear,
+        features.galaxy,
+        features.pattern,
+        features.gradient,
+        features.anim,
+        crate::weapons::material::skin_warmup_enabled(),
+    );
+    commands.insert_resource(registry);
+}
+
+/// Load data-driven crates from `assets/cosmetics/crates/`.
+fn load_crate_registry(mut commands: Commands) {
+    let registry = CrateRegistry::load();
+    info!("Loaded {} crates", registry.crates.len());
+    commands.insert_resource(registry);
 }
 
 /// Load swappable attachment definitions from `assets/weapons/attachments/`.
@@ -1618,6 +1487,7 @@ fn load_ammo_registry(mut registry: ResMut<AmmoRegistry>) {
 
 fn load_all_weapon_configs(
     mut registry: ResMut<WeaponRegistry>,
+    archetypes: Res<MeleeArchetypes>,
     loadout: Res<PlayerLoadout>,
     player_attachments: Res<PlayerAttachments>,
     ammo_registry: Res<AmmoRegistry>,
@@ -1762,6 +1632,9 @@ fn load_all_weapon_configs(
         }
     }
 
+    // Melee stats come from the four archetypes, not per-weapon JSON.
+    melee::apply_archetypes(&mut registry, &archetypes);
+
     sync_loadout_to_configs(&mut registry, &loadout, &player_attachments, &ammo_registry, &attachment_registry);
 
     info!(
@@ -1781,6 +1654,13 @@ pub struct AttachmentRes<'w> {
     pub player: Res<'w, PlayerAttachments>,
     pub ammo: Res<'w, AmmoRegistry>,
     pub parts: Res<'w, AttachmentRegistry>,
+}
+
+/// Bundled skin resources (same 16-param cap).
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct SkinRes<'w> {
+    pub registry: Res<'w, SkinRegistry>,
+    pub inventory: Res<'w, Inventory>,
 }
 
 pub fn sync_loadout_to_configs(
@@ -1899,42 +1779,111 @@ fn apply_attachment_modifiers(attributes: &mut WeaponAttributes, modifiers: &Has
     }
 }
 
+/// Default (unskinned) material per slot.
+pub fn default_slot_material(slot: WeaponSlot) -> StandardMaterial {
+    match slot {
+        WeaponSlot::Primary => StandardMaterial {
+            base_color: Color::srgb(0.25, 0.25, 0.3),
+            metallic: 0.7,
+            perceptual_roughness: 0.3,
+            ..default()
+        },
+        WeaponSlot::Secondary => StandardMaterial {
+            base_color: Color::srgb(0.2, 0.2, 0.25),
+            metallic: 0.7,
+            perceptual_roughness: 0.3,
+            ..default()
+        },
+        WeaponSlot::Melee => StandardMaterial {
+            base_color: Color::srgb(0.5, 0.5, 0.55),
+            metallic: 0.9,
+            perceptual_roughness: 0.1,
+            ..default()
+        },
+        WeaponSlot::Equipment => StandardMaterial {
+            base_color: Color::srgb(0.3, 0.35, 0.2),
+            metallic: 0.3,
+            perceptual_roughness: 0.7,
+            ..default()
+        },
+    }
+}
+
+/// Material for a non-default skin instance, honouring the safety mode.
+pub fn skin_instance_material(
+    skin: &SkinInstance,
+    skin_registry: &SkinRegistry,
+    asset_server: &AssetServer,
+    cache: &mut SkinMaterialCache,
+    advanced_materials: &mut Assets<WeaponMaterial>,
+    materials: &mut Assets<StandardMaterial>,
+) -> SkinMatHandle {
+    match crate::weapons::material::skin_material_mode() {
+        crate::weapons::material::SkinMaterialMode::Advanced => SkinMatHandle::Advanced(
+            cache.get_or_create(skin, skin_registry, asset_server, advanced_materials),
+        ),
+        crate::weapons::material::SkinMaterialMode::Plain => SkinMatHandle::Plain(
+            cache.plain_for(skin, skin_registry, asset_server, materials),
+        ),
+    }
+}
+
+/// Resolve one owned copy to a render material: the finish when a skin is
+/// equipped, the slot's default gray otherwise. Uses the custom shader
+/// material when advanced skins are enabled, plain `StandardMaterial`
+/// otherwise.
+pub fn skin_material(
+    skin: &SkinInstance,
+    slot: WeaponSlot,
+    skin_registry: &SkinRegistry,
+    asset_server: &AssetServer,
+    cache: &mut SkinMaterialCache,
+    advanced_materials: &mut Assets<WeaponMaterial>,
+    materials: &mut Assets<StandardMaterial>,
+) -> SkinMatHandle {
+    if skin.is_default() {
+        match crate::weapons::material::skin_material_mode() {
+            crate::weapons::material::SkinMaterialMode::Advanced => {
+                SkinMatHandle::Advanced(advanced_materials.add(WeaponMaterial {
+                    base: default_slot_material(slot),
+                    extension: Default::default(),
+                }))
+            }
+            crate::weapons::material::SkinMaterialMode::Plain => {
+                SkinMatHandle::Plain(materials.add(default_slot_material(slot)))
+            }
+        }
+    } else {
+        skin_instance_material(
+            skin,
+            skin_registry,
+            asset_server,
+            cache,
+            advanced_materials,
+            materials,
+        )
+    }
+}
+
 fn weapon_fallback_mesh(
     slot: WeaponSlot,
-    skin: WeaponSkin,
+    skin: &SkinInstance,
+    skin_registry: &SkinRegistry,
+    asset_server: &AssetServer,
+    cache: &mut SkinMaterialCache,
     meshes: &mut Assets<Mesh>,
+    advanced_materials: &mut Assets<WeaponMaterial>,
     materials: &mut Assets<StandardMaterial>,
-) -> (Handle<Mesh>, Handle<StandardMaterial>) {
-    let mat = if skin != WeaponSkin::Default {
-        materials.add(skin.to_material())
-    } else {
-        match slot {
-            WeaponSlot::Primary => materials.add(StandardMaterial {
-                base_color: Color::srgb(0.25, 0.25, 0.3),
-                metallic: 0.7,
-                perceptual_roughness: 0.3,
-                ..default()
-            }),
-            WeaponSlot::Secondary => materials.add(StandardMaterial {
-                base_color: Color::srgb(0.2, 0.2, 0.25),
-                metallic: 0.7,
-                perceptual_roughness: 0.3,
-                ..default()
-            }),
-            WeaponSlot::Melee => materials.add(StandardMaterial {
-                base_color: Color::srgb(0.5, 0.5, 0.55),
-                metallic: 0.9,
-                perceptual_roughness: 0.1,
-                ..default()
-            }),
-            WeaponSlot::Equipment => materials.add(StandardMaterial {
-                base_color: Color::srgb(0.3, 0.35, 0.2),
-                metallic: 0.3,
-                perceptual_roughness: 0.7,
-                ..default()
-            }),
-        }
-    };
+) -> (Handle<Mesh>, SkinMatHandle) {
+    let mat = skin_material(
+        skin,
+        slot,
+        skin_registry,
+        asset_server,
+        cache,
+        advanced_materials,
+        materials,
+    );
     let mesh = match slot {
         WeaponSlot::Primary => meshes.add(Cuboid::new(0.08, 0.12, 0.6)),
         WeaponSlot::Secondary => meshes.add(Cuboid::new(0.06, 0.12, 0.3)),
@@ -1966,21 +1915,40 @@ pub fn spawn_weapon_visual(
     slot: WeaponSlot,
     asset_server: &AssetServer,
     registry: &WeaponRegistry,
+    skin_registry: &SkinRegistry,
+    cache: &mut SkinMaterialCache,
     meshes: &mut Assets<Mesh>,
+    weapon_materials: &mut Assets<WeaponMaterial>,
     materials: &mut Assets<StandardMaterial>,
     overrides: &HashMap<String, ResolvedMesh>,
     show_placeholders: bool,
 ) -> Entity {
-    spawn_weapon_visual_skinned(commands, slot, WeaponSkin::Default, asset_server, registry, meshes, materials, overrides, show_placeholders)
+    spawn_weapon_visual_skinned(
+        commands,
+        slot,
+        SkinInstance::default(),
+        asset_server,
+        registry,
+        skin_registry,
+        cache,
+        meshes,
+        weapon_materials,
+        materials,
+        overrides,
+        show_placeholders,
+    )
 }
 
 pub fn spawn_weapon_visual_skinned(
     commands: &mut Commands,
     slot: WeaponSlot,
-    skin: WeaponSkin,
+    skin: SkinInstance,
     asset_server: &AssetServer,
     registry: &WeaponRegistry,
+    skin_registry: &SkinRegistry,
+    cache: &mut SkinMaterialCache,
     meshes: &mut Assets<Mesh>,
+    weapon_materials: &mut Assets<WeaponMaterial>,
     materials: &mut Assets<StandardMaterial>,
     overrides: &HashMap<String, ResolvedMesh>,
     show_placeholders: bool,
@@ -1993,6 +1961,14 @@ pub fn spawn_weapon_visual_skinned(
         let model_file = config.meta.model_path.split('#').next().unwrap_or("");
         let model_exists = !model_file.is_empty()
             && std::path::Path::new(&format!("assets/{}", model_file)).exists();
+        if !model_exists && !model_file.is_empty() {
+            // CWD-relative check: if the game is launched from elsewhere this
+            // fires for every gun and the player sees placeholder boxes.
+            warn!(
+                "weapon model '{}' not found relative to CWD; using placeholder for {slot:?}",
+                model_file
+            );
+        }
 
         let entity = if model_exists {
             commands.spawn((
@@ -2001,19 +1977,23 @@ pub fn spawn_weapon_visual_skinned(
                 Visibility::default(),
                 BaseWeaponTransform(transform),
                 WeaponRecoil::default(),
-                WeaponSkinTag { skin, applied: false },
+                WeaponSkinTag::new(skin),
             )).id()
         } else {
-            let (mesh, material) = weapon_fallback_mesh(slot, skin, meshes, materials);
-            commands.spawn((
+            let (mesh, material) = weapon_fallback_mesh(
+                slot, &skin, skin_registry, asset_server, cache, meshes, weapon_materials,
+                materials,
+            );
+            let entity = commands.spawn((
                 Mesh3d(mesh),
-                MeshMaterial3d(material),
                 transform,
                 Visibility::default(),
                 BaseWeaponTransform(transform),
                 WeaponRecoil::default(),
-                WeaponSkinTag { skin, applied: true },
-            )).id()
+                WeaponSkinTag { applied: true, ..WeaponSkinTag::new(skin) },
+            )).id();
+            material.apply(commands, entity);
+            entity
         };
 
         // Assemble attachments: real split meshes where they exist (gray
@@ -2022,17 +2002,21 @@ pub fn spawn_weapon_visual_skinned(
 
         entity
     } else {
-        let (mesh, material) = weapon_fallback_mesh(slot, skin, meshes, materials);
+        let (mesh, material) = weapon_fallback_mesh(
+            slot, &skin, skin_registry, asset_server, cache, meshes, weapon_materials,
+            materials,
+        );
         let transform = Transform::from_xyz(0.5, -0.5, -1.0);
 
-        commands.spawn((
+        let entity = commands.spawn((
             Mesh3d(mesh),
-            MeshMaterial3d(material),
             transform,
             BaseWeaponTransform(transform),
             WeaponRecoil::default(),
-            WeaponSkinTag { skin, applied: true },
-        )).id()
+            WeaponSkinTag { applied: true, ..WeaponSkinTag::new(skin) },
+        )).id();
+        material.apply(commands, entity);
+        entity
     }
 }
 
@@ -2289,83 +2273,46 @@ pub fn spawn_weapon_attachments(
     }
 }
 
-pub fn spawn_weapon_visual_by_id(
-    commands: &mut Commands,
-    weapon_id: &str,
-    skin: WeaponSkin,
-    asset_server: &AssetServer,
-    registry: &WeaponRegistry,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-) -> Option<Entity> {
-    if let Some(config) = registry.weapons.get(weapon_id) {
-        let transform = Transform::from_translation(Vec3::from(config.meta.position_offset))
-            .with_rotation(Quat::from_euler(EulerRot::XYZ, config.meta.rotation_offset[0], config.meta.rotation_offset[1], config.meta.rotation_offset[2]))
-            .with_scale(Vec3::splat(config.meta.scale));
-
-        let model_file = config.meta.model_path.split('#').next().unwrap_or("");
-        let model_exists = !model_file.is_empty()
-            && std::path::Path::new(&format!("assets/{}", model_file)).exists();
-
-        if model_exists {
-            Some(commands.spawn((
-                WorldAssetRoot(asset_server.load(&config.meta.model_path)),
-                transform,
-                Visibility::default(),
-                BaseWeaponTransform(transform),
-                WeaponRecoil::default(),
-            )).id())
-        } else {
-            let slot = slot_from_weapon_type(&config.meta.weapon_type);
-            let (mesh, material) = weapon_fallback_mesh(slot, skin, meshes, materials);
-            Some(commands.spawn((
-                Mesh3d(mesh),
-                MeshMaterial3d(material),
-                transform,
-                BaseWeaponTransform(transform),
-                WeaponRecoil::default(),
-            )).id())
-        }
-    } else {
-        None
-    }
-}
-
 pub fn slot_from_weapon_type(weapon_type: &str) -> WeaponSlot {
     match weapon_type {
-        "Melee" | "2H Blade" | "Blade" | "Bayonet" => WeaponSlot::Melee,
+        "Melee" | "2H Blade" | "Blade" | "Bayonet" | "Knife" => WeaponSlot::Melee,
         "Grenade" | "Equipment" => WeaponSlot::Equipment,
         "Pistol" | "Revolver" | "Machine Pistol" | "Secondary" => WeaponSlot::Secondary,
+        // Melee configs spell out the grip: "1 Handed Sharp", "2 Handed Sharp".
+        _ if weapon_type.contains("Handed") => WeaponSlot::Melee,
         _ => WeaponSlot::Primary,
     }
 }
 
-/// System that applies skin materials to all mesh descendants of a weapon entity.
-/// Runs every frame but only processes entities where `applied` is false.
+/// System that applies skin materials to all mesh descendants of a weapon
+/// entity. Runs every frame but only processes entities where `applied` is
+/// false. Swaps the glTF-loaded `StandardMaterial` on each mesh child for
+/// the skin's `WeaponMaterial` (wear, pattern, animation).
 fn apply_weapon_skins(
+    mut commands: Commands,
     mut skin_query: Query<(Entity, &mut WeaponSkinTag)>,
     children_query: Query<&Children>,
-    mut material_query: Query<&mut MeshMaterial3d<StandardMaterial>>,
+    standard_meshes: Query<(), With<MeshMaterial3d<StandardMaterial>>>,
+    advanced_meshes: Query<(), With<MeshMaterial3d<WeaponMaterial>>>,
+    mut advanced_materials: ResMut<Assets<WeaponMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    skin_registry: Res<SkinRegistry>,
+    asset_server: Res<AssetServer>,
+    mut cache: ResMut<SkinMaterialCache>,
 ) {
     for (entity, mut skin_tag) in skin_query.iter_mut() {
-        if skin_tag.applied || skin_tag.skin == WeaponSkin::Default {
+        if skin_tag.skin.is_default() {
             skin_tag.applied = true;
             continue;
         }
 
-        // Check if we have any mesh descendants yet (scene may still be loading)
-        let mut found_any = false;
-        let skin_mat = materials.add(skin_tag.skin.to_material());
-
-        // Recursively find all mesh children
+        // Collect every mesh descendant. The scene streams children in, so
+        // the count is the signal that another pass is needed.
+        let mut meshes: Vec<Entity> = Vec::new();
         let mut stack: Vec<Entity> = vec![entity];
         while let Some(current) = stack.pop() {
-            if let Ok(mat_handle) = material_query.get_mut(current) {
-                found_any = true;
-                // Override the material
-                let mut mat = mat_handle;
-                *mat = MeshMaterial3d(skin_mat.clone());
+            if standard_meshes.contains(current) || advanced_meshes.contains(current) {
+                meshes.push(current);
             }
             if let Ok(children) = children_query.get(current) {
                 for child in children.iter() {
@@ -2374,9 +2321,27 @@ fn apply_weapon_skins(
             }
         }
 
-        if found_any {
-            skin_tag.applied = true;
+        if meshes.is_empty() {
+            // Nothing loaded yet; retry next frame.
+            continue;
         }
+        if skin_tag.applied && meshes.len() == skin_tag.meshes_seen {
+            continue;
+        }
+
+        let skin_mat = skin_instance_material(
+            &skin_tag.skin,
+            &skin_registry,
+            &asset_server,
+            &mut cache,
+            &mut advanced_materials,
+            &mut materials,
+        );
+        for mesh in &meshes {
+            skin_mat.apply(&mut commands, *mesh);
+        }
+        skin_tag.meshes_seen = meshes.len();
+        skin_tag.applied = true;
     }
 }
 
@@ -2976,6 +2941,7 @@ mod dummy_weapon_tests {
                     stack.push(path);
                 } else if path.extension().is_some_and(|e| e == "json")
                     && !path.to_string_lossy().contains("xample")
+                    && path.file_name().is_some_and(|n| n != "archetypes.json")
                 {
                     let json = std::fs::read_to_string(&path).unwrap();
                     let cfg: WeaponConfig = serde_json::from_str(&json)
@@ -3009,6 +2975,7 @@ mod dummy_weapon_tests {
                     stack.push(path);
                 } else if path.extension().is_some_and(|e| e == "json")
                     && !path.to_string_lossy().contains("xample")
+                    && path.file_name().is_some_and(|n| n != "archetypes.json")
                 {
                     let json = std::fs::read_to_string(&path).unwrap();
                     let cfg: WeaponConfig = serde_json::from_str(&json)

@@ -1,0 +1,25 @@
+{
+  "id": "neon_pink",
+  "name": "Neon Pink",
+  "rarity": "epic",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.066667,
+      0.666667,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.30,
+    "emissive": {
+      "color": [
+        1.000000,
+        0.066667,
+        0.666667,
+        1.0
+      ],
+      "strength": 1.2,
+      "pulse_hz": 1.1
+    }
+  }
+}

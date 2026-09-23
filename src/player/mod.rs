@@ -262,6 +262,9 @@ fn spawn_player(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
     weapon_registry: Res<WeaponRegistry>,
+    skin_registry: Res<crate::weapons::SkinRegistry>,
+    mut skin_cache: ResMut<crate::weapons::SkinMaterialCache>,
+    mut weapon_materials: ResMut<Assets<crate::weapons::WeaponMaterial>>,
     loadout: Res<PlayerLoadout>,
     player_attachments: Res<PlayerAttachments>,
     attachment_registry: Res<AttachmentRegistry>,
@@ -316,7 +319,10 @@ fn spawn_player(
         skin,
         &asset_server,
         &weapon_registry,
+        &skin_registry,
+        &mut skin_cache,
         &mut meshes,
+        &mut weapon_materials,
         &mut materials,
         &overrides,
         game_settings.debug.show_sockets,
@@ -1103,22 +1109,31 @@ fn keybind_remapping_system(
     }
 }
 
-/// Propagate weapon render layer to all descendants of WeaponModel entities.
-/// Runs every frame; once all descendants are tagged the query is empty (free).
+/// Propagate the weapon render layer to every descendant of `WeaponModel`
+/// entities. Walks the whole hierarchy each frame but only inserts the
+/// marker where it is missing: glTF scenes stream their children in over
+/// several frames, and a one-level-per-frame pass left freshly loaded parts
+/// rendering on the world layer (the gun appearing to "not load" or flash
+/// through walls right after a swap).
 fn ensure_weapon_render_layers(
     mut commands: Commands,
-    weapon_query: Query<Entity, (With<WeaponModel>, Without<WeaponLayerEntity>)>,
-    untagged_children: Query<(Entity, &ChildOf), Without<WeaponLayerEntity>>,
-    weapon_parents: Query<(), With<WeaponLayerEntity>>,
+    weapons: Query<Entity, With<WeaponModel>>,
+    children: Query<&Children>,
+    tagged: Query<(), With<WeaponLayerEntity>>,
 ) {
-    // Tag any WeaponModel entity that doesn't have the marker yet
-    for entity in weapon_query.iter() {
-        commands.entity(entity).insert((WeaponLayerEntity, RenderLayers::layer(1)));
-    }
-    // Propagate one level of children per frame
-    for (entity, child_of) in untagged_children.iter() {
-        if weapon_parents.get(child_of.get()).is_ok() {
-            commands.entity(entity).insert((WeaponLayerEntity, RenderLayers::layer(1)));
+    for root in weapons.iter() {
+        let mut stack = vec![root];
+        while let Some(entity) = stack.pop() {
+            if tagged.get(entity).is_err() {
+                commands
+                    .entity(entity)
+                    .insert((WeaponLayerEntity, RenderLayers::layer(1)));
+            }
+            if let Ok(kids) = children.get(entity) {
+                for child in kids.iter() {
+                    stack.push(child);
+                }
+            }
         }
     }
 }

@@ -1,0 +1,18 @@
+{
+  "id": "stripes_racing",
+  "name": "Racing Stripes",
+  "rarity": "uncommon",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.133333,
+      0.800000,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.45,
+    "pattern": {
+      "sheet": "cosmetics/weapons/skins/tex/pattern_stripes.png"
+    }
+  }
+}

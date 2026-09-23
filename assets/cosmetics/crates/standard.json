@@ -1,0 +1,17 @@
+{
+  "id": "standard",
+  "name": "Standard Crate",
+  "description": "Basic crate with standard drop rates.",
+  "cost": 50,
+  "accent": [0.45, 0.5, 0.6],
+  "rarity_weights": {
+    "common": 55,
+    "uncommon": 250,
+    "rare": 130,
+    "epic": 60,
+    "legendary": 9,
+    "mythic": 1
+  },
+  "melee_chance": 0.0,
+  "skin_pool": []
+}

@@ -1,0 +1,24 @@
+{
+  "id": "gradient_ocean",
+  "name": "Ocean",
+  "rarity": "uncommon",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.400000,
+      0.800000,
+      1.0
+    ],
+    "metallic": 0.40,
+    "roughness": 0.35,
+    "gradient": {
+      "color": [
+        0.066667,
+        1.000000,
+        0.933333,
+        1.0
+      ],
+      "axis": "y"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "id": "void_walker",
+  "name": "Void Walker",
+  "rarity": "legendary",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.066667,
+      0.200000,
+      1.0
+    ],
+    "metallic": 0.85,
+    "roughness": 0.18,
+    "emissive": {
+      "color": [
+        0.333333,
+        0.066667,
+        0.666667,
+        1.0
+      ],
+      "strength": 0.8,
+      "pulse_hz": 0.6
+    },
+    "uv_scroll": [
+      0.0,
+      0.04
+    ]
+  }
+}

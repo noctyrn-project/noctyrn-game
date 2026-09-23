@@ -176,7 +176,7 @@ pub fn init(
         commands.spawn((
             PointLight {
                 shadow_maps_enabled: i == 0,
-                intensity: 15_000_000.0,
+                intensity: 9_000_000.0,
                 range: 200.0,
                 ..default()
             },

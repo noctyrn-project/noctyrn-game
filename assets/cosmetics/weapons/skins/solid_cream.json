@@ -1,0 +1,15 @@
+{
+  "id": "solid_cream",
+  "name": "Cream",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      1.000000,
+      0.933333,
+      0.800000,
+      1.0
+    ],
+    "metallic": 0.30,
+    "roughness": 0.50
+  }
+}

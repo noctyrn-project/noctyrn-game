@@ -1,0 +1,31 @@
+{
+  "id": "cosmic",
+  "name": "Cosmic Crate",
+  "description": "Galaxy finishes, hextech stamps and a high melee-unlock chance.",
+  "cost": 1000,
+  "accent": [
+    0.6,
+    0.3,
+    0.95
+  ],
+  "rarity_weights": {
+    "rare": 200,
+    "epic": 400,
+    "legendary": 300,
+    "mythic": 100
+  },
+  "melee_chance": 0.0,
+  "skin_pool": [
+    "galaxy_ember",
+    "galaxy_deep_field",
+    "galaxy_nebula",
+    "galaxy_void",
+    "supernova",
+    "void_walker",
+    "hextech",
+    "neon_pink",
+    "scales_viper",
+    "hazard_yellow",
+    "tiger_stripe"
+  ]
+}

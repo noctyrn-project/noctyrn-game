@@ -1,0 +1,15 @@
+{
+  "id": "solid_gray",
+  "name": "Gray",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.533333,
+      0.533333,
+      0.533333,
+      1.0
+    ],
+    "metallic": 0.70,
+    "roughness": 0.35
+  }
+}

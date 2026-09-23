@@ -1,0 +1,15 @@
+{
+  "id": "solid_purple",
+  "name": "Purple",
+  "rarity": "common",
+  "finish": {
+    "base_color": [
+      0.533333,
+      0.066667,
+      0.800000,
+      1.0
+    ],
+    "metallic": 0.50,
+    "roughness": 0.35
+  }
+}

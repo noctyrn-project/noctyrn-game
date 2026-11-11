@@ -12,7 +12,8 @@
     "metallic": 0.50,
     "roughness": 0.12,
     "pattern": {
-      "sheet": "cosmetics/weapons/skins/tex/pattern_carbon.png"
+      "sheet": "cosmetics/weapons/skins/tex/pattern_carbon.png",
+      "tintable": true
     }
   }
 }

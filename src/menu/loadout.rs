@@ -1493,6 +1493,11 @@ pub fn loadout_interaction(
                 ui_state.browse = AttachmentBrowse::Slots;
             } else {
                 ui_state.selected_weapon_id = Some(weapon_btn.weapon_id.clone());
+                // The new gun brings its OWN skin — never inherit the old
+                // gun's instance, or the preview (and the next equip) shows
+                // the wrong skin on the new gun.
+                ui_state.selected_skin =
+                    loadout.get_skin_for_weapon(&weapon_btn.weapon_id);
                 ui_state.browse = AttachmentBrowse::Closed;
                 ui_state.preview_needs_update = true;
             }
@@ -1511,7 +1516,10 @@ pub fn loadout_interaction(
                     .min_by(|a, b| a.wear.total_cmp(&b.wear))
                     .unwrap_or_else(|| SkinInstance::factory(skin_btn.skin.clone()));
                 ui_state.selected_skin = instance.clone();
-                loadout.set_skin(ui_state.active_slot, instance);
+                // Save onto the gun being browsed (selected_weapon_id),
+                // not the slot's current gun: the player may be picking a
+                // skin for a gun they haven't equipped yet.
+                loadout.set_skin_for_weapon(&weapon_id, instance);
                 loadout.save();
                 ui_state.preview_needs_update = true;
                 for entity in existing_color_panel.iter() {

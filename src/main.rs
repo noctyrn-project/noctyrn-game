@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::settings::SettingsPlugin;
 
 mod branding;
+mod debug_textures;
 mod defaults;
 mod gameplay;
 mod gamemodes;
@@ -27,6 +28,7 @@ fn main() {
         .add_plugins(SettingsPlugin::new(defaults::APP_ID))
         .add_plugins(DiagnosticsOverlayPlugin)
         .add_plugins(setup::SetupPlugin)
+        .add_plugins(debug_textures::DebugTexturesPlugin)
         .add_plugins(branding::BrandingPlugin)
         .add_plugins(weapons::WeaponsPlugin)
         .add_plugins(player::Player)

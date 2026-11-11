@@ -354,6 +354,8 @@ fn spawn_debug_settings(commands: &mut Commands, parent: Entity, settings: &Game
     spawn_toggle(commands, parent, "Show Hitboxes", settings.debug.show_hitboxes, SettingAction::ToggleHitboxes);
     spawn_toggle(commands, parent, "Debug Crosshair Info", settings.debug.show_crosshair_debug, SettingAction::ToggleCrosshairDebug);
     spawn_toggle(commands, parent, "Show Wireframe", settings.debug.show_wireframe, SettingAction::ToggleWireframe);
+    spawn_toggle(commands, parent, "Show Socket Placeholders", settings.debug.show_sockets, SettingAction::ToggleShowSockets);
+    spawn_toggle(commands, parent, "Skin Texture Viewer", settings.debug.texture_viewer, SettingAction::ToggleTextureViewer);
 }
 
 fn spawn_cheats_settings(commands: &mut Commands, parent: Entity, settings: &GameSettings) {
@@ -572,6 +574,8 @@ pub enum SettingAction {
     ToggleCoords,
     ToggleRotation,
     ToggleCrosshairDebug,
+    ToggleShowSockets,
+    ToggleTextureViewer,
     CycleResolution,
     CycleTextureQuality,
     CycleShadowQuality,
@@ -668,6 +672,8 @@ pub fn handle_settings_interaction(
                 SettingAction::ToggleCoords => game_settings.debug.show_coords,
                 SettingAction::ToggleRotation => game_settings.debug.show_rotation,
                 SettingAction::ToggleCrosshairDebug => game_settings.debug.show_crosshair_debug,
+                SettingAction::ToggleShowSockets => game_settings.debug.show_sockets,
+                SettingAction::ToggleTextureViewer => game_settings.debug.texture_viewer,
                 _ => false,
             };
             let base_color = if value { SUCCESS } else { BG_ELEVATED };
@@ -726,6 +732,8 @@ pub fn handle_settings_interaction(
                         SettingAction::ToggleCoords => game_settings.debug.show_coords = !game_settings.debug.show_coords,
                         SettingAction::ToggleRotation => game_settings.debug.show_rotation = !game_settings.debug.show_rotation,
                         SettingAction::ToggleCrosshairDebug => game_settings.debug.show_crosshair_debug = !game_settings.debug.show_crosshair_debug,
+                        SettingAction::ToggleShowSockets => game_settings.debug.show_sockets = !game_settings.debug.show_sockets,
+                        SettingAction::ToggleTextureViewer => game_settings.debug.texture_viewer = !game_settings.debug.texture_viewer,
                         _ => {}
                     }
                     commands.queue(SaveSettings::IfChanged);

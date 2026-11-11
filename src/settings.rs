@@ -49,6 +49,9 @@ pub struct DebugSettingsConfig {
     /// Show gray placeholder blocks at attachment sockets missing meshes.
     /// Off by default; used to verify socket positions in-game.
     pub show_sockets: bool,
+    /// Show the debug skin texture viewer: an in-game panel that applies
+    /// any skin to the current guns so textures can be checked live.
+    pub texture_viewer: bool,
 }
 
 impl Default for GameplaySettings {
@@ -94,6 +97,7 @@ impl Default for DebugSettingsConfig {
             infinite_ammo: false,
             show_wireframe: false,
             show_sockets: false,
+            texture_viewer: false,
         }
     }
 }

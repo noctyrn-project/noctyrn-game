@@ -404,7 +404,10 @@ pub struct PlayerLoadout {
     pub secondary: WeaponId,
     pub melee: WeaponId,
     pub equipment: WeaponId,
-    pub skins: HashMap<WeaponSlot, SkinInstance>,
+    /// Equipped skin per WEAPON id — never per slot. Swapping guns never
+    /// carries a skin over: each gun remembers its own skin, CSGO-style.
+    /// (Pre-rework saves keyed this by slot name; see `migrate_slot_skins`.)
+    pub skins: HashMap<WeaponId, SkinInstance>,
 }
 
 impl Default for PlayerLoadout {
@@ -439,11 +442,24 @@ impl PlayerLoadout {
     }
 
     pub fn get_skin(&self, slot: WeaponSlot) -> SkinInstance {
-        self.skins.get(&slot).cloned().unwrap_or_default()
+        self.get_skin_for_weapon(self.get_id_for_slot(slot))
     }
 
     pub fn set_skin(&mut self, slot: WeaponSlot, skin: SkinInstance) {
-        self.skins.insert(slot, skin);
+        let gun = self.get_id_for_slot(slot).to_string();
+        self.set_skin_for_weapon(&gun, skin);
+    }
+
+    /// Skin equipped on a specific gun (not the slot it happens to sit in).
+    pub fn get_skin_for_weapon(&self, weapon_id: &str) -> SkinInstance {
+        self.skins.get(weapon_id).cloned().unwrap_or_default()
+    }
+
+    /// Save a skin onto a specific gun. Use this (not `set_skin`) when the
+    /// player is browsing/equipping a gun that isn't in the slot yet —
+    /// otherwise the skin lands on the wrong gun.
+    pub fn set_skin_for_weapon(&mut self, weapon_id: &str, skin: SkinInstance) {
+        self.skins.insert(weapon_id.to_string(), skin);
     }
 
     pub fn save(&self) {
@@ -451,7 +467,26 @@ impl PlayerLoadout {
     }
 
     pub fn load() -> Self {
-        crate::storage::load_section("savestate.json", "loadout")
+        let mut loaded: Self = crate::storage::load_section("savestate.json", "loadout");
+        loaded.migrate_slot_skins();
+        loaded
+    }
+
+    /// Migrate pre-per-weapon saves whose `skins` keys are slot names
+    /// (`"Primary"`, …) to the gun currently sitting in that slot.
+    /// Stale entries for unequipped guns are left alone (harmless).
+    fn migrate_slot_skins(&mut self) {
+        for (slot, gun) in [
+            (WeaponSlot::Primary, self.primary.clone()),
+            (WeaponSlot::Secondary, self.secondary.clone()),
+            (WeaponSlot::Melee, self.melee.clone()),
+            (WeaponSlot::Equipment, self.equipment.clone()),
+        ] {
+            let key = format!("{slot:?}");
+            if let Some(skin) = self.skins.remove(&key) {
+                self.skins.entry(gun).or_insert(skin);
+            }
+        }
     }
 }
 
@@ -1017,7 +1052,7 @@ struct SkinWarmupQuad;
 /// tracked so `animate_weapon_skins` can advance their clock uniform.
 #[derive(Resource, Default)]
 pub struct SkinMaterialCache {
-    map: HashMap<(SkinId, u32, u32), Handle<WeaponMaterial>>,
+    map: HashMap<(SkinId, u32, u32, Option<(u8, u8, u8)>), Handle<WeaponMaterial>>,
     animated: Vec<Handle<WeaponMaterial>>,
     plain: HashMap<SkinId, Handle<StandardMaterial>>,
 }
@@ -1030,10 +1065,21 @@ impl SkinMaterialCache {
         asset_server: &AssetServer,
         materials: &mut Assets<WeaponMaterial>,
     ) -> Handle<WeaponMaterial> {
+        // Tint is part of the key: two copies of a tintable skin with
+        // different colourways must never share one material (the shared
+        // one would paint both guns the first-rolled colour, or white).
+        let tint_key = instance.tint.map(|[r, g, b]| {
+            (
+                (r.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (g.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (b.clamp(0.0, 1.0) * 255.0).round() as u8,
+            )
+        });
         let key = (
             instance.skin.clone(),
             (instance.wear.clamp(0.0, 1.0) * 1000.0).round() as u32,
             instance.seed,
+            tint_key,
         );
         if let Some(handle) = self.map.get(&key) {
             return handle.clone();
@@ -2449,6 +2495,85 @@ mod dummy_weapon_tests {
                 "hk416 needs a {slot} socket"
             );
         }
+    }
+
+    /// Skins bind to WEAPONS, never slots: swapping guns must not carry a
+    /// skin over, and each gun remembers its own.
+    #[test]
+    fn skins_bind_to_weapons_not_slots() {
+        let mut loadout = PlayerLoadout::default();
+        assert_eq!(loadout.get_id_for_slot(WeaponSlot::Primary), "colt_m4a1");
+
+        // Equip red on the default primary, then swap guns: the new gun
+        // must come up default, not red.
+        let red = SkinInstance::factory(SkinId::new("solid_red"));
+        loadout.set_skin(WeaponSlot::Primary, red);
+        assert_eq!(
+            loadout.get_skin(WeaponSlot::Primary).skin,
+            SkinId::new("solid_red")
+        );
+        loadout.set_id_for_slot(WeaponSlot::Primary, "ak-47".to_string());
+        assert!(
+            loadout.get_skin(WeaponSlot::Primary).is_default(),
+            "swapped gun must not inherit the old gun's skin"
+        );
+
+        // The old gun remembers its skin when re-equipped.
+        loadout.set_id_for_slot(WeaponSlot::Primary, "colt_m4a1".to_string());
+        assert_eq!(
+            loadout.get_skin(WeaponSlot::Primary).skin,
+            SkinId::new("solid_red")
+        );
+    }
+
+    /// Pre-rework saves keyed `skins` by slot name; they migrate onto the
+    /// gun currently in that slot.
+    #[test]
+    fn slot_keyed_skins_migrate_to_guns() {
+        let mut loadout = PlayerLoadout::default();
+        loadout.skins.insert(
+            "Primary".to_string(),
+            SkinInstance::factory(SkinId::new("solid_red")),
+        );
+        loadout.migrate_slot_skins();
+        assert!(!loadout.skins.contains_key("Primary"));
+        assert_eq!(
+            loadout.get_skin(WeaponSlot::Primary).skin,
+            SkinId::new("solid_red")
+        );
+        // Other slots untouched.
+        assert!(loadout.get_skin(WeaponSlot::Secondary).is_default());
+    }
+
+    /// The loadout-menu swap flow: browsing gun B (not equipped) and
+    /// picking a skin saves onto B, never onto the slot's current gun —
+    /// and selecting B to preview shows B's skin, not A's.
+    #[test]
+    fn browsing_unequipped_gun_saves_onto_that_gun() {
+        let mut loadout = PlayerLoadout::default();
+        // A (colt_m4a1) wears red.
+        loadout.set_skin_for_weapon(
+            "colt_m4a1",
+            SkinInstance::factory(SkinId::new("solid_red")),
+        );
+
+        // Player clicks gun B: preview must show B's skin (default), not A's.
+        assert!(loadout.get_skin_for_weapon("ak-47").is_default());
+
+        // Player picks a skin while browsing B: it lands on B.
+        loadout.set_skin_for_weapon(
+            "ak-47",
+            SkinInstance::factory(SkinId::new("solid_blue")),
+        );
+        assert_eq!(
+            loadout.get_skin_for_weapon("ak-47").skin,
+            SkinId::new("solid_blue")
+        );
+        // A keeps its skin.
+        assert_eq!(
+            loadout.get_skin_for_weapon("colt_m4a1").skin,
+            SkinId::new("solid_red")
+        );
     }
 
     fn test_registry() -> AttachmentRegistry {        let files = [

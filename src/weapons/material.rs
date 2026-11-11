@@ -163,6 +163,10 @@ pub struct WeaponSkinExt {
     /// per-copy seed picks the stamp), z = pattern tint enabled, w unused.
     #[uniform(100)]
     pub extra: Vec4,
+    /// Nebula noise knobs (x = FBM detail/octaves, y = roughness/persistence,
+    /// z = lacunarity, w = distortion). Ignored by galaxy/matrix.
+    #[uniform(100)]
+    pub nebula_b: Vec4,
     #[texture(101)]
     #[sampler(102)]
     pub pattern_atlas: Option<Handle<Image>>,
@@ -182,6 +186,7 @@ impl Default for WeaponSkinExt {
             gradient: Vec4::ZERO,
             tint: Vec4::ONE,
             extra: Vec4::ZERO,
+            nebula_b: Vec4::new(6.7, 0.5, 1.9, 0.2),
             pattern_atlas: None,
         }
     }

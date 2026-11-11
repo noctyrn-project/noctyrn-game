@@ -171,7 +171,9 @@ pub struct Emissive {
 }
 
 /// A crop ("stamp") taken out of a grayscale motif sheet. The sheet is
-/// tinted by the finish's `base_color`; the crop position comes from the
+/// tinted by the finish's `base_color` — unless the skin opts into
+/// Phantom-style colourways with `tintable`, in which case the per-copy
+/// rolled tint replaces the base colour. The crop position comes from the
 /// skin's optional fixed `offset`, otherwise from the per-copy pattern seed
 /// so duplicates differ (CSGO-style patterns). The stamp size is fixed in
 /// the shader so it isn't another authoring knob.
@@ -181,6 +183,10 @@ pub struct Pattern {
     /// Fixed crop origin in sheet UV space (0..1-STAMP). Omitted = seeded.
     #[serde(default)]
     pub offset: Option<[f32; 2]>,
+    /// Opt into per-copy random tint colourways. Off by default so authored
+    /// colours (e.g. Urban Splinter's grays) always render as authored.
+    #[serde(default)]
+    pub tintable: bool,
 }
 
 /// Fraction of the motif sheet a single gun shows. Mirrors `STAMP` in
@@ -284,6 +290,126 @@ fn default_core() -> f32 {
     0.35
 }
 
+/// Transcript-faithful nebula finish (the Blender short): normalized 4D FBM
+/// noise (scale 7, detail 6.7, roughness 0.5, lacunarity 1.9, distortion 0.2)
+/// through an Ease color ramp, mixed 50/50 toward white, plus 4D voronoi F1
+/// Euclidean stars (scale 110, detail 0, lacunarity 2, randomness 1) through
+/// a tight white→pink→black ramp. Animates via the 4th dimension
+/// (`#frame * 0.01`, cloud W ×0.025, star W ×0.5) and feeds the view vector
+/// into both textures, so like `Galaxy` it renders as a portal window with
+/// parallax — same uniforms, mode 2, plus `nebula_b` for the noise knobs.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Nebula {
+    #[serde(default = "default_palette")]
+    pub palette: Vec<[f32; 3]>,
+    /// Noise scale (video: 7.0).
+    #[serde(default = "default_nebula_scale")]
+    pub scale: f32,
+    /// Cloud W drift per second (`#frame * 0.01 * 0.025` at 24fps).
+    #[serde(default = "default_nebula_speed")]
+    pub speed: f32,
+    /// Star amount.
+    #[serde(default = "default_stars")]
+    pub stars: f32,
+    /// Voronoi size slider (video: 110.0 — "control the amount of stars").
+    #[serde(default = "default_nebula_star_scale")]
+    pub star_scale: f32,
+    /// Star W rate per second (`#frame * 0.01 * 0.5` at 24fps).
+    #[serde(default = "default_nebula_star_fade")]
+    pub star_fade: f32,
+    /// Overall gain.
+    #[serde(default = "default_nebula_brightness")]
+    pub brightness: f32,
+    /// How strongly the layers separate as the view moves (0 = flat).
+    #[serde(default = "default_parallax")]
+    pub parallax: f32,
+    /// FBM octaves blend (video: 6.7).
+    #[serde(default = "default_nebula_detail")]
+    pub detail: f32,
+    /// FBM amplitude persistence (video: 0.5).
+    #[serde(default = "default_nebula_roughness")]
+    pub roughness: f32,
+    /// FBM frequency multiplier (video: 1.9).
+    #[serde(default = "default_nebula_lacunarity")]
+    pub lacunarity: f32,
+    /// Domain warp amount (video: 0.2).
+    #[serde(default = "default_nebula_distortion")]
+    pub distortion: f32,
+}
+
+fn default_nebula_scale() -> f32 {
+    7.0
+}
+
+fn default_nebula_speed() -> f32 {
+    0.017
+}
+
+fn default_nebula_star_scale() -> f32 {
+    110.0
+}
+
+fn default_nebula_star_fade() -> f32 {
+    0.34
+}
+
+fn default_nebula_brightness() -> f32 {
+    1.0
+}
+
+fn default_nebula_detail() -> f32 {
+    6.7
+}
+
+fn default_nebula_roughness() -> f32 {
+    0.5
+}
+
+fn default_nebula_lacunarity() -> f32 {
+    1.9
+}
+
+fn default_nebula_distortion() -> f32 {
+    0.2
+}
+
+/// Matrix rain portal: falling glyph columns rendered through the same
+/// view-ray window as galaxy/nebula (mode 3). Same uniforms, reinterpreted.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Matrix {
+    /// Glyph colour (double-nibble).
+    #[serde(default = "default_matrix_color")]
+    pub color: [f32; 3],
+    /// Column density.
+    #[serde(default = "default_matrix_density")]
+    pub density: f32,
+    /// Fall speed.
+    #[serde(default = "default_matrix_speed")]
+    pub speed: f32,
+    /// Overall gain.
+    #[serde(default = "default_nebula_brightness")]
+    pub brightness: f32,
+    /// Row scale (glyph height).
+    #[serde(default = "default_matrix_glyph")]
+    pub glyph_scale: f32,
+}
+
+fn default_matrix_color() -> [f32; 3] {
+    [0.0, 1.0, 0.266667]
+}
+
+fn default_matrix_density() -> f32 {
+    14.0
+}
+
+fn default_matrix_speed() -> f32 {
+    0.9
+}
+
+fn default_matrix_glyph() -> f32 {
+    18.0
+}
+
 /// A composable appearance recipe. Every field is optional; a skin's
 /// "uniqueness" is simply which features it turns on.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -308,6 +434,12 @@ pub struct Finish {
     pub gradient: Option<Gradient>,
     #[serde(default)]
     pub galaxy: Option<Galaxy>,
+    /// Transcript-faithful nebula portal (mode 2, same uniforms as galaxy).
+    #[serde(default)]
+    pub nebula: Option<Nebula>,
+    /// Matrix rain portal (mode 3, same uniforms as galaxy).
+    #[serde(default)]
+    pub matrix: Option<Matrix>,
 }
 
 impl Default for Finish {
@@ -323,6 +455,8 @@ impl Default for Finish {
             pattern: None,
             gradient: None,
             galaxy: None,
+            nebula: None,
+            matrix: None,
         }
     }
 }
@@ -331,11 +465,27 @@ impl Finish {
     /// Whether the finish animates (drives the "is this special?" feel).
     pub fn is_animated(&self) -> bool {
         self.galaxy.is_some()
+            || self.nebula.is_some()
+            || self.matrix.is_some()
             || self.uv_scroll.is_some()
             || self
                 .emissive
                 .as_ref()
                 .is_some_and(|e| e.pulse_hz.abs() > f32::EPSILON)
+    }
+
+    /// Portal mode for `params.w`: 0 = none, 1 = galaxy, 2 = nebula,
+    /// 3 = matrix.
+    pub fn portal_mode(&self) -> f32 {
+        if self.matrix.is_some() {
+            3.0
+        } else if self.nebula.is_some() {
+            2.0
+        } else if self.galaxy.is_some() {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     pub fn has_pattern(&self) -> bool {
@@ -362,7 +512,7 @@ impl Finish {
             instance.wear.clamp(0.0, 1.0),
             0.0,
             (instance.seed % 1_000_000) as f32,
-            if self.galaxy.is_some() { 1.0 } else { 0.0 },
+            self.portal_mode(),
         );
 
         let (pulse, strength) = self
@@ -393,6 +543,51 @@ impl Finish {
             );
         }
 
+        // Nebula reuses the galaxy uniforms (mode 2): scale/speed/stars/
+        // parallax in `galaxy`, star_scale/star W rate/brightness in
+        // `galaxy_b`, noise detail/roughness/lacunarity/distortion in
+        // `nebula_b`.
+        if let Some(nebula) = &self.nebula {
+            let color = |i: usize| {
+                nebula
+                    .palette
+                    .get(i)
+                    .map(|c| Vec4::new(c[0], c[1], c[2], 1.0))
+                    .unwrap_or(Vec4::ONE)
+            };
+            ext.palette_a = color(0);
+            ext.palette_b = color(1);
+            ext.palette_c = color(2);
+            ext.galaxy = Vec4::new(nebula.scale, nebula.speed, nebula.stars, nebula.parallax);
+            ext.galaxy_b = Vec4::new(
+                nebula.star_scale,
+                nebula.star_fade,
+                nebula.brightness,
+                3.0,
+            );
+            ext.nebula_b = Vec4::new(
+                nebula.detail,
+                nebula.roughness,
+                nebula.lacunarity,
+                nebula.distortion,
+            );
+        }
+
+        // Matrix reuses the galaxy uniforms (mode 3): density/speed/
+        // brightness/glyph in `galaxy`, glyph colour in `palette_a`.
+        if let Some(matrix) = &self.matrix {
+            ext.palette_a = Vec4::new(matrix.color[0], matrix.color[1], matrix.color[2], 1.0);
+            ext.palette_b = ext.palette_a;
+            ext.palette_c = Vec4::new(1.0, 1.0, 1.0, 1.0);
+            ext.galaxy = Vec4::new(
+                matrix.density,
+                matrix.speed,
+                matrix.brightness,
+                matrix.glyph_scale,
+            );
+            ext.galaxy_b = Vec4::ZERO;
+        }
+
         if let Some(pattern) = &self.pattern {
             let (offset_x, offset_y, fixed) = match pattern.offset {
                 Some([x, y]) => (x, y, 1.0),
@@ -402,11 +597,14 @@ impl Finish {
             // the seed picks it).
             ext.pattern = Vec4::new(offset_x, offset_y, 1.0, 1.0);
             ext.extra.y = fixed;
-            // Per-copy tint colourway: the grayscale sheet is multiplied by
-            // the rolled tint instead of the authored base colour.
-            if let Some([r, g, b]) = instance.tint {
-                ext.tint = Vec4::new(r, g, b, 1.0);
-                ext.extra.z = 1.0;
+            // Per-copy tint colourway — opt-in per skin (`tintable`), so
+            // authored colours like Urban Splinter's grays always render
+            // as authored. Legacy copies with no tint fall back to base.
+            if pattern.tintable {
+                if let Some([r, g, b]) = instance.tint {
+                    ext.tint = Vec4::new(r, g, b, 1.0);
+                    ext.extra.z = 1.0;
+                }
             }
         }
 
@@ -451,6 +649,15 @@ impl SkinDef {
                 return Color::srgb(c[0], c[1], c[2]);
             }
         }
+        if let Some(nebula) = &self.finish.nebula {
+            if let Some(c) = nebula.palette.first() {
+                return Color::srgb(c[0], c[1], c[2]);
+            }
+        }
+        if let Some(matrix) = &self.finish.matrix {
+            let [r, g, b] = matrix.color;
+            return Color::srgb(r, g, b);
+        }
         if let Some(emissive) = &self.finish.emissive {
             let [r, g, b, _] = emissive.color;
             return Color::srgb(r, g, b);
@@ -459,24 +666,32 @@ impl SkinDef {
         Color::srgb(r, g, b)
     }
 
-    /// Build the static (StandardMaterial) core. Textures are loaded through
-    /// the asset server; animation/wear live in the shader extension.
-    pub fn to_material(&self, asset_server: &AssetServer) -> StandardMaterial {
-        let f = &self.finish;
-        let [r, g, b, a] = f.base_color;
-        let emissive = f
+    /// Emissive contribution of a finish: the authored glow scaled by its
+    /// strength, or black when the skin defines none. NOTE: this must NOT
+    /// be `LinearRgba::default()` — that is *white*, and using it here
+    /// turned every non-glow skin into a white wash (see
+    /// `emissive_defaults_to_black`).
+    pub fn finish_emissive(finish: &Finish) -> LinearRgba {
+        finish
             .emissive
             .as_ref()
             .map(|e| {
                 let [er, eg, eb, _] = e.color;
                 LinearRgba::rgb(er * e.strength, eg * e.strength, eb * e.strength)
             })
-            .unwrap_or_default();
+            .unwrap_or(LinearRgba::BLACK)
+    }
+
+    /// Build the static (StandardMaterial) core. Textures are loaded through
+    /// the asset server; animation/wear live in the shader extension.
+    pub fn to_material(&self, asset_server: &AssetServer) -> StandardMaterial {
+        let f = &self.finish;
+        let [r, g, b, a] = f.base_color;
         StandardMaterial {
             base_color: Color::srgba(r, g, b, a),
             metallic: f.metallic,
             perceptual_roughness: f.roughness,
-            emissive,
+            emissive: Self::finish_emissive(f),
             base_color_texture: f.texture.as_ref().map(|p| asset_server.load(p)),
             normal_map_texture: f.normal_map.as_ref().map(|p| asset_server.load(p)),
             ..default()
@@ -675,13 +890,15 @@ impl SkinRegistry {
         self.def_or_default(id).swatch_color()
     }
 
-    /// Swatch for one owned copy: patterned copies show their rolled tint
-    /// colourway, everything else shows the def's representative colour.
+    /// Swatch for one owned copy: `tintable` patterned copies show their
+    /// rolled tint colourway, everything else shows the def's colour.
     pub fn swatch_for_instance(&self, instance: &SkinInstance) -> Color {
-        if self
-            .get(&instance.skin)
-            .is_some_and(|d| d.finish.pattern.is_some())
-        {
+        if self.get(&instance.skin).is_some_and(|d| {
+            d.finish
+                .pattern
+                .as_ref()
+                .is_some_and(|p| p.tintable)
+        }) {
             if let Some([r, g, b]) = instance.tint {
                 return Color::srgb(r, g, b);
             }
@@ -1344,6 +1561,7 @@ mod tests {
         patterned.finish.pattern = Some(Pattern {
             sheet: "cosmetics/weapons/skins/tex/pattern_camo.png".to_string(),
             offset: None,
+            tintable: false,
         });
         let ext = patterned.finish.to_extension(&instance);
         assert_eq!(ext.pattern, Vec4::new(0.0, 0.0, 1.0, 1.0));
@@ -1354,6 +1572,7 @@ mod tests {
         patterned.finish.pattern = Some(Pattern {
             sheet: "cosmetics/weapons/skins/tex/pattern_camo.png".to_string(),
             offset: Some([0.25, 0.5]),
+            tintable: false,
         });
         let ext = patterned.finish.to_extension(&instance);
         assert_eq!(ext.pattern.x, 0.25);
@@ -1383,6 +1602,7 @@ mod tests {
         def.finish.pattern = Some(Pattern {
             sheet: "tex/pattern_camo.png".to_string(),
             offset: None,
+            tintable: false,
         });
         let a = def.finish.pattern_crop_origin(7);
         let b = def.finish.pattern_crop_origin(7);
@@ -1395,6 +1615,7 @@ mod tests {
         def.finish.pattern = Some(Pattern {
             sheet: "tex/pattern_camo.png".to_string(),
             offset: Some([0.25, 0.125]),
+            tintable: false,
         });
         assert_eq!(def.finish.pattern_crop_origin(7), [0.25, 0.125]);
     }
@@ -1412,7 +1633,7 @@ mod tests {
     }
 
     /// Every shipped skin must use double-nibble colours (base, emissive,
-    /// gradient and galaxy palette).
+    /// gradient, galaxy/nebula palettes and matrix colour).
     #[test]
     fn shipped_skins_use_valid_colours() {        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/cosmetics/weapons/skins");
         let registry = SkinRegistry::load_from(dir);
@@ -1450,11 +1671,32 @@ mod tests {
                     );
                 }
             }
+            if let Some(nebula) = &def.finish.nebula {
+                for c in &nebula.palette {
+                    let color = [c[0], c[1], c[2], 1.0];
+                    assert!(
+                        is_valid_skin_color(color),
+                        "{} nebula palette {} is not double-nibble",
+                        def.id,
+                        color_hex(color)
+                    );
+                }
+            }
+            if let Some(matrix) = &def.finish.matrix {
+                let [r, g, b] = matrix.color;
+                let color = [r, g, b, 1.0];
+                assert!(
+                    is_valid_skin_color(color),
+                    "{} matrix color {} is not double-nibble",
+                    def.id,
+                    color_hex(color)
+                );
+            }
         }
     }
 
     /// Rarity is a data label, but the shipped set follows the taxonomy:
-    /// solids are common, patterns uncommon/rare, galaxy mythic.
+    /// solids are common, patterns uncommon/rare, portals mythic.
     #[test]
     fn shipped_skins_follow_the_rarity_taxonomy() {
         let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/cosmetics/weapons/skins");
@@ -1477,9 +1719,17 @@ mod tests {
             if f.galaxy.is_some() {
                 assert_eq!(def.rarity, Rarity::Mythic, "{} galaxy rarity", def.id);
             }
+            if f.nebula.is_some() {
+                assert_eq!(def.rarity, Rarity::Mythic, "{} nebula rarity", def.id);
+            }
+            if f.matrix.is_some() {
+                assert_eq!(def.rarity, Rarity::Mythic, "{} matrix rarity", def.id);
+            }
             let is_plain_solid = f.pattern.is_none()
                 && f.gradient.is_none()
                 && f.galaxy.is_none()
+                && f.nebula.is_none()
+                && f.matrix.is_none()
                 && f.emissive.is_none()
                 && f.uv_scroll.is_none()
                 && f.texture.is_none();
@@ -1502,19 +1752,117 @@ mod tests {
     }
 
     #[test]
+    fn pattern_stamp_stays_in_gamut() {
+        // Mirrors the WGSL pattern blend (PATTERN_CONTRAST 0.4,
+        // PATTERN_GAIN 1.6): binary sheets (~0.28/0.78) must not push
+        // bright bases like tiger/hazard past ~1.0 (near-white wash),
+        // while darks must keep the pattern readable. If the WGSL changes,
+        // update this mirror.
+        fn cpu_blend(base: [f32; 3], s: f32) -> [f32; 3] {
+            let flat = ((s - 0.5) * 0.4 + 0.5).clamp(0.0, 1.0);
+            [base[0] * flat * 1.6, base[1] * flat * 1.6, base[2] * flat * 1.6]
+        }
+        let skins = [
+            ("tiger", [1.0, 0.666667, 0.133333]),
+            ("hazard", [1.0, 0.933333, 0.066667]),
+            ("viper", [0.133333, 0.8, 0.266667]),
+            ("stripes", [0.066667, 0.133333, 0.8]),
+            ("woodland", [0.2, 0.533333, 0.266667]),
+            ("splinter", [0.533333, 0.6, 0.666667]),
+            ("digital", [0.133333, 0.533333, 0.333333]),
+        ];
+        for (name, base) in skins {
+            for s in [0.28, 0.78] {
+                for c in cpu_blend(base, s) {
+                    assert!(
+                        c <= 1.02,
+                        "{name} sheet {s} blows out to {c} (white wash)"
+                    );
+                }
+            }
+            // Dark blobs must stay visible, not crush to black: the darkest
+            // result keeps at least 45% of the base's brightest channel.
+            let base_max = base[0].max(base[1]).max(base[2]);
+            let dark_max = cpu_blend(base, 0.28)
+                .into_iter()
+                .fold(0.0f32, f32::max);
+            assert!(
+                dark_max >= base_max * 0.45,
+                "{name} darks crush to {dark_max}"
+            );
+        }
+    }
+
+    #[test]
+    fn emissive_defaults_to_black() {
+        // Regression test for the white wash: `LinearRgba::default()` is
+        // WHITE, and `to_material` used it for skins with no authored glow
+        // — so every solid/pattern skin rendered as unlit white (lighting-
+        // and feature-independent, which is why bisection kept pointing
+        // everywhere except the one-line cause). Missing emissive must be
+        // black.
+        assert_eq!(LinearRgba::default(), LinearRgba::WHITE);
+        let plain = def("s", Rarity::Common, &[]);
+        assert_eq!(SkinDef::finish_emissive(&plain.finish), LinearRgba::BLACK);
+        let mut glowing = def("g", Rarity::Epic, &[]);
+        glowing.finish.emissive = Some(Emissive {
+            color: [1.0, 0.0, 0.0, 1.0],
+            strength: 2.0,
+            pulse_hz: 0.0,
+        });
+        assert_eq!(
+            SkinDef::finish_emissive(&glowing.finish),
+            LinearRgba::rgb(2.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn solid_red_builds_red_nonglowing_extension() {
+        // CPU-side contract for the white-wash hunt: the data fed to the
+        // GPU for a plain solid must be exactly base red, black emissive
+        // inputs and a zeroed extension (wear aside). If a render still
+        // shows white with these inputs, the fault is GPU-side.
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/cosmetics/weapons/skins");
+        let registry = SkinRegistry::load_from(dir);
+        let def = registry
+            .get(&SkinId::new("solid_red"))
+            .expect("solid_red ships");
+        assert_eq!(
+            def.finish.base_color,
+            [0.733333, 0.066667, 0.066667, 1.0],
+            "solid_red base must be red"
+        );
+        assert!(def.finish.pattern.is_none());
+        assert!(def.finish.emissive.is_none());
+        assert!((def.finish.metallic - 0.6).abs() < 1e-6);
+        assert!((def.finish.roughness - 0.35).abs() < 1e-6);
+
+        let instance = SkinInstance::factory(SkinId::new("solid_red"))
+            .with_wear(0.05)
+            .with_seed(1234);
+        let ext = def.finish.to_extension(&instance);
+        assert_eq!(ext.params, Vec4::new(0.05, 0.0, 1234.0, 0.0));
+        assert_eq!(ext.anim, Vec4::ZERO);
+        assert_eq!(ext.pattern, Vec4::ZERO);
+        assert_eq!(ext.extra, Vec4::ZERO);
+        assert_eq!(ext.gradient, Vec4::ZERO);
+    }
+
+    #[test]
     fn tint_roll_is_double_nibble_and_wired_to_extension() {
-        // Every roll carries a tint so patterned drops land in a colourway.
+        // Every roll carries a tint so tintable drops land in a colourway.
         let inst = SkinInstance::roll(SkinId::new("tiger_stripe"));
         let [r, g, b] = inst.tint.expect("roll carries a tint");
         for ch in [r, g, b] {
             assert!(color_byte(ch) % 17 == 0, "tint channel {ch} breaks colour rule");
         }
 
-        // Patterned finishes forward the tint; the shader flag rides along.
+        // Tintable patterned finishes forward the tint; the flag rides along.
         let mut patterned = def("p", Rarity::Rare, &[]);
         patterned.finish.pattern = Some(Pattern {
             sheet: "tex/pattern_camo.png".to_string(),
             offset: None,
+            tintable: true,
         });
         let ext = patterned.finish.to_extension(&inst);
         assert_eq!(ext.extra.z, 1.0, "tint enabled");
@@ -1526,5 +1874,54 @@ mod tests {
         let legacy = SkinInstance::factory(SkinId::new("tiger_stripe"));
         let ext = patterned.finish.to_extension(&legacy);
         assert_eq!(ext.extra.z, 0.0, "legacy copy has no tint");
+
+        // Non-tintable skins (e.g. Urban Splinter's authored grays) ignore
+        // the rolled tint so they always render as authored.
+        let mut fixed = def("q", Rarity::Rare, &[]);
+        fixed.finish.pattern = Some(Pattern {
+            sheet: "tex/pattern_splinter.png".to_string(),
+            offset: None,
+            tintable: false,
+        });
+        let ext = fixed.finish.to_extension(&inst);
+        assert_eq!(ext.extra.z, 0.0, "non-tintable ignores tint");
+    }
+
+    #[test]
+    fn portal_modes_map_to_extension() {
+        let inst = SkinInstance::factory(SkinId::new("x"));
+
+        let mut galaxy = def("g", Rarity::Mythic, &[]);
+        galaxy.finish.galaxy = Some(Galaxy::default());
+        let ext = galaxy.finish.to_extension(&inst);
+        assert_eq!(ext.params.w, 1.0, "galaxy mode");
+        assert!(galaxy.finish.is_animated());
+
+        let mut nebula = def("n", Rarity::Mythic, &[]);
+        nebula.finish.nebula = Some(Nebula {
+            scale: 7.0,
+            star_scale: 110.0,
+            detail: 6.7,
+            lacunarity: 1.9,
+            ..Nebula::default()
+        });
+        let ext = nebula.finish.to_extension(&inst);
+        assert_eq!(ext.params.w, 2.0, "nebula mode");
+        assert!(nebula.finish.is_animated());
+        assert!((ext.galaxy.x - 7.0).abs() < 1e-6, "nebula scale maps in");
+        assert!((ext.galaxy_b.x - 110.0).abs() < 1e-6, "star scale maps in");
+        assert!((ext.nebula_b.x - 6.7).abs() < 1e-6, "detail maps in");
+        assert!((ext.nebula_b.z - 1.9).abs() < 1e-6, "lacunarity maps in");
+
+        let mut matrix = def("m", Rarity::Mythic, &[]);
+        matrix.finish.matrix = Some(Matrix {
+            color: [0.0, 1.0, 0.266667],
+            ..Matrix::default()
+        });
+        let ext = matrix.finish.to_extension(&inst);
+        assert_eq!(ext.params.w, 3.0, "matrix mode");
+        assert!(matrix.finish.is_animated());
+        assert!((ext.palette_a.x - 0.0).abs() < 1e-6);
+        assert!((ext.palette_a.y - 1.0).abs() < 1e-6);
     }
 }

@@ -1,0 +1,36 @@
+{
+  "id": "matrix_rain",
+  "name": "Matrix Rain",
+  "rarity": "mythic",
+  "finish": {
+    "base_color": [
+      0.0,
+      0.066667,
+      0.0,
+      1.0
+    ],
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "emissive": {
+      "color": [
+        0.0,
+        1.0,
+        0.266667,
+        1.0
+      ],
+      "strength": 0.8,
+      "pulse_hz": 0.0
+    },
+    "matrix": {
+      "color": [
+        0.0,
+        1.0,
+        0.266667
+      ],
+      "density": 14.0,
+      "speed": 0.9,
+      "brightness": 1.1,
+      "glyph_scale": 18.0
+    }
+  }
+}

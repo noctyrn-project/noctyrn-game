@@ -1,0 +1,55 @@
+{
+  "id": "nebula",
+  "name": "Nebula",
+  "rarity": "mythic",
+  "finish": {
+    "base_color": [
+      0.066667,
+      0.066667,
+      0.133333,
+      1.0
+    ],
+    "metallic": 0.10,
+    "roughness": 0.35,
+    "emissive": {
+      "color": [
+        0.533333,
+        0.266667,
+        0.8,
+        1.0
+      ],
+      "strength": 0.6,
+      "pulse_hz": 0.0
+    },
+    "nebula": {
+      "palette": [
+        [
+          0.066667,
+          0.066667,
+          0.2
+        ],
+        [
+          0.266667,
+          0.133333,
+          0.666667
+        ],
+        [
+          0.866667,
+          0.266667,
+          1.0
+        ]
+      ],
+      "scale": 7.0,
+      "speed": 0.017,
+      "stars": 0.35,
+      "star_scale": 110.0,
+      "star_fade": 0.34,
+      "brightness": 1.0,
+      "parallax": 1.4,
+      "detail": 6.7,
+      "roughness": 0.5,
+      "lacunarity": 1.9,
+      "distortion": 0.2
+    }
+  }
+}

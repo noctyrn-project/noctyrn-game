@@ -1,0 +1,13 @@
+{
+  "id": "ammo_410_slug",
+  "name": ".410 Slug",
+  "caliber": ".410 Bore",
+  "damage": 130.0,
+  "velocity": 480.0,
+  "penetration": 0.7,
+  "range": 90.0,
+  "drop_factor": 1.0,
+  "pellet_count": 1,
+  "spread_cone": 0.4,
+  "special_effects": []
+}

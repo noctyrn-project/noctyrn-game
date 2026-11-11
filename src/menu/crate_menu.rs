@@ -12,10 +12,10 @@ use crate::menu::main_menu::Menu3dCamera;
 use crate::player::GameState;
 use crate::theme::*;
 use crate::weapons::{
-    resolve_attachment_meshes, slot_from_weapon_type, spawn_weapon_attachments,
-    AttachmentRegistry, CrateDef, CrateRegistry, CrateReward, Inventory, PlayerAttachments,
-    PlayerCredits, Rarity, SkinId, SkinInstance, SkinRegistry, WeaponRegistry, WeaponSlot,
-    PATTERN_SHEET_PX, PATTERN_STAMP,
+    color_hex_compact, resolve_attachment_meshes, slot_from_weapon_type,
+    spawn_weapon_attachments, AttachmentRegistry, CrateDef, CrateRegistry, CrateReward,
+    Inventory, PlayerAttachments, PlayerCredits, Rarity, SkinId, SkinInstance, SkinRegistry,
+    WeaponRegistry, WeaponSlot, PATTERN_SHEET_PX, PATTERN_STAMP,
 };
 
 // ── 3D crate layout (crate-space, matches the split parts) ───────────────
@@ -1426,7 +1426,7 @@ fn spawn_reward_card(
         CrateReward::MeleeUnlock { .. } => "Melee mesh unlocked".to_string(),
     };
     let swatch = match reward {
-        CrateReward::GunSkin { instance, .. } => skin_registry.swatch_color(&instance.skin),
+        CrateReward::GunSkin { instance, .. } => skin_registry.swatch_for_instance(instance),
         CrateReward::MeleeUnlock { .. } => rarity.color(),
     };
     // Patterned gun skins also show their motif slice on the card.
@@ -1452,7 +1452,14 @@ fn spawn_reward_card(
             let patterned = skin_registry
                 .get(&instance.skin)
                 .is_some_and(|d| d.finish.has_pattern());
-            patterned.then(|| format!("pattern #{}", instance.seed % 1000))
+            patterned.then(|| match instance.tint {
+                Some([r, g, b]) => format!(
+                    "pattern #{} {}",
+                    instance.seed % 1000,
+                    color_hex_compact([r, g, b, 1.0])
+                ),
+                None => format!("pattern #{}", instance.seed % 1000),
+            })
         }
         _ => None,
     };

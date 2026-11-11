@@ -39,7 +39,8 @@ struct WeaponSkinExt {
     galaxy_b: vec4<f32>,    // star_density, twinkle, core, layers
     pattern: vec4<f32>,     // offset_x, offset_y, strength, enabled
     gradient: vec4<f32>,    // rgb tint, axis flag (0 = x, 1 = y)
-    extra: vec4<f32>,       // x = gradient on, y = pattern fixed offset, z/w unused
+    tint: vec4<f32>,        // per-copy pattern colourway (rgb)
+    extra: vec4<f32>,       // x = gradient on, y = pattern fixed offset, z = tint on, w unused
 };
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> ext: WeaponSkinExt;
@@ -113,9 +114,9 @@ fn vnoise3(p: vec3<f32>) -> f32 {
 }
 
 /// Nebula cloud: 4-octave 3D fbm sliced along the view ray, colour-ramped
-/// through the skin palette with dark dust lanes rifted through it. The
-/// ramp is deliberately dark: only the densest knots light up, everything
-/// else stays deep-space black.
+/// through the skin palette with soft dust lanes. The ramp is deliberately
+/// soft: most of the surface stays deep space and the knots bloom gently
+/// instead of clipping to hot white.
 fn nebula_color(q: vec3<f32>, t: f32, density: f32) -> vec3<f32> {
     let drift = vec3<f32>(t * 0.35, -t * 0.22, t * 0.15);
     let p = q * density;
@@ -123,25 +124,24 @@ fn nebula_color(q: vec3<f32>, t: f32, density: f32) -> vec3<f32> {
     n += vnoise3(p * 2.03 - drift * 0.7) * 0.25;
     n += vnoise3(p * 4.07 + drift * 0.4) * 0.125;
     n += vnoise3(p * 8.11 - drift * 0.2) * 0.0625;
-    // Contrast: fbm averages ~0.476 (measured), so lift the floor above it
-    // and expand: most of the surface stays black space and only the dense
-    // knots ramp up through the palette.
-    let ramp = clamp((n - 0.46) * 2.6, 0.0, 1.0);
+    // Soft contrast: fbm averages ~0.476, so lift just above it and expand
+    // gently — dense knots bloom through the palette without harsh clipping.
+    let ramp = clamp((n - 0.44) * 1.9, 0.0, 1.0);
 
-    // Colour ramp: deep space → palette A → B → C → a touch of hot white.
-    var col = mix(vec3<f32>(0.008, 0.008, 0.020), ext.palette_a.rgb, smoothstep(0.0, 0.45, ramp));
-    col = mix(col, ext.palette_b.rgb, smoothstep(0.35, 0.72, ramp));
-    col = mix(col, ext.palette_c.rgb, smoothstep(0.66, 0.95, ramp));
-    col += vec3<f32>(1.0, 0.97, 0.94) * smoothstep(0.93, 1.0, ramp) * 0.35;
+    // Colour ramp: deep space → palette A → B → C → a breath of warm white.
+    var col = mix(vec3<f32>(0.012, 0.012, 0.028), ext.palette_a.rgb, smoothstep(0.0, 0.55, ramp));
+    col = mix(col, ext.palette_b.rgb, smoothstep(0.35, 0.80, ramp));
+    col = mix(col, ext.palette_c.rgb, smoothstep(0.65, 0.97, ramp));
+    col += vec3<f32>(1.0, 0.97, 0.94) * smoothstep(0.94, 1.0, ramp) * 0.18;
 
     let dust = vnoise3(p * 3.31 - drift);
-    col *= 0.25 + 0.75 * smoothstep(0.20, 0.75, dust);
+    col *= 0.45 + 0.55 * smoothstep(0.30, 0.85, dust);
     return col;
 }
 
-/// One layer of stars: jittered points inside 3D cells with a cross flare
-/// and a twinkle. `p` is a point along the world-space view ray, so the
-/// field is anchored in the world and pans as the view turns.
+/// One layer of stars: jittered points inside 3D cells with a soft glow
+/// and a gentle twinkle. `p` is a point along the world-space view ray, so
+/// the field is anchored in the world and pans as the view turns.
 fn star_layer(p: vec3<f32>, t: f32, amount: f32) -> vec3<f32> {
     let cell = floor(p);
     let f = fract(p) - 0.5;
@@ -150,18 +150,20 @@ fn star_layer(p: vec3<f32>, t: f32, amount: f32) -> vec3<f32> {
     let rel = f - o;
     let d = length(rel);
     let size = fract(rnd * 534.0);
-    // Inverse falloff keeps stars point-like at any resolution.
-    let core = 0.016 / max(d, 0.005) * smoothstep(0.93, 0.25, size);
-    // Cross flare: lights up along the cell axis nearest the star.
-    let flare = exp(-min(min(abs(rel.x), abs(rel.y)), abs(rel.z)) * 55.0) * 0.3;
-    let tint = mix(vec3<f32>(0.55, 0.65, 1.0), vec3<f32>(1.0, 0.85, 0.6), fract(rnd * 91.7));
-    let twinkle = 1.0 + ext.galaxy_b.y * 0.6 * sin(t * 2.5 + rnd * TAU);
+    // Soft falloff so stars glow instead of clipping to hard points.
+    let core = 0.010 / max(d, 0.012) * smoothstep(0.95, 0.30, size);
+    // Wide soft halo: lights up along the cell axis nearest the star.
+    let flare = exp(-min(min(abs(rel.x), abs(rel.y)), abs(rel.z)) * 32.0) * 0.18;
+    let tint = mix(vec3<f32>(0.65, 0.72, 1.0), vec3<f32>(1.0, 0.88, 0.70), fract(rnd * 91.7));
+    let twinkle = 1.0 + ext.galaxy_b.y * 0.35 * sin(t * 1.6 + rnd * TAU);
     return tint * (core + flare * core) * twinkle * amount * smoothstep(1.0, 0.35, d);
 }
 
 /// The whole effect: a stack of layers at increasing depth, each sampled
 /// along the world-space view ray. Turning the camera pans across a fixed
-/// volume of space; the per-layer depths add parallax between them.
+/// volume of space; the per-layer depths add parallax between them. A slow
+/// idle drift keeps the field breathing Fortnite-style even when the skin's
+/// own scroll speed is zero.
 fn galaxy_color(ray: vec3<f32>, t: f32) -> vec3<f32> {
     let density = max(ext.galaxy.x, 0.05);
     let speed = ext.galaxy.y;
@@ -171,6 +173,9 @@ fn galaxy_color(ray: vec3<f32>, t: f32) -> vec3<f32> {
     let core = ext.galaxy_b.z;
     let layers = clamp(ext.galaxy_b.w, 1.0, 4.0);
 
+    // Idle drift: slow orbital sway so the galaxy shimmers even at rest.
+    let idle = vec3<f32>(sin(t * 0.45) * 0.06, cos(t * 0.38) * 0.06, sin(t * 0.30) * 0.04);
+
     // Nebula: back-to-front layers; near layers are larger, brighter and
     // drift faster, far ones stay put.
     var col = vec3<f32>(0.0);
@@ -179,25 +184,25 @@ fn galaxy_color(ray: vec3<f32>, t: f32) -> vec3<f32> {
         let fi = f32(i);
         let on = step(fi + 0.5, layers);
         let depth = 1.0 + fi * (1.0 + parallax);
-        let q = ray * depth * WINDOW_SCALE + vec3<f32>(fi * 37.0, fi * 19.0, t * speed);
+        let q = ray * depth * WINDOW_SCALE + vec3<f32>(fi * 37.0, fi * 19.0, t * speed) + idle * (1.0 + fi * 0.5);
         let weight = on / (1.0 + fi * 1.4);
         col += nebula_color(q, t * speed, density * (0.8 + fi * 0.35)) * weight;
         total += weight;
     }
     col /= max(total, 0.001);
 
-    // Galactic plane + core: a faint band and a hot centre.
+    // Galactic plane + core: a faint band and a soft centre glow.
     let band = exp(-abs(ray.y) * 6.0) * core;
     let core_dir = normalize(vec3<f32>(0.35, 0.08, -0.93));
     let core_glow = pow(max(dot(ray, core_dir), 0.0), 8.0) * core * 1.6;
-    col += ext.palette_b.rgb * band * 0.25 + vec3<f32>(1.0, 0.95, 0.9) * core_glow * 0.2;
+    col += ext.palette_b.rgb * band * 0.18 + vec3<f32>(1.0, 0.95, 0.9) * core_glow * 0.12;
 
     // Stars: nearer layers are sparser and brighter.
     for (var i = 0u; i < 3u; i++) {
         let fi = f32(i);
         let on = step(fi + 0.5, layers);
         let depth = 1.0 + fi * (0.6 + parallax * 0.8);
-        let p = ray * depth * star_density + vec3<f32>(fi * 91.0, fi * 57.0, 0.0);
+        let p = ray * depth * star_density + vec3<f32>(fi * 91.0, fi * 57.0, 0.0) + idle * 2.0;
         let amount = on * star_amount / (1.0 + fi * 0.9);
         col += star_layer(p, t, amount);
     }
@@ -240,8 +245,10 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     let pattern_on = step(0.5, ext.pattern.w);
     let strength = clamp(ext.pattern.z, 0.0, 1.0) * pattern_on;
     // Grayscale sheet is centred on mid-grey, so *2 keeps the tint and
-    // darkens/brightens with the pattern.
-    base = vec4<f32>(mix(base.rgb, base.rgb * stamped.rgb * 2.0, strength), base.a);
+    // darkens/brightens with the pattern. Phantom-style: when the copy
+    // rolled a tint colourway, multiply by it instead of the authored base.
+    let pattern_tint = select(base.rgb, ext.tint.rgb, ext.extra.z > 0.5);
+    base = vec4<f32>(mix(base.rgb, pattern_tint * stamped.rgb * 2.0, strength), base.a);
 #endif
 
 #ifdef SKIN_GRADIENT
@@ -265,8 +272,9 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         pbr_input.material.metallic = 0.0;
         pbr_input.material.perceptual_roughness = 0.6;
         // Replace the authored emissive with the galaxy's own glow: mostly
-        // black space, with the dense knots and stars lighting themselves.
-        emissive = col * max(ext.anim.y, 0.15) * 0.45;
+        // deep space, with the dense knots and stars lighting themselves
+        // softly.
+        emissive = col * max(ext.anim.y, 0.15) * 0.35;
     }
 #endif
 

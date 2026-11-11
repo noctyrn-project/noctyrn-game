@@ -1,0 +1,13 @@
+{
+  "id": "ammo_12ga_slug",
+  "name": "12 Gauge Slug",
+  "caliber": "12ga",
+  "damage": 220.0,
+  "velocity": 520.0,
+  "penetration": 0.85,
+  "range": 120.0,
+  "drop_factor": 1.0,
+  "pellet_count": 1,
+  "spread_cone": 0.3,
+  "special_effects": []
+}

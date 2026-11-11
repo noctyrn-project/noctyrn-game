@@ -154,8 +154,13 @@ pub struct WeaponSkinExt {
     /// Enabled by `extra.x`.
     #[uniform(100)]
     pub gradient: Vec4,
+    /// Per-copy pattern tint colourway (rgb). Enabled by `extra.z`: when on,
+    /// the grayscale motif sheet is multiplied by this instead of the
+    /// authored base colour.
+    #[uniform(100)]
+    pub tint: Vec4,
     /// x = gradient enabled, y = pattern uses its fixed offset (else the
-    /// per-copy seed picks the stamp), z/w unused.
+    /// per-copy seed picks the stamp), z = pattern tint enabled, w unused.
     #[uniform(100)]
     pub extra: Vec4,
     #[texture(101)]
@@ -175,6 +180,7 @@ impl Default for WeaponSkinExt {
             galaxy_b: Vec4::ZERO,
             pattern: Vec4::ZERO,
             gradient: Vec4::ZERO,
+            tint: Vec4::ONE,
             extra: Vec4::ZERO,
             pattern_atlas: None,
         }

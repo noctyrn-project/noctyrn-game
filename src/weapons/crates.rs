@@ -329,7 +329,13 @@ pub fn grant_reward(reward: &CrateReward, inventory: &mut Inventory) -> Result<u
             instance,
         } => {
             let owned = inventory.skin_count(weapon_id, &instance.skin);
-            inventory.add_gun_skin(weapon_id, instance.skin.clone(), instance.wear, instance.seed);
+            inventory.add_gun_skin(
+                weapon_id,
+                instance.skin.clone(),
+                instance.wear,
+                instance.seed,
+                instance.tint,
+            );
             Ok(owned)
         }
         CrateReward::MeleeUnlock { weapon_id } => {
@@ -450,6 +456,7 @@ mod tests {
                 skin: SkinId::new("solid_red"),
                 wear: 0.25,
                 seed: 99,
+                tint: None,
             },
         };
         assert_eq!(grant_reward(&reward, &mut inv).unwrap(), 0);

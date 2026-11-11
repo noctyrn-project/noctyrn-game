@@ -1,0 +1,13 @@
+{
+  "id": "ammo_12ga_birdshot",
+  "name": "12 Gauge Birdshot",
+  "caliber": "12ga",
+  "damage": 22.0,
+  "velocity": 360.0,
+  "penetration": 0.15,
+  "range": 35.0,
+  "drop_factor": 1.6,
+  "pellet_count": 16,
+  "spread_cone": 6.5,
+  "special_effects": []
+}

@@ -402,6 +402,12 @@ impl Finish {
             // the seed picks it).
             ext.pattern = Vec4::new(offset_x, offset_y, 1.0, 1.0);
             ext.extra.y = fixed;
+            // Per-copy tint colourway: the grayscale sheet is multiplied by
+            // the rolled tint instead of the authored base colour.
+            if let Some([r, g, b]) = instance.tint {
+                ext.tint = Vec4::new(r, g, b, 1.0);
+                ext.extra.z = 1.0;
+            }
         }
 
         if let Some(gradient) = &self.gradient {
@@ -478,8 +484,10 @@ impl SkinDef {
     }
 }
 
-/// One owned/equipped copy of a skin: which skin plus the per-copy wear and
-/// pattern seed that make duplicates distinct.
+/// One owned/equipped copy of a skin: which skin plus the per-copy wear,
+/// pattern seed, and pattern tint that make duplicates distinct. `tint` is
+/// the Phantom-Forces-style random colour rolled on drop: the grayscale
+/// motif sheet is multiplied by it, so one pattern ships in many colourways.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SkinInstance {
     pub skin: SkinId,
@@ -487,6 +495,10 @@ pub struct SkinInstance {
     pub wear: f32,
     #[serde(default)]
     pub seed: u32,
+    /// Random pattern tint (RGB 0..1, double-nibble). None = legacy copy or
+    /// a finish without a pattern — falls back to `base_color` tinting.
+    #[serde(default)]
+    pub tint: Option<[f32; 3]>,
 }
 
 impl SkinInstance {
@@ -495,6 +507,7 @@ impl SkinInstance {
             skin,
             wear: 0.0,
             seed: 0,
+            tint: None,
         }
     }
 
@@ -508,10 +521,26 @@ impl SkinInstance {
         self
     }
 
+    pub fn with_tint(mut self, tint: [f32; 3]) -> Self {
+        self.tint = Some(tint);
+        self
+    }
+
+    /// Roll a random double-nibble tint channel set (16 levels per channel,
+    /// 4096 colours). Extremes like pure white stay rollable on purpose.
+    pub fn roll_tint() -> [f32; 3] {
+        use rand::Rng;
+        let mut rng = rand::rng();
+        let mut ch = || (rng.random_range(0..16u8) as f32 * 17.0) / 255.0;
+        [ch(), ch(), ch()]
+    }
+
     /// Roll a fresh drop. Wear is biased toward factory-new, but only
     /// gently: `roll^1.5` lands near a 0.40 mean instead of the old 0.33,
     /// so Battle-Scarred copies actually show up. Seeds are fully random so
-    /// patterned duplicates differ.
+    /// patterned duplicates differ, and every copy rolls a tint so patterned
+    /// finishes land in a random colourway (ignored when the finish has no
+    /// pattern).
     pub fn roll(skin: SkinId) -> Self {
         use rand::Rng;
         let mut rng = rand::rng();
@@ -520,6 +549,7 @@ impl SkinInstance {
             skin,
             wear: roll.powf(1.5).clamp(0.0, 1.0),
             seed: rng.random::<u32>(),
+            tint: Some(Self::roll_tint()),
         }
     }
 
@@ -645,6 +675,20 @@ impl SkinRegistry {
         self.def_or_default(id).swatch_color()
     }
 
+    /// Swatch for one owned copy: patterned copies show their rolled tint
+    /// colourway, everything else shows the def's representative colour.
+    pub fn swatch_for_instance(&self, instance: &SkinInstance) -> Color {
+        if self
+            .get(&instance.skin)
+            .is_some_and(|d| d.finish.pattern.is_some())
+        {
+            if let Some([r, g, b]) = instance.tint {
+                return Color::srgb(r, g, b);
+            }
+        }
+        self.swatch_color(&instance.skin)
+    }
+
     /// Skins usable on `weapon_id`, sorted by rarity then name.
     pub fn for_weapon(&self, weapon_id: &str) -> Vec<SkinId> {
         let mut ids: Vec<SkinId> = self.universal.clone();
@@ -724,6 +768,10 @@ pub enum ItemKind {
         wear: f32,
         #[serde(default)]
         seed: u32,
+        /// Phantom-style colourway. None = legacy copy, falls back to the
+        /// finish's base colour tinting.
+        #[serde(default)]
+        tint: Option<[f32; 3]>,
     },
     MeleeUnlock {
         weapon_id: String,
@@ -805,7 +853,7 @@ impl Inventory {
                 };
                 let count = count.as_u64().unwrap_or(0).min(10_000) as u32;
                 for _ in 0..count {
-                    inv.add_gun_skin(weapon_id, skin.clone(), 0.0, 0);
+                    inv.add_gun_skin_plain(weapon_id, skin.clone(), 0.0, 0);
                 }
             }
         }
@@ -817,13 +865,26 @@ impl Inventory {
         inv
     }
 
-    pub fn add_gun_skin(&mut self, weapon_id: &str, skin: SkinId, wear: f32, seed: u32) {
+    pub fn add_gun_skin(
+        &mut self,
+        weapon_id: &str,
+        skin: SkinId,
+        wear: f32,
+        seed: u32,
+        tint: Option<[f32; 3]>,
+    ) {
         self.items.push(ItemKind::GunSkin {
             weapon_id: weapon_id.to_string(),
             skin,
             wear: wear.clamp(0.0, 1.0),
             seed,
+            tint,
         });
+    }
+
+    /// Convenience for tests and migrations: no tint (legacy behaviour).
+    pub fn add_gun_skin_plain(&mut self, weapon_id: &str, skin: SkinId, wear: f32, seed: u32) {
+        self.add_gun_skin(weapon_id, skin, wear, seed, None);
     }
 
     /// Returns false when the melee mesh was already unlocked.
@@ -890,7 +951,7 @@ impl Inventory {
         out
     }
 
-    /// Owned copies of one skin on one weapon (wear/seed included).
+    /// Owned copies of one skin on one weapon (wear/seed/tint included).
     pub fn copies_of(&self, weapon_id: &str, skin: &SkinId) -> Vec<SkinInstance> {
         self.items
             .iter()
@@ -900,10 +961,12 @@ impl Inventory {
                     skin: s,
                     wear,
                     seed,
+                    tint,
                 } if w == weapon_id && s == skin => Some(SkinInstance {
                     skin: s.clone(),
                     wear: *wear,
                     seed: *seed,
+                    tint: *tint,
                 }),
                 _ => None,
             })
@@ -1131,9 +1194,9 @@ mod tests {
     fn inventory_counts_duplicates_and_sells() {
         let mut inv = Inventory::default();
         let red = SkinId::new("solid_red");
-        inv.add_gun_skin("g17", red.clone(), 0.1, 0);
-        inv.add_gun_skin("g17", red.clone(), 0.9, 7);
-        inv.add_gun_skin("g17", SkinId::new("solid_blue"), 0.0, 0);
+        inv.add_gun_skin_plain("g17", red.clone(), 0.1, 0);
+        inv.add_gun_skin_plain("g17", red.clone(), 0.9, 7);
+        inv.add_gun_skin_plain("g17", SkinId::new("solid_blue"), 0.0, 0);
 
         assert_eq!(inv.skin_count("g17", &red), 2);
         assert_eq!(inv.duplicate_count("g17", &red), 1);
@@ -1157,9 +1220,9 @@ mod tests {
         let mut inv = Inventory::default();
         let red = SkinId::new("solid_red");
         for _ in 0..4 {
-            inv.add_gun_skin("g17", red.clone(), 0.0, 0);
+            inv.add_gun_skin_plain("g17", red.clone(), 0.0, 0);
         }
-        inv.add_gun_skin("g17", SkinId::new("solid_blue"), 0.0, 0);
+        inv.add_gun_skin_plain("g17", SkinId::new("solid_blue"), 0.0, 0);
         let sold = inv.sell_all_duplicates();
         assert_eq!(inv.skin_count("g17", &red), 1);
         assert_eq!(inv.skin_count("g17", &SkinId::new("solid_blue")), 1);
@@ -1241,6 +1304,7 @@ mod tests {
             skin: SkinId::new("supernova"),
             wear: 0.42,
             seed: 777,
+            tint: None,
         };
 
         let mut galaxy = def("g", Rarity::Mythic, &[]);
@@ -1350,8 +1414,7 @@ mod tests {
     /// Every shipped skin must use double-nibble colours (base, emissive,
     /// gradient and galaxy palette).
     #[test]
-    fn shipped_skins_use_valid_colours() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/cosmetics/weapons/skins");
+    fn shipped_skins_use_valid_colours() {        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/cosmetics/weapons/skins");
         let registry = SkinRegistry::load_from(dir);
         for def in registry.skins.values() {
             assert!(
@@ -1436,5 +1499,32 @@ mod tests {
         let mean = samples.iter().sum::<f32>() / samples.len() as f32;
         assert!((0.35..0.5).contains(&mean), "mean wear {mean}");
         assert!(samples.iter().all(|w| (0.0..=1.0).contains(w)));
+    }
+
+    #[test]
+    fn tint_roll_is_double_nibble_and_wired_to_extension() {
+        // Every roll carries a tint so patterned drops land in a colourway.
+        let inst = SkinInstance::roll(SkinId::new("tiger_stripe"));
+        let [r, g, b] = inst.tint.expect("roll carries a tint");
+        for ch in [r, g, b] {
+            assert!(color_byte(ch) % 17 == 0, "tint channel {ch} breaks colour rule");
+        }
+
+        // Patterned finishes forward the tint; the shader flag rides along.
+        let mut patterned = def("p", Rarity::Rare, &[]);
+        patterned.finish.pattern = Some(Pattern {
+            sheet: "tex/pattern_camo.png".to_string(),
+            offset: None,
+        });
+        let ext = patterned.finish.to_extension(&inst);
+        assert_eq!(ext.extra.z, 1.0, "tint enabled");
+        assert!((ext.tint.x - r).abs() < 1e-6);
+        assert!((ext.tint.y - g).abs() < 1e-6);
+        assert!((ext.tint.z - b).abs() < 1e-6);
+
+        // Legacy copies (no tint) fall back to base-colour tinting.
+        let legacy = SkinInstance::factory(SkinId::new("tiger_stripe"));
+        let ext = patterned.finish.to_extension(&legacy);
+        assert_eq!(ext.extra.z, 0.0, "legacy copy has no tint");
     }
 }

@@ -740,28 +740,41 @@ pub fn update_loadout_ui(
                         Vec::new();
                     if slot_key == "ammo" {
                         for a in compatible_ammo(&config.meta.caliber, &ammo_registry) {
+                            let mut lines = vec![
+                                (
+                                    format!(
+                                        "DMG {:.0} | VEL {:.0} | PEN {:.0}%",
+                                        a.damage,
+                                        a.velocity,
+                                        a.penetration * 100.0
+                                    ),
+                                    None,
+                                ),
+                                (
+                                    format!(
+                                        "RNG {:.0}m | DROP x{:.1}",
+                                        a.range, a.drop_factor
+                                    ),
+                                    None,
+                                ),
+                            ];
+                            // Shotgun shells reshape the scatter itself.
+                            if a.pellet_count.is_some() || a.spread_cone.is_some() {
+                                let pellets = a
+                                    .pellet_count
+                                    .map(|p| p.to_string())
+                                    .unwrap_or_else(|| "-".to_string());
+                                let cone = a
+                                    .spread_cone
+                                    .map(|c| format!("{c:.1} deg"))
+                                    .unwrap_or_else(|| "-".to_string());
+                                lines.push((format!("PELLETS {pellets} | SPREAD {cone}"), None));
+                            }
                             options.push((
                                 a.id.clone(),
                                 a.name.clone(),
                                 String::new(),
-                                vec![
-                                    (
-                                        format!(
-                                            "DMG {:.0} | VEL {:.0} | PEN {:.0}%",
-                                            a.damage,
-                                            a.velocity,
-                                            a.penetration * 100.0
-                                        ),
-                                        None,
-                                    ),
-                                    (
-                                        format!(
-                                            "RNG {:.0}m | DROP x{:.1}",
-                                            a.range, a.drop_factor
-                                        ),
-                                        None,
-                                    ),
-                                ],
+                                lines,
                             ));
                         }
                     } else {

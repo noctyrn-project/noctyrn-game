@@ -566,6 +566,8 @@ pub struct AttachmentRegistry {
 
 /// A swappable ammunition type from `assets/weapons/attachments/ammo/`.
 /// Stat-only: no mesh, no socket. Listed per gun by caliber match.
+/// Shotgun shells may override the gun's pellet scatter: `pellet_count`
+/// (`None` = keep the gun default) and `spread_cone` in degrees.
 #[derive(Debug, Deserialize, Clone)]
 pub struct AmmoDef {
     pub id: String,
@@ -577,6 +579,12 @@ pub struct AmmoDef {
     pub range: f32,
     #[serde(default = "default_drop_factor")]
     pub drop_factor: f32,
+    /// Pellets per shot override (shotguns). None = gun default.
+    #[serde(default)]
+    pub pellet_count: Option<u32>,
+    /// Spread cone override in degrees. None = gun default.
+    #[serde(default)]
+    pub spread_cone: Option<f32>,
     #[serde(default)]
     pub special_effects: Vec<String>,
 }
@@ -1457,6 +1465,10 @@ fn load_ammo_registry(mut registry: ResMut<AmmoRegistry>) {
         ("ammo_9x39", include_str!("../../assets/weapons/attachments/ammo/ammo_9x39.json")),
         ("ammo_57x28", include_str!("../../assets/weapons/attachments/ammo/ammo_57x28.json")),
         ("ammo_12ga", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga.json")),
+        ("ammo_12ga_birdshot", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_birdshot.json")),
+        ("ammo_12ga_slug", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_slug.json")),
+        ("ammo_12ga_flechette", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_flechette.json")),
+        ("ammo_12ga_magnum", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_magnum.json")),
         ("ammo_45acp", include_str!("../../assets/weapons/attachments/ammo/ammo_45acp.json")),
         ("ammo_357mag", include_str!("../../assets/weapons/attachments/ammo/ammo_357mag.json")),
         ("ammo_455w", include_str!("../../assets/weapons/attachments/ammo/ammo_455w.json")),
@@ -1468,6 +1480,8 @@ fn load_ammo_registry(mut registry: ResMut<AmmoRegistry>) {
         ("ammo_3006", include_str!("../../assets/weapons/attachments/ammo/ammo_3006.json")),
         ("ammo_32acp", include_str!("../../assets/weapons/attachments/ammo/ammo_32acp.json")),
         ("ammo_410", include_str!("../../assets/weapons/attachments/ammo/ammo_410.json")),
+        ("ammo_410_birdshot", include_str!("../../assets/weapons/attachments/ammo/ammo_410_birdshot.json")),
+        ("ammo_410_slug", include_str!("../../assets/weapons/attachments/ammo/ammo_410_slug.json")),
         ("ammo_280brit", include_str!("../../assets/weapons/attachments/ammo/ammo_280brit.json")),
     ];
 
@@ -1688,6 +1702,15 @@ pub fn sync_loadout_to_configs(
                             ammo.penetration = def.penetration;
                             ammo.range = def.range;
                             ammo.drop_factor = def.drop_factor;
+                        }
+                        // Shotgun shells reshape the spread itself: a slug
+                        // collapses to one tight projectile, birdshot fans
+                        // wide. None = keep the gun's default.
+                        if let Some(pellets) = def.pellet_count {
+                            config.attributes.pellet_count = pellets;
+                        }
+                        if let Some(cone) = def.spread_cone {
+                            config.attributes.spread_cone = cone;
                         }
                     }
                 }
@@ -2686,6 +2709,10 @@ mod dummy_weapon_tests {
             ("ammo_9x39", include_str!("../../assets/weapons/attachments/ammo/ammo_9x39.json")),
             ("ammo_57x28", include_str!("../../assets/weapons/attachments/ammo/ammo_57x28.json")),
             ("ammo_12ga", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga.json")),
+            ("ammo_12ga_birdshot", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_birdshot.json")),
+            ("ammo_12ga_slug", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_slug.json")),
+            ("ammo_12ga_flechette", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_flechette.json")),
+            ("ammo_12ga_magnum", include_str!("../../assets/weapons/attachments/ammo/ammo_12ga_magnum.json")),
             ("ammo_45acp", include_str!("../../assets/weapons/attachments/ammo/ammo_45acp.json")),
             ("ammo_357mag", include_str!("../../assets/weapons/attachments/ammo/ammo_357mag.json")),
             ("ammo_455w", include_str!("../../assets/weapons/attachments/ammo/ammo_455w.json")),
@@ -2695,6 +2722,9 @@ mod dummy_weapon_tests {
             ("ammo_545x39", include_str!("../../assets/weapons/attachments/ammo/ammo_545x39.json")),
             ("ammo_46x30", include_str!("../../assets/weapons/attachments/ammo/ammo_46x30.json")),
             ("ammo_3006", include_str!("../../assets/weapons/attachments/ammo/ammo_3006.json")),
+            ("ammo_410", include_str!("../../assets/weapons/attachments/ammo/ammo_410.json")),
+            ("ammo_410_birdshot", include_str!("../../assets/weapons/attachments/ammo/ammo_410_birdshot.json")),
+            ("ammo_410_slug", include_str!("../../assets/weapons/attachments/ammo/ammo_410_slug.json")),
         ];
         let mut registry = AmmoRegistry::default();
         for (id, json) in files {
@@ -2710,7 +2740,7 @@ mod dummy_weapon_tests {
     #[test]
     fn ammo_catalog_gates_by_caliber() {
         let registry = test_ammo_registry();
-        assert_eq!(registry.by_id.len(), 19, "all ammo seeds must load");
+        assert_eq!(registry.by_id.len(), 26, "all ammo seeds must load");
 
         let hk_opts = compatible_ammo("5.56x45mm", &registry);
         let ids: Vec<&str> = hk_opts.iter().map(|a| a.id.as_str()).collect();
@@ -2722,6 +2752,25 @@ mod dummy_weapon_tests {
         let ak_opts = compatible_ammo("7.62x39mm", &registry);
         assert_eq!(ak_opts.len(), 1, "7.62x39 has one entry");
         assert_eq!(ak_opts[0].id, "ammo_762x39");
+
+        // Shotgun shells: every 12ga gun gets the full 5-type lineup.
+        let twelve = compatible_ammo("12ga", &registry);
+        let twelve_ids: Vec<&str> = twelve.iter().map(|a| a.id.as_str()).collect();
+        for want in [
+            "ammo_12ga",
+            "ammo_12ga_birdshot",
+            "ammo_12ga_slug",
+            "ammo_12ga_flechette",
+            "ammo_12ga_magnum",
+        ] {
+            assert!(twelve_ids.contains(&want), "12ga missing {want}: {twelve_ids:?}");
+        }
+        // Slug collapses to a single tight projectile; birdshot fans wide.
+        let slug = twelve.iter().find(|a| a.id == "ammo_12ga_slug").unwrap();
+        assert_eq!(slug.pellet_count, Some(1));
+        let bird = twelve.iter().find(|a| a.id == "ammo_12ga_birdshot").unwrap();
+        assert!(bird.pellet_count.unwrap_or(0) > 8);
+        assert!(bird.spread_cone.unwrap_or(0.0) > slug.spread_cone.unwrap_or(0.0));
     }
 
     #[test]
@@ -2770,6 +2819,54 @@ mod dummy_weapon_tests {
             "mismatched caliber must not apply, got {}",
             ammo.name
         );
+    }
+
+    #[test]
+    fn sync_folds_shotgun_spread_overrides() {
+        let ammo_registry = test_ammo_registry();
+        let mut shotgun = hk416_config();
+        shotgun.meta.caliber = "12ga".to_string();
+        shotgun.attributes.pellet_count = 8;
+        shotgun.attributes.spread_cone = 4.0;
+        let mut registry = WeaponRegistry::default();
+        registry.weapons.insert("shotgun".to_string(), shotgun);
+        let mut loadout = PlayerLoadout::default();
+        loadout.primary = "shotgun".to_string();
+        let mut player = PlayerAttachments::default();
+
+        // Slug collapses to a single tight projectile.
+        player.set(
+            "shotgun".to_string(),
+            "ammo".to_string(),
+            "ammo_12ga_slug".to_string(),
+        );
+        sync_loadout_to_configs(
+            &mut registry,
+            &loadout,
+            &player,
+            &ammo_registry,
+            &AttachmentRegistry::default(),
+        );
+        let cfg = &registry.configs[&WeaponSlot::Primary];
+        assert_eq!(cfg.attributes.pellet_count, 1);
+        assert!((cfg.attributes.spread_cone - 0.3).abs() < 1e-6);
+
+        // Birdshot fans wide with no stale slug state.
+        player.set(
+            "shotgun".to_string(),
+            "ammo".to_string(),
+            "ammo_12ga_birdshot".to_string(),
+        );
+        sync_loadout_to_configs(
+            &mut registry,
+            &loadout,
+            &player,
+            &ammo_registry,
+            &AttachmentRegistry::default(),
+        );
+        let cfg = &registry.configs[&WeaponSlot::Primary];
+        assert_eq!(cfg.attributes.pellet_count, 16);
+        assert!((cfg.attributes.spread_cone - 6.5).abs() < 1e-6);
     }
 
     #[test]

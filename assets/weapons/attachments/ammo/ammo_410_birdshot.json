@@ -1,0 +1,13 @@
+{
+  "id": "ammo_410_birdshot",
+  "name": ".410 Birdshot",
+  "caliber": ".410 Bore",
+  "damage": 18.0,
+  "velocity": 340.0,
+  "penetration": 0.12,
+  "range": 30.0,
+  "drop_factor": 1.5,
+  "pellet_count": 12,
+  "spread_cone": 6.0,
+  "special_effects": []
+}

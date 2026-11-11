@@ -591,8 +591,14 @@ fn build_cosmetics_grid(
             })
             .with_children(|card| {
                 // Patterned skins show a slice of their motif sheet, tinted
-                // by the base colour; everything else is a solid swatch.
+                // by the rolled colourway when the copy has one, else the
+                // base colour; everything else is a solid swatch.
                 let def = skin_registry.def_or_default(skin);
+                let tint_rgb = best.tint.unwrap_or([
+                    def.finish.base_color[0],
+                    def.finish.base_color[1],
+                    def.finish.base_color[2],
+                ]);
                 let pattern_sheet = def
                     .finish
                     .pattern
@@ -609,7 +615,7 @@ fn build_cosmetics_grid(
                         overflow: Overflow::clip(),
                         ..default()
                     },
-                    BackgroundColor(skin_registry.swatch_color(skin)),
+                    BackgroundColor(skin_registry.swatch_for_instance(best)),
                     CosmeticsSelectButton {
                         weapon_id: weapon_id.clone(),
                         skin: skin.clone(),
@@ -636,11 +642,7 @@ fn build_cosmetics_grid(
                                     PATTERN_SHEET_PX,
                                     band_h,
                                 )),
-                                color: Color::srgb(
-                                    def.finish.base_color[0],
-                                    def.finish.base_color[1],
-                                    def.finish.base_color[2],
-                                ),
+                                color: Color::srgb(tint_rgb[0], tint_rgb[1], tint_rgb[2]),
                                 ..ImageNode::new(sheet)
                             },
                         ));
@@ -973,9 +975,9 @@ fn spawn_preview_info(
         .copies_of(weapon_id, skin)
         .into_iter()
         .min_by(|a, b| a.wear.total_cmp(&b.wear));
-    let (wear_name, wear, seed) = best
-        .map(|b| (b.wear_name(), b.wear, b.seed))
-        .unwrap_or(("Factory New", 0.0, 0));
+    let (wear_name, wear, seed, tint) = best
+        .map(|b| (b.wear_name(), b.wear, b.seed, b.tint))
+        .unwrap_or(("Factory New", 0.0, 0, None));
 
     parent.spawn((
         Text::new(def.name.clone()),
@@ -1003,8 +1005,16 @@ fn spawn_preview_info(
         TextColor(TEXT_FAINT),
     ));
     if def.finish.has_pattern() {
+        let line = match tint {
+            Some([r, g, b]) => format!(
+                "pattern #{} {}",
+                seed % 1000,
+                color_hex_compact([r, g, b, 1.0])
+            ),
+            None => format!("pattern #{}", seed % 1000),
+        };
         parent.spawn((
-            Text::new(format!("pattern #{}", seed % 1000)),
+            Text::new(line),
             TextFont { font_size: FontSize::Px(11.0), ..default() },
             TextColor(ACCENT),
         ));

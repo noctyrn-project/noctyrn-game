@@ -1,0 +1,13 @@
+{
+  "id": "ammo_12ga_flechette",
+  "name": "12 Gauge Flechette",
+  "caliber": "12ga",
+  "damage": 35.0,
+  "velocity": 550.0,
+  "penetration": 0.7,
+  "range": 70.0,
+  "drop_factor": 1.1,
+  "pellet_count": 12,
+  "spread_cone": 3.0,
+  "special_effects": []
+}
